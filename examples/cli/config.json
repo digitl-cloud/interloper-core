@@ -1,0 +1,24 @@
+{
+  "backfiller": {
+    "path": "interloper.SerialBackfiller"
+  },
+  "runner": {
+    "path": "interloper.MultiThreadRunner"
+  },
+  "io": {
+    "file": {
+      "path": "interloper.FileIO",
+      "init": {
+        "base_path": "data"
+      }
+    }
+  },
+  "dag": {
+    "assets": [
+      {
+        "type": "source",
+        "path": "interloper_assets.example_source"
+      }
+    ]
+  }
+}

@@ -1,0 +1,2 @@
+"""Tests for event server."""
+
