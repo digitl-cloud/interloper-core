@@ -207,7 +207,7 @@ class TestAsset:
         """Test key property with source context."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value"
@@ -228,7 +228,7 @@ class TestAsset:
         """Test that dataset takes priority over source for key generation."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset(dataset="my_dataset")
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value"
@@ -257,7 +257,7 @@ class TestAsset:
         """Test that assets from different sources with same name get different keys."""
 
         @il.source
-        def source1() -> tuple[il.Asset, ...]:
+        def source1() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value1"
@@ -265,7 +265,7 @@ class TestAsset:
             return (my_asset,)
 
         @il.source
-        def source2() -> tuple[il.Asset, ...]:
+        def source2() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value2"
@@ -288,7 +288,7 @@ class TestAsset:
         """Test key property with custom source name."""
 
         @il.source(name="custom_source_name")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value"
@@ -526,7 +526,7 @@ class TestAsset:
         io = il.FileIO(tmp_path)
 
         @il.source
-        def src() -> tuple[il.Asset, ...]:
+        def src() -> tuple[il.AssetDefinition, ...]:
             @il.asset(io=io)
             def a(context: il.ExecutionContext) -> str:
                 return "v"

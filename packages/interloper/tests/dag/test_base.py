@@ -137,7 +137,7 @@ class TestDAG:
         """Test DAG initialization with a source."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "a"
@@ -160,7 +160,7 @@ class TestDAG:
             return "a"
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def source_asset(context: il.ExecutionContext) -> str:
                 return "b"
@@ -383,7 +383,7 @@ class TestDAG:
         """Test DAG initialization with SourceDefinition."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "a"
@@ -412,7 +412,7 @@ class TestDAG:
             return "from_instance"
 
         @il.source
-        def source_from_def() -> tuple[il.Asset, ...]:
+        def source_from_def() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def source_asset(context: il.ExecutionContext) -> str:
                 return "from_source_def"
@@ -454,7 +454,7 @@ class TestDAG:
             value: str = "default"
 
         @il.source(config=TestConfig)
-        def config_source(config: TestConfig) -> tuple[il.Asset, ...]:
+        def config_source(config: TestConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def source_asset(context: il.ExecutionContext) -> str:
                 return config.value
@@ -494,7 +494,7 @@ class TestDAG:
         """Test that DAG can handle assets with identical names from different sources."""
 
         @il.source
-        def source1() -> tuple[il.Asset, ...]:
+        def source1() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value1"
@@ -502,7 +502,7 @@ class TestDAG:
             return (my_asset,)
 
         @il.source
-        def source2() -> tuple[il.Asset, ...]:
+        def source2() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value2"
@@ -526,7 +526,7 @@ class TestDAG:
         """Test that DAG can handle assets with identical names from sources with custom names."""
 
         @il.source(name="custom_source1")
-        def source1() -> tuple[il.Asset, ...]:
+        def source1() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value1"
@@ -534,7 +534,7 @@ class TestDAG:
             return (my_asset,)
 
         @il.source(name="custom_source2")
-        def source2() -> tuple[il.Asset, ...]:
+        def source2() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value2"

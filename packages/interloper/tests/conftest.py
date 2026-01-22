@@ -194,7 +194,7 @@ def double_source_dag(tmp_path):
     part = il.TimePartitionConfig(column="date")
 
     @il.source
-    def source1() -> tuple[il.Asset, ...]:
+    def source1() -> tuple[il.AssetDefinition, ...]:
         @il.asset(io=io, partitioning=part)
         def a(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 1}]
@@ -206,7 +206,7 @@ def double_source_dag(tmp_path):
         return (a, b)
 
     @il.source
-    def source2() -> tuple[il.Asset, ...]:
+    def source2() -> tuple[il.AssetDefinition, ...]:
         @il.asset(io=io, partitioning=part)
         def a(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 1}]

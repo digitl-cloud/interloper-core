@@ -19,7 +19,7 @@ class TestSourceDefinition:
         """Test SourceDefinition initialization."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -36,7 +36,7 @@ class TestSourceDefinition:
         """Test SourceDefinition with config."""
 
         @il.source(config=SampleConfig)
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -49,7 +49,7 @@ class TestSourceDefinition:
         """Test SourceDefinition with dataset."""
 
         @il.source(dataset="data")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -63,7 +63,7 @@ class TestSourceDefinition:
         io = il.FileIO(tmp_path)
 
         @il.source(io=io)
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -79,7 +79,7 @@ class TestSourceDefinition:
         ios = {"local": il.FileIO(str(local_dir))}
 
         @il.source(config=SampleConfig, dataset="data", io=ios, default_io_key="local")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -95,7 +95,7 @@ class TestSourceDefinition:
         """Test calling SourceDefinition with config override."""
 
         @il.source(config=SampleConfig)
-        def my_source(config: SampleConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: SampleConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -110,7 +110,7 @@ class TestSourceDefinition:
         """Test calling SourceDefinition with config override."""
 
         @il.source()
-        def my_source(config: SampleConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: SampleConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset(config=SampleConfig)
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -125,7 +125,7 @@ class TestSourceDefinition:
         """Test calling SourceDefinition with config override."""
 
         @il.source(io=il.FileIO("data"))
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -140,7 +140,7 @@ class TestSourceDefinition:
         """Test calling SourceDefinition with asset IO override."""
 
         @il.source()
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset(io=il.FileIO("data"))
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -155,7 +155,7 @@ class TestSourceDefinition:
         """Test calling SourceDefinition with config type error."""
 
         @il.source(config=SampleConfig)
-        def my_source(config: SampleConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: SampleConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -177,7 +177,7 @@ class TestSourceDefinition:
         """
 
         @il.source()
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset(config=SampleConfig)
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -198,7 +198,7 @@ class TestSource:
         """Test Source initialization using decorator."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -213,7 +213,7 @@ class TestSource:
         """Test Source with config using decorator."""
 
         @il.source(config=SampleConfig)
-        def my_source(config: SampleConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: SampleConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -229,7 +229,7 @@ class TestSource:
         """Test accessing assets by name as attributes."""
 
         @il.source
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset_a(context: il.ExecutionContext) -> str:
                 return "a"
@@ -249,7 +249,7 @@ class TestSource:
         """Test that assets inherit config from source."""
 
         @il.source(config=SampleConfig)
-        def my_source(config: SampleConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: SampleConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -267,7 +267,7 @@ class TestSource:
         io = il.FileIO(tmp_path)
 
         @il.source(io=io)
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -283,7 +283,7 @@ class TestSource:
         """Test that assets inherit dataset from source."""
 
         @il.source(dataset="my_dataset")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -299,7 +299,7 @@ class TestSource:
         """Test that assets default to source name as dataset when source dataset is not set."""
 
         @il.source  # No dataset specified
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -327,7 +327,7 @@ class TestSource:
         """Test that asset-level parameters override source-level."""
 
         @il.source(io=il.FileIO("source/"), dataset="source_dataset")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def inherits(context: il.ExecutionContext) -> str:
                 return "a"
@@ -353,7 +353,7 @@ class TestSource:
         }
 
         @il.source(io=ios, default_io_key="path1")
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -375,7 +375,7 @@ class TestSource:
         io2 = il.FileIO(tmp_path / "other")
 
         @il.source(config=Cfg, io=io1)
-        def src(config: Cfg) -> tuple[il.Asset, ...]:
+        def src(config: Cfg) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def a(context: il.ExecutionContext) -> str:
                 return "v"
@@ -401,7 +401,7 @@ class TestSource:
         import interloper as il
 
         @il.source
-        def src() -> tuple[il.Asset, ...]:
+        def src() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def a(context: il.ExecutionContext) -> str:
                 return "v"
@@ -438,7 +438,7 @@ class TestSourceConfigInference:
         monkeypatch.setenv("SOURCE_TEST_B", "B")
 
         @il.source(config=EnvConfig)
-        def my_source(config: EnvConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: EnvConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext, config: EnvConfig) -> str:
                 assert config.a == "A"
@@ -465,7 +465,7 @@ class TestSourceConfigInference:
         monkeypatch.setenv("SOURCE_TEST_A", "A")
 
         @il.source(config=EnvConfig)
-        def my_source(config: EnvConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: EnvConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext, config: EnvConfig) -> str:
                 # Should use override, not env
@@ -488,7 +488,7 @@ class TestSourceConfigInference:
             # No default value, must be provided
 
         @il.source(config=RequiredConfig)
-        def my_source(config: RequiredConfig) -> tuple[il.Asset, ...]:
+        def my_source(config: RequiredConfig) -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 return "value"
@@ -503,7 +503,7 @@ class TestSourceConfigInference:
         """Test that config is not required when not configured in source."""
 
         @il.source  # No config specified
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             @il.asset
             def asset1(context: il.ExecutionContext) -> str:
                 # No config parameter when not configured
@@ -524,7 +524,7 @@ class TestSourceConfigInference:
             api_key: str = "default_key"
 
         @il.source(config=OptionalConfig)
-        def my_source() -> tuple[il.Asset, ...]:
+        def my_source() -> tuple[il.AssetDefinition, ...]:
             # Config is configured but not in function signature
             # This is okay - the function doesn't have to use the config
             @il.asset
