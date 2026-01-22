@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
+from typing import Any
 
 from interloper.assets.base import Asset
 from interloper.events.base import Event
@@ -14,7 +15,7 @@ from interloper.serialization.dag import DAGSpec
 from interloper.serialization.runner import RunnerSpec
 
 
-class MultiProcessRunner(Runner):
+class MultiProcessRunner(Runner[Future[Any]]):
     """Process-based parallel runner.
 
     Executes independent assets in parallel using processes.

@@ -25,7 +25,7 @@ from kubernetes import client, config
 from kubernetes.client import V1Job
 
 
-class KubernetesRunner(Runner):
+class KubernetesRunner(Runner[str]):
     """Execute assets as individual Kubernetes Jobs.
 
     For each asset, constructs a mini-DAG comprising the asset and all its
@@ -257,14 +257,14 @@ class KubernetesRunner(Runner):
 
         return job_name
 
-    def _wait_any(self, job_names: list[str]) -> Any:
+    def _wait_any(self, handles: list[str]) -> str:
         """Wait for any job to finish by polling.
 
         IMPORTANT: the `_execute_asset` method of the base class is not called by `_submit_asset`.
         Therefore, the state has to be updated manually here and in `_submit_asset` above.
 
         Args:
-            job_names: List of job names to wait for
+            handles: List of job names to wait for
 
         Returns:
             The job name that finished
@@ -273,7 +273,7 @@ class KubernetesRunner(Runner):
         assert self._core_v1 is not None
 
         while True:
-            for job_name in job_names:
+            for job_name in handles:
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
@@ -326,11 +326,11 @@ class KubernetesRunner(Runner):
 
             time.sleep(self._poll_interval)
 
-    def _cancel_all(self, job_names: list[str]) -> None:
+    def _cancel_all(self, handles: list[str]) -> None:
         """Cancel all running jobs."""
         assert self._batch_v1 is not None
 
-        for job_name in job_names:
+        for job_name in handles:
             job: V1Job | None = None
             try:
                 # Get job to retrieve asset key from annotations

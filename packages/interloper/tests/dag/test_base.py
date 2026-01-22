@@ -337,7 +337,7 @@ class TestDAG:
         # This should fail because downstream asset can't load data from upstream (no IO)
         result = dag.materialize()
         assert result.status == "failed"
-        assert "downstream" in result.assets_failed
+        assert "downstream" in result.failed_assets
 
     @pytest.mark.skip(reason="Type hint validation not yet implemented")
     def test_type_hint_matching(self, tmp_path):
@@ -485,10 +485,10 @@ class TestDAG:
     def test_invalid_type_error(self):
         """Test that invalid types raise TypeError."""
         with pytest.raises(TypeError, match="Expected Asset or Source"):
-            il.DAG("invalid_string")
+            il.DAG("invalid_string")  # type: ignore[arg-type]
 
         with pytest.raises(TypeError, match="Expected Asset or Source"):
-            il.DAG(123)
+            il.DAG(123)  # type: ignore[arg-type]
 
     def test_identical_asset_names_from_different_sources(self):
         """Test that DAG can handle assets with identical names from different sources."""

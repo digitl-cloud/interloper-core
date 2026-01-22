@@ -25,7 +25,7 @@ from kubernetes import client, config, watch
 from kubernetes.client import V1Job
 
 
-class KubernetesBackfiller(Backfiller):
+class KubernetesBackfiller(Backfiller[str]):
     """Run Interloper DAG partitions as individual Kubernetes Jobs.
 
     Each partition/window is executed in its own Job. The image must contain
@@ -366,11 +366,11 @@ class KubernetesBackfiller(Backfiller):
 
         return job_name
 
-    def _wait_any(self, job_names: list[str]) -> str:
+    def _wait_any(self, handles: list[str]) -> str:
         """Wait for any job to finish by polling.
 
         Args:
-            job_names: List of job names to wait for
+            handles: List of job names to wait for
 
         Returns:
             The job name that finished
@@ -379,7 +379,7 @@ class KubernetesBackfiller(Backfiller):
         assert self._core_v1 is not None
 
         while True:
-            for job_name in job_names:
+            for job_name in handles:
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
@@ -442,15 +442,15 @@ class KubernetesBackfiller(Backfiller):
 
             sleep(1.0)
 
-    def _cancel_all(self, job_names: list[str]) -> None:
+    def _cancel_all(self, handles: list[str]) -> None:
         """Cancel all running jobs.
 
         Args:
-            job_names: List of job names to cancel
+            handles: List of job names to cancel
         """
         assert self._batch_v1 is not None
 
-        for job_name in job_names:
+        for job_name in handles:
             # Stop log streaming for this job
             self._stop_job_log_streaming(job_name)
 

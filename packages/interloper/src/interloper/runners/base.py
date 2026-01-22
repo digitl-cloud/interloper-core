@@ -5,7 +5,7 @@ from __future__ import annotations
 import traceback
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from typing_extensions import Self
 
@@ -18,8 +18,10 @@ from interloper.runners.state import RunState
 from interloper.serialization.base import Serializable
 from interloper.serialization.runner import RunnerSpec
 
+HandleT = TypeVar("HandleT")
 
-class Runner(Serializable[RunnerSpec]):
+
+class Runner(Serializable[RunnerSpec], Generic[HandleT]):
     """Abstract base class for all runners.
 
     Runners differ only in their orchestration strategy (sequential vs parallel).
@@ -116,7 +118,7 @@ class Runner(Serializable[RunnerSpec]):
         self,
         asset: Asset,
         partition_or_window: Partition | PartitionWindow | None,
-    ) -> Any:
+    ) -> HandleT:
         """Submit execution of an asset and return a handle for completion tracking.
 
         Args:
@@ -172,12 +174,12 @@ class Runner(Serializable[RunnerSpec]):
                 raise e
 
     @abstractmethod
-    def _wait_any(self, handles: list[Any]) -> Any:
+    def _wait_any(self, handles: list[HandleT]) -> HandleT:
         """Block until any of the provided handles completes, and return it."""
         raise NotImplementedError
 
     @abstractmethod
-    def _cancel_all(self, handles: list[Any]) -> None:
+    def _cancel_all(self, handles: list[HandleT]) -> None:
         """Best-effort cancellation of outstanding handles when failing fast."""
         raise NotImplementedError
 
@@ -209,7 +211,7 @@ class Runner(Serializable[RunnerSpec]):
             self._on_start()
 
             # Dictionary to track the handles of the inflight assets
-            inflight: dict[Any, Asset] = {}
+            inflight: dict[HandleT, Asset] = {}
 
             while not self.state.is_run_complete():
                 # Fill capacity with any currently ready assets not yet submitted

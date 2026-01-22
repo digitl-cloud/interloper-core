@@ -1,16 +1,17 @@
 fail_fast: false
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.4
+    rev: v0.14.13
     hooks:
-      - id: ruff
+      - id: ruff-check
   - repo: local
     hooks:
-      - id: pyright
-        name: pyright
-        entry: uv run pyright
+      - id: ty
+        name: ty check
+        entry: uv run ty check .
         language: system
-        types: [python]
+        pass_filenames: false
+        always_run: true
   - repo: local
     hooks:
       - id: pytest

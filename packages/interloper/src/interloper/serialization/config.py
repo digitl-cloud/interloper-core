@@ -33,13 +33,9 @@ class ConfigSpec(Spec):
         backfiller = self.backfiller.reconstruct() if self.backfiller is not None else None
         runner = self.runner.reconstruct() if self.runner is not None else None
 
-        config_kwargs = {
-            "io": io,
-            "dag": dag,
-        }
-        if backfiller is not None:
-            config_kwargs["backfiller"] = backfiller
-        if runner is not None:
-            config_kwargs["runner"] = runner
-
-        return Config(**config_kwargs)
+        return Config(
+            dag=dag,
+            io=io,
+            backfiller=backfiller,
+            runner=runner,
+        )

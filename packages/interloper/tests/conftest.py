@@ -245,8 +245,8 @@ def file_based_dag(tmp_path):
     io = il.FileIO(tmp_path)
 
     # Use the module-level assets but override their IO to use tmp_path
-    asset_a = test_assets.asset_a()(io=io)
-    asset_b = test_assets.asset_b()(io=io)
-    asset_c = test_assets.asset_c()(io=io)
+    asset_a = test_assets.asset_a()(io=io)  # type: ignore[attr-defined]
+    asset_b = test_assets.asset_b()(io=io)  # type: ignore[attr-defined]
+    asset_c = test_assets.asset_c()(io=io)  # type: ignore[attr-defined]
 
     return il.DAG(asset_a, asset_b, asset_c)

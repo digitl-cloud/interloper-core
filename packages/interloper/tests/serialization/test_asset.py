@@ -117,11 +117,11 @@ class TestAssetSpec:
 
         # Invalid path (None should be invalid)
         with pytest.raises(ValidationError):
-            AssetSpec(path=None)
+            AssetSpec(path=None)  # type: ignore[arg-type]
 
         # Missing required field
         with pytest.raises(ValidationError):
-            AssetSpec()
+            AssetSpec()  # type: ignore[call-arg]
 
     def test_assetspec_json_serialization(self):
         """Test AssetSpec JSON serialization."""

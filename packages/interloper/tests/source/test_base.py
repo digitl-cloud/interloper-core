@@ -341,9 +341,13 @@ class TestSource:
         source_instance = my_source()
         # First asset should inherit, second should use its own
         assert source_instance.assets["inherits"].dataset == "source_dataset"
-        assert source_instance.assets["inherits"].io.base_path == "source/"
+        inherits_io = source_instance.assets["inherits"].io
+        assert isinstance(inherits_io, il.FileIO)
+        assert inherits_io.base_path == "source/"
         assert source_instance.assets["overrides"].dataset == "asset_dataset"
-        assert source_instance.assets["overrides"].io.base_path == "asset/"
+        overrides_io = source_instance.assets["overrides"].io
+        assert isinstance(overrides_io, il.FileIO)
+        assert overrides_io.base_path == "asset/"
 
     def test_default_io_key_inheritance(self, tmp_path):
         """Test that assets inherit default_io_key from source."""

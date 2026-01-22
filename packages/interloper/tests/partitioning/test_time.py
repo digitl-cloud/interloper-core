@@ -56,5 +56,6 @@ class TestTimePartitionConfig:
             start, end = context.partition_date_window
             return [{"start": start, "end": end}]
 
+        assert my_asset.partitioning is not None
         assert my_asset.partitioning.allow_window is True
 

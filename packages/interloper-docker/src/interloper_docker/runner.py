@@ -10,7 +10,6 @@ config, similar to the `DockerBackfiller`.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 import docker
 from docker.models.containers import Container
@@ -24,7 +23,7 @@ from interloper.runners.base import Runner
 from interloper.serialization.runner import RunnerSpec
 
 
-class DockerRunner(Runner):
+class DockerRunner(Runner[Container]):
     """Execute assets as individual Docker containers.
 
     For each asset, constructs a mini-DAG comprising the asset and all its
@@ -148,21 +147,21 @@ class DockerRunner(Runner):
 
         return container
 
-    def _wait_any(self, containers: list[Container]) -> Any:
+    def _wait_any(self, handles: list[Container]) -> Container:
         """Wait for any container to finish by polling.
 
         IMPORTANT: the `_execute_asset` method of the base class is not called by `_submit_asset`.
         Therefore, the state has to be updated manually here and in `_submit_asset` above.
 
         Args:
-            containers: List of container objects to wait for
+            handles: List of container objects to wait for
 
         Returns:
             The container object that finished
         """
 
         while True:
-            for container in containers:
+            for container in handles:
                 container.reload()
 
                 if container.status in ("exited", "dead"):
@@ -204,8 +203,8 @@ class DockerRunner(Runner):
 
                     return container
 
-    def _cancel_all(self, containers: list[Container]) -> None:
-        for container in containers:
+    def _cancel_all(self, handles: list[Container]) -> None:
+        for container in handles:
             try:
                 container.stop(timeout=2)
             except Exception:

@@ -60,8 +60,8 @@ class TestMultiProcessRunner:
         data_dir.mkdir(exist_ok=True)
 
         # Use module-level assets but override their IO to use tmp_path
-        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))
-        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))
+        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
+        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
 
         dag = il.DAG(asset_a_fails, asset_b_success)
 
@@ -80,8 +80,8 @@ class TestMultiProcessRunner:
         data_dir.mkdir(exist_ok=True)
 
         # Use module-level assets but override their IO to use tmp_path
-        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))
-        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))
+        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
+        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
 
         dag = il.DAG(asset_a_fails, asset_b_success)
 

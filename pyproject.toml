@@ -23,12 +23,12 @@ dev = [
     "mkdocs-material>=9.6.7",
     "pre-commit>=4.2.0",
     "pyarrow>=10.0.0",
-    "pyright>=1.1.393",
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",
     "python-dotenv>=1.1.1",
     "python-semantic-release>=10.0.0",
     "ruff>=0.9.4",
+    "ty>=0.0.13",
 ]
 
 # ###############
@@ -50,14 +50,6 @@ name = "dc-int-connectors-prd"
 url = "https://europe-python.pkg.dev/dc-int-connectors-prd/python-public/simple"
 publish-url = "https://europe-python.pkg.dev/dc-int-connectors-prd/python-public"
 explicit = true
-
-# ###############
-# PYRIGHT
-# ###############
-[tool.pyright]
-typeCheckingMode = "basic"
-reportMissingParameterType = true
-ignore = ["**/tests"]
 
 # ###############
 # RUFF

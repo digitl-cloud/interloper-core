@@ -19,7 +19,7 @@ from interloper.serialization.runner import RunnerSpec
 
 
 @DBOS.dbos_class()
-class DBOSRunner(Runner, DBOSConfiguredInstance):
+class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     """DBOS-based runner for durable workflow execution."""
 
     def __init__(
@@ -52,17 +52,8 @@ class DBOSRunner(Runner, DBOSConfiguredInstance):
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None = None,
         workflow_id: str | None = None,
-    ) -> RunResult:
+    ) -> RunResult:  # ty:ignore[invalid-method-override]
         """Materialize the DAG using a DBOS workflow.
-
-        Warning: This method returns a DBOS workflow handle, not a RunResult.
-        Use `handle.get_result()` to wait for the workflow to complete and get the result.
-
-        Example:
-        ```python
-        handle = runner.run()
-        result = handle.get_result()
-        ```
 
         Args:
             dag: The DAG to execute
@@ -70,7 +61,7 @@ class DBOSRunner(Runner, DBOSConfiguredInstance):
             workflow_id: Optional workflow ID
 
         Returns:
-            WorkflowHandle: The handle for the workflow
+            RunResult: The result of the workflow
         """
         try:
             if workflow_id is None:
@@ -134,7 +125,7 @@ class DBOSRunner(Runner, DBOSConfiguredInstance):
             except Exception:
                 pass
 
-    def _cancel_all(self, handles: list[WorkflowHandle]) -> None:
+    def _cancel_all(self, handles: list[str]) -> None:
         raise NotImplementedError("Not supported for DBOS runner")
 
     @DBOS.workflow(name="materialize")

@@ -45,7 +45,7 @@ class AssetDefinition:
     def __post_init__(self):
         """Set name to function name if not provided."""
         if not self.name:
-            object.__setattr__(self, "name", self.func.__name__)
+            object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
 
     @property
     def key(self) -> str:
@@ -246,7 +246,7 @@ class Asset(Serializable[AssetSpec]):
 
             if isinstance(self.io, dict):
                 for io in self.io.values():
-                    io.write(io_context, result)
+                    io.write(io_context, result)  # ty:ignore[unresolved-attribute]
             else:
                 self.io.write(io_context, result)
 
@@ -352,13 +352,13 @@ class Asset(Serializable[AssetSpec]):
         # Serialize IO if present
         io_spec = None
         if isinstance(self.io, dict):
-            io_spec = {k: v.to_spec() for k, v in self.io.items()}
+            io_spec = {k: v.to_spec() for k, v in self.io.items()}  # type: ignore[unresolved-attribute]
         elif self.io is not None:
             io_spec = self.io.to_spec()
 
         return AssetSpec(
             path=self.path,
-            io=io_spec,
+            io=io_spec,  # ty:ignore[invalid-argument-type]
             materializable=self.materializable,
             config=self.config.model_dump() if self.config is not None else None,
         )

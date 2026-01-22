@@ -37,11 +37,11 @@ class TestIOSpec:
 
         # Invalid path (None should be invalid)
         with pytest.raises(ValidationError):
-            IOSpec(path=None, init={})
+            IOSpec(path=None, init={})  # type: ignore[arg-type]
 
         # Missing required field
         with pytest.raises(ValidationError):
-            IOSpec(init={})
+            IOSpec(init={})  # type: ignore[call-arg]
 
     def test_iospec_json_serialization(self):
         """Test IOSpec JSON serialization."""

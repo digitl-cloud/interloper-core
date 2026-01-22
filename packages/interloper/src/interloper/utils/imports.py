@@ -77,11 +77,11 @@ def require_import(import_name: str, error_message: str) -> Callable[[F | C], F 
                 if importlib.util.find_spec(import_name) is None:
                     raise ImportError(error_message)
                 if original_new is object.__new__:
-                    return object.__new__(cls)  # type: ignore[misc]
-                return original_new(cls, *args, **kwargs)  # type: ignore[misc]
+                    return object.__new__(cls)
+                return original_new(cls, *args, **kwargs)
 
             # Replace __new__ while preserving the class identity
-            obj.__new__ = staticmethod(checked_new)  # type: ignore[assignment]
+            obj.__new__ = staticmethod(checked_new)
             return cast(C, obj)
         else:
             # For functions, wrap the function itself

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.state import BackfillState
@@ -22,9 +22,10 @@ from interloper.serialization.backfiller import BackfillerSpec
 from interloper.serialization.base import Serializable
 
 # TODO: fail fast? reraise?
+HandleT = TypeVar("HandleT")
 
 
-class Backfiller(Serializable[BackfillerSpec]):
+class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
     """Abstract base class for all backfillers.
 
     A backfiller is responsible for orchestrating the entire run (process/host/container),
@@ -111,7 +112,7 @@ class Backfiller(Serializable[BackfillerSpec]):
         self,
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None,
-    ) -> Any:
+    ) -> HandleT:
         """Submit execution of a run and return a handle for completion tracking.
 
         Args:
@@ -138,12 +139,12 @@ class Backfiller(Serializable[BackfillerSpec]):
             raise e
 
     @abstractmethod
-    def _wait_any(self, handles: list[Any]) -> Any:
+    def _wait_any(self, handles: list[HandleT]) -> HandleT:
         """Block until any of the provided handles completes, and return it."""
         raise NotImplementedError
 
     @abstractmethod
-    def _cancel_all(self, handles: list[Any]) -> None:
+    def _cancel_all(self, handles: list[HandleT]) -> None:
         """Best-effort cancellation of outstanding handles when failing fast."""
         raise NotImplementedError
 
@@ -158,7 +159,7 @@ class Backfiller(Serializable[BackfillerSpec]):
         if windowed and not isinstance(partition_or_window, PartitionWindow):
             raise ValueError("Windowed mode is only supported for windowed partitioning")
 
-        inflight: dict[Any, Partition | PartitionWindow | None] = {}
+        inflight: dict[HandleT, Partition | PartitionWindow | None] = {}
         queued: list[Partition | PartitionWindow | None] = []
 
         # List all partitions to execute

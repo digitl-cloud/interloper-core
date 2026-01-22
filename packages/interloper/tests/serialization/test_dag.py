@@ -45,11 +45,11 @@ class TestDAGSpec:
 
         # Invalid asset_specs
         with pytest.raises(ValidationError):
-            DAGSpec(assets="not_a_list")
+            DAGSpec(assets="not_a_list")  # type: ignore[arg-type]
 
         # Missing required field
         with pytest.raises(ValidationError):
-            DAGSpec()
+            DAGSpec()  # type: ignore[call-arg]
 
     def test_dagspec_json_serialization(self):
         """Test DAGSpec JSON serialization."""

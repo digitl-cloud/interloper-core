@@ -6,7 +6,7 @@ from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.serialization.backfiller import BackfillerSpec
 
 
-class SerialBackfiller(Backfiller):
+class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
     """Serial backfiller."""
 
     @property

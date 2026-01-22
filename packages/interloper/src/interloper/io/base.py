@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from interloper.io.context import IOContext
 from interloper.serialization.base import Serializable
 
 if TYPE_CHECKING:
     from interloper.serialization.io import IOSpec
-
-TIO = TypeVar("TIO", bound="IO")
 
 
 class IO(Serializable):
@@ -20,7 +18,7 @@ class IO(Serializable):
     _singleton: IO | None = None
 
     @classmethod
-    def singleton(cls: type[TIO]) -> TIO:
+    def singleton(cls: type[IO]) -> IO:
         """Get the singleton instance of this IO subclass.
 
         Returns:
@@ -28,7 +26,7 @@ class IO(Serializable):
         """
         if cls._singleton is None:
             cls._singleton = cls()
-        return cls._singleton  # type: ignore[return-value]
+        return cls._singleton
 
     @abstractmethod
     def write(self, context: IOContext, data: Any) -> None:

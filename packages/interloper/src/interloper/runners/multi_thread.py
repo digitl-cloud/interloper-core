@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from typing import Any
 
 from interloper.assets.base import Asset
 from interloper.events.base import Event
@@ -12,7 +13,7 @@ from interloper.runners.base import Runner
 from interloper.serialization.runner import RunnerSpec
 
 
-class MultiThreadRunner(Runner):
+class MultiThreadRunner(Runner[Future[Any]]):
     """Thread-based parallel runner.
 
     Executes independent assets in parallel using threads.

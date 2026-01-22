@@ -8,7 +8,7 @@ from interloper.runners.base import Runner
 from interloper.serialization.runner import RunnerSpec
 
 
-class SerialRunner(Runner):
+class SerialRunner(Runner[str]):
     """Sequential execution in the current process.
 
     Executes assets one at a time as they become ready.
@@ -36,4 +36,3 @@ class SerialRunner(Runner):
     def to_spec(self) -> RunnerSpec:
         """Convert to SerialRunnerSpec spec."""
         return RunnerSpec(path=self.path)
-

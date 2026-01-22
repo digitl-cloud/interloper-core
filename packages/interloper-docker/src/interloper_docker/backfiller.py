@@ -25,7 +25,7 @@ from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.serialization.backfiller import BackfillerSpec
 
 
-class DockerBackfiller(Backfiller):
+class DockerBackfiller(Backfiller[Container]):
     """Run an Interloper DAG inside a Docker container via the Interloper CLI.
 
     The image must contain the `interloper` package (CLI available on PATH).
@@ -236,17 +236,17 @@ class DockerBackfiller(Backfiller):
 
         return container
 
-    def _wait_any(self, containers: list[Container]) -> Container:
+    def _wait_any(self, handles: list[Container]) -> Container:
         """Wait for any container to complete by polling.
 
         Args:
-            containers: List of container objects to wait for
+            handles: List of container objects to wait for
 
         Returns:
             The container that completed
         """
         while True:
-            for container in containers:
+            for container in handles:
                 container.reload()
 
                 if container.status in ("exited", "dead"):
@@ -287,13 +287,13 @@ class DockerBackfiller(Backfiller):
 
             sleep(1.0)
 
-    def _cancel_all(self, containers: list[Container]) -> None:
+    def _cancel_all(self, handles: list[Container]) -> None:
         """Best-effort cancellation of outstanding containers.
 
         Args:
-            containers: List of container objects to cancel
+            handles: List of container objects to cancel
         """
-        for container in containers:
+        for container in handles:
             partition = getattr(container, "_interloper_partition", None)
 
             # Stop log streaming for this container
