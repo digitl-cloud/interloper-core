@@ -7,7 +7,7 @@ import socket
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from interloper.events.base import Event, EventType, emit
+from interloper.events.base import Event, EventBus, EventType
 
 
 class EventHttpServer:
@@ -100,17 +100,9 @@ class EventHttpServer:
 
                     # Check filters before forwarding
                     if server_ref._should_forward(event_type):
-                        emit(
-                            Event(
-                                type=event_type,
-                                timestamp=data.get("timestamp"),
-                                run_id=data.get("run_id"),
-                                backfill_id=data.get("backfill_id"),
-                                asset_key=data.get("asset_key"),
-                                partition_or_window=data.get("partition_or_window"),
-                                error=data.get("error"),
-                            )
-                        )
+                        timestamp = data.pop("timestamp", None)
+                        data.pop("type", None)
+                        EventBus.get_instance().emit(Event(type=event_type, timestamp=timestamp, metadata=data))
 
                     self.send_response(200)
                     self.end_headers()

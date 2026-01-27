@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from interloper.assets.context import ExecutionContext
-from interloper.events.base import Event, EventType, emit
+from interloper.events.base import EventType, emit
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.io.memory import MemoryIO
@@ -278,40 +278,18 @@ class Asset(Serializable[AssetSpec]):
         partition_str = str(partition_or_window) if partition_or_window else None
 
         for io_key, io in ios:
-            emit(
-                Event(
-                    type=EventType.IO_WRITE_STARTED,
-                    asset_key=self.key,
-                    partition_or_window=partition_str,
-                    io_key=io_key,  # type: ignore[arg-type]
-                    run_id=metadata.get("run_id"),
-                    backfill_id=metadata.get("backfill_id"),
-                )
-            )
+            io_metadata = {
+                **metadata,
+                "asset_key": self.key,
+                "partition_or_window": partition_str,
+                "io_key": io_key,
+            }
+            emit(EventType.IO_WRITE_STARTED, metadata=io_metadata)
             try:
                 io.write(io_context, result)  # ty:ignore[unresolved-attribute]
-                emit(
-                    Event(
-                        type=EventType.IO_WRITE_COMPLETED,
-                        asset_key=self.key,
-                        partition_or_window=partition_str,
-                        io_key=io_key,  # type: ignore[arg-type]
-                        run_id=metadata.get("run_id"),
-                        backfill_id=metadata.get("backfill_id"),
-                    )
-                )
+                emit(EventType.IO_WRITE_COMPLETED, metadata=io_metadata)
             except Exception as e:
-                emit(
-                    Event(
-                        type=EventType.IO_WRITE_FAILED,
-                        asset_key=self.key,
-                        partition_or_window=partition_str,
-                        io_key=io_key,  # type: ignore[arg-type]
-                        run_id=metadata.get("run_id"),
-                        backfill_id=metadata.get("backfill_id"),
-                        error=str(e),
-                    )
-                )
+                emit(EventType.IO_WRITE_FAILED, metadata={**io_metadata, "error": str(e)})
                 raise e
 
     def _build_kwargs(
@@ -397,40 +375,18 @@ class Asset(Serializable[AssetSpec]):
                 )
 
                 partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
-                emit(
-                    Event(
-                        type=EventType.IO_READ_STARTED,
-                        asset_key=self.key,
-                        partition_or_window=partition_str,
-                        io_key=read_io_key,
-                        run_id=context.metadata.get("run_id"),
-                        backfill_id=context.metadata.get("backfill_id"),
-                    )
-                )
+                io_metadata = {
+                    **context.metadata,
+                    "asset_key": self.key,
+                    "partition_or_window": partition_str,
+                    "io_key": read_io_key,
+                }
+                emit(EventType.IO_READ_STARTED, metadata=io_metadata)
                 try:
                     kwargs[param_name] = read_io.read(io_context)
-                    emit(
-                        Event(
-                            type=EventType.IO_READ_COMPLETED,
-                            asset_key=self.key,
-                            partition_or_window=partition_str,
-                            io_key=read_io_key,
-                            run_id=context.metadata.get("run_id"),
-                            backfill_id=context.metadata.get("backfill_id"),
-                        )
-                    )
+                    emit(EventType.IO_READ_COMPLETED, metadata=io_metadata)
                 except Exception as e:
-                    emit(
-                        Event(
-                            type=EventType.IO_READ_FAILED,
-                            asset_key=self.key,
-                            partition_or_window=partition_str,
-                            io_key=read_io_key,
-                            run_id=context.metadata.get("run_id"),
-                            backfill_id=context.metadata.get("backfill_id"),
-                            error=str(e),
-                        )
-                    )
+                    emit(EventType.IO_READ_FAILED, metadata={**io_metadata, "error": str(e)})
                     raise ValueError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
 
         return kwargs

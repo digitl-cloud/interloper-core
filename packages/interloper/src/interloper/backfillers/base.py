@@ -48,7 +48,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         if on_event is not None:
 
             def event_handler(event: Event) -> None:
-                if self._state is not None and event.backfill_id == self._state.backfill_id:
+                if self._state is not None and event.metadata.get("backfill_id") == self._state.backfill_id:
                     on_event(event)
 
             self._on_event = event_handler

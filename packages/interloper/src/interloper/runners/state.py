@@ -8,7 +8,7 @@ from typing import Any
 
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
-from interloper.events.base import Event, EventType, emit
+from interloper.events.base import EventType, emit
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import AssetExecutionInfo, ExecutionStatus
 
@@ -161,28 +161,16 @@ class RunState:
         self.start_time = dt.datetime.now()
         self.end_time = None
 
-        emit(
-            Event(
-                type=EventType.RUN_STARTED,
-                run_id=self.run_id,
-                backfill_id=self.backfill_id,
-                partition_or_window=str(self.partition_or_window) if self.partition_or_window is not None else None,
-            )
-        )
+        partition_str = str(self.partition_or_window) if self.partition_or_window is not None else None
+        emit(EventType.RUN_STARTED, metadata={**self.metadata, "partition_or_window": partition_str})
 
     def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[str, AssetExecutionInfo]:
         """End DAG execution, emit RUN_COMPLETED/FAILED event, return asset_executions."""
         self.end_time = dt.datetime.now()
 
-        emit(
-            Event(
-                type=EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED,
-                run_id=self.run_id,
-                backfill_id=self.backfill_id,
-                partition_or_window=str(self.partition_or_window) if self.partition_or_window is not None else None,
-                error=error,
-            )
-        )
+        partition_str = str(self.partition_or_window) if self.partition_or_window is not None else None
+        event_type = EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED
+        emit(event_type, metadata={**self.metadata, "partition_or_window": partition_str, "error": error})
 
         return self.asset_executions.copy()
 
@@ -194,15 +182,9 @@ class RunState:
         """
         self.asset_executions[asset.key].mark_running()
 
-        emit(
-            Event(
-                type=EventType.ASSET_STARTED,
-                run_id=self.run_id,
-                backfill_id=self.backfill_id,
-                asset_key=asset.key,
-                partition_or_window=str(self.partition_or_window) if self.partition_or_window is not None else None,
-            )
-        )
+        partition_str = str(self.partition_or_window) if self.partition_or_window is not None else None
+        meta = {**self.metadata, "asset_key": asset.key, "partition_or_window": partition_str}
+        emit(EventType.ASSET_STARTED, metadata=meta)
 
     def mark_asset_completed(self, asset: Asset) -> None:
         """Mark an asset as completed and emit ASSET_COMPLETED event.
@@ -212,15 +194,9 @@ class RunState:
         """
         self.asset_executions[asset.key].mark_completed()
 
-        emit(
-            Event(
-                type=EventType.ASSET_COMPLETED,
-                run_id=self.run_id,
-                backfill_id=self.backfill_id,
-                asset_key=asset.key,
-                partition_or_window=str(self.partition_or_window) if self.partition_or_window is not None else None,
-            )
-        )
+        partition_str = str(self.partition_or_window) if self.partition_or_window is not None else None
+        meta = {**self.metadata, "asset_key": asset.key, "partition_or_window": partition_str}
+        emit(EventType.ASSET_COMPLETED, metadata=meta)
 
         self._update_dependent_assets(asset.key)
 
@@ -233,16 +209,9 @@ class RunState:
         """
         self.asset_executions[asset.key].mark_failed(error)
 
-        emit(
-            Event(
-                type=EventType.ASSET_FAILED,
-                run_id=self.run_id,
-                backfill_id=self.backfill_id,
-                asset_key=asset.key,
-                partition_or_window=str(self.partition_or_window) if self.partition_or_window is not None else None,
-                error=error,
-            )
-        )
+        partition_str = str(self.partition_or_window) if self.partition_or_window is not None else None
+        meta = {**self.metadata, "asset_key": asset.key, "partition_or_window": partition_str, "error": error}
+        emit(EventType.ASSET_FAILED, metadata=meta)
 
         self._propagate_failure(asset.key)
 

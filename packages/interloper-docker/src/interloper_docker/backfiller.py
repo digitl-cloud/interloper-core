@@ -17,7 +17,7 @@ from docker.models.containers import Container
 from interloper.backfillers.base import Backfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
-from interloper.events.base import Event, emit, parse_event_from_log_line
+from interloper.events.base import Event, EventBus, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
@@ -170,7 +170,7 @@ class DockerBackfiller(Backfiller[Container]):
                         line = log_line.decode("utf-8", errors="ignore")
                         event = parse_event_from_log_line(line)
                         if event is not None:
-                            emit(event)
+                            EventBus.get_instance().emit(event)
                     except Exception:
                         # Ignore parsing errors, continue streaming
                         pass

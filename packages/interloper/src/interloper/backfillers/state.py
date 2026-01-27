@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from interloper.backfillers.results import RunExecutionInfo
-from interloper.events.base import Event, EventType, emit
+from interloper.events.base import EventType, emit
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
 
@@ -108,12 +108,7 @@ class BackfillState:
         self.start_time = dt.datetime.now(dt.timezone.utc)
         self.end_time = None
 
-        emit(
-            Event(
-                type=EventType.BACKFILL_STARTED,
-                backfill_id=self.backfill_id,
-            )
-        )
+        emit(EventType.BACKFILL_STARTED, metadata={**self.metadata})
 
     def end_backfill(
         self,
@@ -131,13 +126,8 @@ class BackfillState:
         """
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
-        emit(
-            Event(
-                type=EventType.BACKFILL_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.BACKFILL_FAILED,
-                backfill_id=self.backfill_id,
-                error=error,
-            )
-        )
+        event_type = EventType.BACKFILL_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.BACKFILL_FAILED
+        emit(event_type, metadata={**self.metadata, "error": error})
 
         return self.run_executions.copy()
 

@@ -11,7 +11,7 @@ import sys
 import threading
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from queue import Queue
 from typing import Any
@@ -46,12 +46,7 @@ class Event:
 
     type: EventType
     timestamp: dt.datetime | None = None
-    run_id: str | None = None
-    backfill_id: str | None = None
-    asset_key: str | None = None
-    io_key: str | None = None
-    partition_or_window: str | None = None
-    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Set timestamp if not provided."""
@@ -60,14 +55,15 @@ class Event:
 
     def __str__(self) -> str:
         """Return a string representation of the event."""
+        m = self.metadata
         fields = [
             f"{str(self.timestamp):<26}",
-            f"{str(self.run_id) if self.run_id is not None else '-':<36}",
-            f"{str(self.backfill_id) if self.backfill_id is not None else '-':<36}",
+            f"{str(m.get('run_id')) if m.get('run_id') is not None else '-':<36}",
+            f"{str(m.get('backfill_id')) if m.get('backfill_id') is not None else '-':<36}",
             f"{self.type.value.upper():<18}",
-            f"{str(self.asset_key) if self.asset_key is not None else '-':<50}",
-            f"{str(self.partition_or_window) if self.partition_or_window is not None else '-':<21}",
-            f"{str(self.error) if self.error is not None else '-'}",
+            f"{str(m.get('asset_key')) if m.get('asset_key') is not None else '-':<50}",
+            f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
+            f"{str(m.get('error')) if m.get('error') is not None else '-'}",
         ]
         return "  |  ".join(fields)
 
@@ -76,12 +72,7 @@ class Event:
         return {
             "type": self.type.value,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "run_id": self.run_id,
-            "backfill_id": self.backfill_id,
-            "asset_key": self.asset_key,
-            "partition_or_window": self.partition_or_window,
-            "io_key": self.io_key,
-            "error": self.error,
+            **self.metadata,
         }
 
     def to_json(self) -> str:
@@ -90,19 +81,36 @@ class Event:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Event:
-        """Create an Event from a dictionary."""
-        timestamp = data.get("timestamp")
-        if timestamp and isinstance(timestamp, str):
-            timestamp = dt.datetime.fromisoformat(timestamp)
+        """Create an Event from a dictionary with mandatory/validated fields."""
+        # Check mandatory 'type'
+        type_val = data.get("type")
+        if type_val is None:
+            raise ValueError("Missing required field 'type' in Event")
+        try:
+            event_type = EventType(type_val)
+        except Exception:
+            raise ValueError(f"Invalid event type '{type_val}' in Event")
+
+        # Check mandatory 'timestamp'
+        timestamp_val = data.get("timestamp")
+        if timestamp_val is None:
+            raise ValueError("Missing required field 'timestamp' in Event")
+        if isinstance(timestamp_val, str):
+            try:
+                timestamp = dt.datetime.fromisoformat(timestamp_val)
+            except Exception:
+                raise ValueError(f"Invalid timestamp format: {timestamp_val!r}")
+        elif isinstance(timestamp_val, dt.datetime):
+            timestamp = timestamp_val
+        else:
+            raise ValueError(f"Invalid timestamp value for Event: {timestamp_val!r}")
+
+        metadata = {k: v for k, v in data.items() if k not in ("type", "timestamp")}
+
         return cls(
-            type=EventType(data["type"]),
+            type=event_type,
             timestamp=timestamp,
-            run_id=data.get("run_id"),
-            backfill_id=data.get("backfill_id"),
-            asset_key=data.get("asset_key"),
-            partition_or_window=data.get("partition_or_window"),
-            io_key=data.get("io_key"),
-            error=data.get("error"),
+            metadata=metadata,
         )
 
     @classmethod
@@ -282,13 +290,14 @@ class EventBus:
 
 
 # Module-level sugar syntax functions
-def emit(event: Event) -> None:
+def emit(event_type: EventType, *, metadata: dict[str, Any] | None = None) -> None:
     """Emit an event using the global event bus.
 
     Args:
-        event: Event to emit
+        event_type: The type of event to emit.
+        metadata: Metadata dict.
     """
-    EventBus.get_instance().emit(event)
+    EventBus.get_instance().emit(Event(type=event_type, metadata=metadata or {}))
 
 
 def flush(timeout: float | None = None) -> bool:

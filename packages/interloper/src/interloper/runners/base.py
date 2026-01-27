@@ -53,7 +53,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         if on_event is not None:
 
             def event_handler(event: Event) -> None:
-                if self._state is not None and event.run_id == self._state.run_id:
+                if self._state is not None and event.metadata.get("run_id") == self._state.run_id:
                     on_event(event)
 
             self._on_event = event_handler

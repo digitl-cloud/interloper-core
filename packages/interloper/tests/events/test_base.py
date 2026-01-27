@@ -15,26 +15,24 @@ class TestEvent:
         """Test basic event creation."""
         event = Event(
             type=EventType.ASSET_STARTED,
-            asset_key="test_asset",
-            partition_or_window="2025-01-01",
+            metadata={"asset_key": "test_asset", "partition_or_window": "2025-01-01"},
         )
 
         assert event.type == EventType.ASSET_STARTED
-        assert event.asset_key == "test_asset"
-        assert event.partition_or_window == "2025-01-01"
+        assert event.metadata["asset_key"] == "test_asset"
+        assert event.metadata["partition_or_window"] == "2025-01-01"
         assert isinstance(event.timestamp, dt.datetime)
 
     def test_event_creation_with_window(self):
         """Test event creation with partition window."""
         event = Event(
             type=EventType.ASSET_STARTED,
-            asset_key="test_asset",
-            partition_or_window="2025-01-01 to 2025-01-07",
+            metadata={"asset_key": "test_asset", "partition_or_window": "2025-01-01 to 2025-01-07"},
         )
 
         assert event.type == EventType.ASSET_STARTED
-        assert event.asset_key == "test_asset"
-        assert event.partition_or_window == "2025-01-01 to 2025-01-07"
+        assert event.metadata["asset_key"] == "test_asset"
+        assert event.metadata["partition_or_window"] == "2025-01-01 to 2025-01-07"
         assert isinstance(event.timestamp, dt.datetime)
 
 
@@ -80,7 +78,7 @@ class TestEventBus:
 
         bus.subscribe(handler)
 
-        event = Event(type=EventType.ASSET_STARTED, asset_key="test_asset")
+        event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "test_asset"})
 
         bus.emit(event)
 
@@ -101,11 +99,11 @@ class TestEventBus:
         bus.subscribe(handler2)
 
         # Emit ASSET_STARTED event
-        event1 = Event(type=EventType.ASSET_STARTED, asset_key="asset1")
+        event1 = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "asset1"})
         bus.emit(event1)
 
         # Emit ASSET_COMPLETED event
-        event2 = Event(type=EventType.ASSET_COMPLETED, asset_key="asset1")
+        event2 = Event(type=EventType.ASSET_COMPLETED, metadata={"asset_key": "asset1"})
         bus.emit(event2)
 
         # Give the background thread time to process
@@ -132,7 +130,7 @@ class TestEventBus:
         bus.subscribe(bad_handler)
         bus.subscribe(good_handler)
 
-        event = Event(type=EventType.ASSET_STARTED, asset_key="test_asset")
+        event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "test_asset"})
         bus.emit(event)
 
         # Give the background thread time to process
@@ -147,13 +145,13 @@ class TestEventBus:
         received_events = []
 
         def handler(event):
-            received_events.append(int(event.asset_key.split("_")[1]))
+            received_events.append(int(event.metadata["asset_key"].split("_")[1]))
 
         bus.subscribe(handler)
 
         # Emit events in order
         for i in range(5):
-            event = Event(type=EventType.ASSET_STARTED, asset_key=f"asset_{i}")
+            event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": f"asset_{i}"})
             bus.emit(event)
 
         # Give the background thread time to process
@@ -171,14 +169,15 @@ class TestSugarSyntax:
         handler = Mock()
         subscribe(handler)
 
-        event = Event(type=EventType.ASSET_STARTED, asset_key="test_asset")
-
-        emit(event)
+        emit(EventType.ASSET_STARTED, metadata={"asset_key": "test_asset"})
 
         # Give the background thread time to process
         time.sleep(0.1)
 
-        handler.assert_called_once_with(event)
+        handler.assert_called_once()
+        event = handler.call_args[0][0]
+        assert event.type == EventType.ASSET_STARTED
+        assert event.metadata["asset_key"] == "test_asset"
 
     def test_subscribe_sugar(self):
         """Test the subscribe sugar function."""
@@ -222,7 +221,7 @@ class TestIntegration:
         bus.subscribe(handler2, [EventType.ASSET_STARTED])
         bus.subscribe(handler3, [EventType.ASSET_COMPLETED])
 
-        event = Event(type=EventType.ASSET_STARTED, asset_key="test_asset")
+        event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "test_asset"})
         bus.emit(event)
 
         # Give the background thread time to process
@@ -239,7 +238,7 @@ class TestIntegration:
         received_events = []
 
         def handler(event):
-            received_events.append(int(event.asset_key.split("_")[1]))
+            received_events.append(int(event.metadata["asset_key"].split("_")[1]))
 
         bus.subscribe(handler)
 
@@ -248,7 +247,7 @@ class TestIntegration:
         for i in range(10):
 
             def emit_event(event_id):
-                event = Event(type=EventType.ASSET_STARTED, asset_key=f"asset_{event_id}")
+                event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": f"asset_{event_id}"})
                 bus.emit(event)
 
             thread = threading.Thread(target=emit_event, args=(i,))
