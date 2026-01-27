@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from interloper.assets.context import ExecutionContext
+from interloper.events.base import Event, EventType, emit
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.io.memory import MemoryIO
@@ -178,6 +179,7 @@ class Asset(Serializable[AssetSpec]):
         self,
         partition_or_window: Partition | PartitionWindow | None = None,
         dag: DAG | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Any:
         """Execute the asset and return the result without writing to IO.
 
@@ -189,6 +191,7 @@ class Asset(Serializable[AssetSpec]):
         Args:
             partition_or_window: Either a Partition or PartitionWindow object
             dag: DAG for dependency resolution (required for assets with dependencies)
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
 
         Returns:
             The execution result
@@ -202,6 +205,7 @@ class Asset(Serializable[AssetSpec]):
             partition_or_window=partition_or_window,
             asset_name=self.name,
             partitioning=self.partitioning,
+            metadata=metadata,
         )
 
         # Build function kwargs with dependency resolution
@@ -221,6 +225,7 @@ class Asset(Serializable[AssetSpec]):
         self,
         partition_or_window: Partition | PartitionWindow | None = None,
         dag: DAG | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Any:
         """Execute the asset and write the result to all configured IOs.
 
@@ -229,6 +234,7 @@ class Asset(Serializable[AssetSpec]):
         Args:
             partition_or_window: Either a Partition or PartitionWindow object
             dag: DAG for dependency resolution (required for assets with dependencies)
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
 
         Returns:
             The execution result
@@ -236,21 +242,77 @@ class Asset(Serializable[AssetSpec]):
         if not self.materializable:
             return None
 
-        result = self.run(partition_or_window=partition_or_window, dag=dag)
-
-        if self.io is not None:
-            io_context = IOContext(
-                asset=self,
-                partition_or_window=partition_or_window if self.partitioning is not None else None,
-            )
-
-            if isinstance(self.io, dict):
-                for io in self.io.values():
-                    io.write(io_context, result)  # ty:ignore[unresolved-attribute]
-            else:
-                self.io.write(io_context, result)
-
+        metadata = metadata or {}
+        result = self.run(partition_or_window, dag, metadata)
+        self._io_write(partition_or_window, metadata, result)
         return result
+
+    def _io_write(
+        self,
+        partition_or_window: Partition | PartitionWindow | None,
+        metadata: dict[str, Any],
+        result: Any,
+    ) -> None:
+        """Write the result of the asset execution to all configured IO targets.
+
+        Args:
+            partition_or_window: Either a Partition or PartitionWindow object
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
+            result: The execution result
+        """
+        if self.io is None:
+            return
+
+        io_context = IOContext(
+            asset=self,
+            partition_or_window=partition_or_window if self.partitioning is not None else None,
+            metadata=metadata,
+        )
+
+        # Build list of (io_key, io) tuples
+        if isinstance(self.io, dict):
+            ios = list(self.io.items())
+        else:
+            ios = [(None, self.io)]
+
+        partition_str = str(partition_or_window) if partition_or_window else None
+
+        for io_key, io in ios:
+            emit(
+                Event(
+                    type=EventType.IO_WRITE_STARTED,
+                    asset_key=self.key,
+                    partition_or_window=partition_str,
+                    io_key=io_key,  # type: ignore[arg-type]
+                    run_id=metadata.get("run_id"),
+                    backfill_id=metadata.get("backfill_id"),
+                )
+            )
+            try:
+                io.write(io_context, result)  # ty:ignore[unresolved-attribute]
+                emit(
+                    Event(
+                        type=EventType.IO_WRITE_COMPLETED,
+                        asset_key=self.key,
+                        partition_or_window=partition_str,
+                        io_key=io_key,  # type: ignore[arg-type]
+                        run_id=metadata.get("run_id"),
+                        backfill_id=metadata.get("backfill_id"),
+                    )
+                )
+            except Exception as e:
+                emit(
+                    Event(
+                        type=EventType.IO_WRITE_FAILED,
+                        asset_key=self.key,
+                        partition_or_window=partition_str,
+                        io_key=io_key,  # type: ignore[arg-type]
+                        run_id=metadata.get("run_id"),
+                        backfill_id=metadata.get("backfill_id"),
+                        error=str(e),
+                    )
+                )
+                raise e
 
     def _build_kwargs(
         self,
@@ -310,11 +372,12 @@ class Asset(Serializable[AssetSpec]):
 
                 # Determine which IO to read from
                 read_io = None
+                read_io_key = None
                 if isinstance(upstream_asset.io, dict):
                     # Use default_io_key
-                    io_key = upstream_asset.default_io_key
-                    if io_key:
-                        read_io = upstream_asset.io[io_key]
+                    read_io_key = upstream_asset.default_io_key
+                    if read_io_key:
+                        read_io = upstream_asset.io[read_io_key]
                 else:
                     read_io = upstream_asset.io
 
@@ -330,11 +393,44 @@ class Asset(Serializable[AssetSpec]):
                 io_context = IOContext(
                     asset=upstream_asset,
                     partition_or_window=effective_partition_or_window,
+                    metadata=context.metadata,
                 )
 
+                partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
+                emit(
+                    Event(
+                        type=EventType.IO_READ_STARTED,
+                        asset_key=self.key,
+                        partition_or_window=partition_str,
+                        io_key=read_io_key,
+                        run_id=context.metadata.get("run_id"),
+                        backfill_id=context.metadata.get("backfill_id"),
+                    )
+                )
                 try:
                     kwargs[param_name] = read_io.read(io_context)
+                    emit(
+                        Event(
+                            type=EventType.IO_READ_COMPLETED,
+                            asset_key=self.key,
+                            partition_or_window=partition_str,
+                            io_key=read_io_key,
+                            run_id=context.metadata.get("run_id"),
+                            backfill_id=context.metadata.get("backfill_id"),
+                        )
+                    )
                 except Exception as e:
+                    emit(
+                        Event(
+                            type=EventType.IO_READ_FAILED,
+                            asset_key=self.key,
+                            partition_or_window=partition_str,
+                            io_key=read_io_key,
+                            run_id=context.metadata.get("run_id"),
+                            backfill_id=context.metadata.get("backfill_id"),
+                            error=str(e),
+                        )
+                    )
                     raise ValueError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
 
         return kwargs

@@ -26,6 +26,12 @@ class EventType(Enum):
     ASSET_STARTED = "asset_started"
     ASSET_COMPLETED = "asset_completed"
     ASSET_FAILED = "asset_failed"
+    IO_READ_STARTED = "io_read_started"
+    IO_READ_COMPLETED = "io_read_completed"
+    IO_READ_FAILED = "io_read_failed"
+    IO_WRITE_STARTED = "io_write_started"
+    IO_WRITE_COMPLETED = "io_write_completed"
+    IO_WRITE_FAILED = "io_write_failed"
     RUN_STARTED = "run_started"
     RUN_COMPLETED = "run_completed"
     RUN_FAILED = "run_failed"
@@ -43,6 +49,7 @@ class Event:
     run_id: str | None = None
     backfill_id: str | None = None
     asset_key: str | None = None
+    io_key: str | None = None
     partition_or_window: str | None = None
     error: str | None = None
 
@@ -73,6 +80,7 @@ class Event:
             "backfill_id": self.backfill_id,
             "asset_key": self.asset_key,
             "partition_or_window": self.partition_or_window,
+            "io_key": self.io_key,
             "error": self.error,
         }
 
@@ -93,6 +101,7 @@ class Event:
             backfill_id=data.get("backfill_id"),
             asset_key=data.get("asset_key"),
             partition_or_window=data.get("partition_or_window"),
+            io_key=data.get("io_key"),
             error=data.get("error"),
         )
 

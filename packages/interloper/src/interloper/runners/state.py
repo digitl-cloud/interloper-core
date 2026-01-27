@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import Any
 
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
@@ -23,25 +24,35 @@ class RunState:
     def __init__(
         self,
         dag: DAG,
-        run_id: str | None = None,
-        backfill_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Initialize the state.
 
         Args:
-            dag: The DAG to track´
-            run_id: Optional run ID. If not provided, a UUID will be generated automatically.
-            backfill_id: Optional backfill ID. Typically set by the backfiller.
+            dag: The DAG to track
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
+                      If run_id is not provided, a UUID will be generated automatically.
         """
         self.dag = dag
-        self.run_id: str = run_id if run_id is not None else str(uuid.uuid4())
-        self.backfill_id: str | None = backfill_id
+        self.metadata: dict[str, Any] = metadata or {}
+        if "run_id" not in self.metadata:
+            self.metadata["run_id"] = str(uuid.uuid4())
         self.asset_executions: dict[str, AssetExecutionInfo] = {}
         self.partition_or_window: Partition | PartitionWindow | None = None
         self.start_time: dt.datetime | None = None
         self.end_time: dt.datetime | None = None
 
         self._initialize_assets()
+
+    @property
+    def run_id(self) -> str:
+        """The run ID."""
+        return self.metadata["run_id"]
+
+    @property
+    def backfill_id(self) -> str | None:
+        """The backfill ID, if set."""
+        return self.metadata.get("backfill_id")
 
     def _initialize_assets(self) -> None:
         """Initialize all assets as QUEUED, mark those with no predecessors as READY."""

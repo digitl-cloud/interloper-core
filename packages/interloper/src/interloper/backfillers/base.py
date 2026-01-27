@@ -131,7 +131,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
     ) -> RunResult:
         try:
             self.state.mark_run_running(partition_or_window)
-            result = self.runner.run(dag, partition_or_window, backfill_id=self.state.backfill_id)
+            result = self.runner.run(dag, partition_or_window, metadata={"backfill_id": self.state.backfill_id})
             self.state.mark_run_completed(partition_or_window, result)
             return result
         except Exception as e:
@@ -153,7 +153,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None = None,
         windowed: bool = False,
-        backfill_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> BackfillResult:
         """Execute a backfill."""
         if windowed and not isinstance(partition_or_window, PartitionWindow):
@@ -170,7 +170,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             for partition in partition_or_window:
                 queued.append(partition)
 
-        self._state = BackfillState(partitions=queued.copy(), backfill_id=backfill_id)
+        self._state = BackfillState(partitions=queued.copy(), metadata=metadata)
         self.state.start_backfill()
 
         try:

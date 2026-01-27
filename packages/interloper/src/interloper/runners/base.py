@@ -160,6 +160,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             result = asset.materialize(
                 partition_or_window=partition_or_window,
                 dag=self.state.dag,
+                metadata=self.state.metadata,
             )
 
             self.state.mark_asset_completed(asset)
@@ -187,8 +188,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         self,
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None = None,
-        run_id: str | None = None,
-        backfill_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> RunResult:
         """Materialize the DAG using dynamic scheduling.
 
@@ -198,13 +198,12 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         Args:
             dag: The DAG to execute
             partition_or_window: Either a Partition or PartitionWindow object
-            run_id: Optional run ID. If not provided, a UUID will be generated automatically.
-            backfill_id: Optional backfill ID. Typically set by the backfiller.
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
 
         Returns:
             RunResult
         """
-        self._state = RunState(dag, run_id=run_id, backfill_id=backfill_id)
+        self._state = RunState(dag, metadata=metadata)
         self.state.start_run(partition_or_window)
 
         try:

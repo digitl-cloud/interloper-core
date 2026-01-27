@@ -100,7 +100,10 @@ def _backfill(
 
     backfiller.runner = runner
 
-    backfiller.backfill(dag, partition_or_window, windowed=windowed, backfill_id=backfill_id)
+    metadata: dict[str, str] = {}
+    if backfill_id:
+        metadata["backfill_id"] = backfill_id
+    backfiller.backfill(dag, partition_or_window, windowed=windowed, metadata=metadata or None)
 
 
 def _run(
@@ -115,7 +118,12 @@ def _run(
     runner = config.runner or SerialRunner()
     dag = config.dag
 
-    runner.run(dag, partition_or_window, run_id, backfill_id)
+    metadata: dict[str, str] = {}
+    if run_id:
+        metadata["run_id"] = run_id
+    if backfill_id:
+        metadata["backfill_id"] = backfill_id
+    runner.run(dag, partition_or_window, metadata=metadata or None)
 
 
 def _add_common_arguments(parser: argparse.ArgumentParser) -> None:

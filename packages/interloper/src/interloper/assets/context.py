@@ -1,6 +1,7 @@
 """Runtime context for asset execution."""
 
 import datetime as dt
+from typing import Any
 
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
 from interloper.partitioning.time import TimePartitionConfig
@@ -14,6 +15,7 @@ class ExecutionContext:
         asset_name: str | None = None,
         partitioning: PartitionConfig | None = None,
         partition_or_window: Partition | PartitionWindow | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Initialize the context.
 
@@ -21,10 +23,12 @@ class ExecutionContext:
             asset_name: The name of the asset being executed
             partitioning: The partitioning configuration
             partition_or_window: Either a Partition or PartitionWindow object
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
         """
         self._asset_name = asset_name
         self._partitioning = partitioning
         self._partition_or_window = partition_or_window
+        self._metadata = metadata or {}
 
     @property
     def partition_date(self) -> dt.date:
@@ -88,3 +92,8 @@ class ExecutionContext:
     def asset_name(self) -> str:
         """The name of the current asset being executed."""
         return self._asset_name or ""
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Arbitrary metadata dict (e.g. run_id, backfill_id)."""
+        return self._metadata

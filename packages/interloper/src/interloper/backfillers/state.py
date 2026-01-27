@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from typing import Any
 
 from interloper.backfillers.results import RunExecutionInfo
 from interloper.events.base import Event, EventType, emit
@@ -22,21 +23,29 @@ class BackfillState:
         self,
         partitions: list[Partition | PartitionWindow | None],
         *,
-        backfill_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Initialize the backfill state.
 
         Args:
             partitions: The partitions to backfill
-            backfill_id: Optional backfill ID. If not provided, a UUID will be generated automatically.
+            metadata: Arbitrary metadata dict (e.g. backfill_id).
+                      If backfill_id is not provided, a UUID will be generated automatically.
         """
         self.partitions = partitions
-        self.backfill_id: str = backfill_id if backfill_id is not None else str(uuid.uuid4())
+        self.metadata: dict[str, Any] = metadata or {}
+        if "backfill_id" not in self.metadata:
+            self.metadata["backfill_id"] = str(uuid.uuid4())
         self.run_executions: dict[Partition | PartitionWindow | None, RunExecutionInfo] = {}
         self.start_time: dt.datetime | None = None
         self.end_time: dt.datetime | None = None
 
         self._initialize_runs()
+
+    @property
+    def backfill_id(self) -> str:
+        """The backfill ID."""
+        return self.metadata["backfill_id"]
 
     def _initialize_runs(self) -> None:
         """Initialize all runs as QUEUED."""
