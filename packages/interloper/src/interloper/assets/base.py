@@ -55,6 +55,7 @@ class AssetDefinition:
 
     def __call__(
         self,
+        name: str | None = None,
         config: BaseSettings | None = None,
         io: IO | dict[str, IO] | None = None,
         deps: dict[str, str] | None = None,
@@ -89,7 +90,7 @@ class AssetDefinition:
 
         return Asset(
             func=self.func,
-            name=self.name,
+            name=name or self.name,
             schema=self.schema,
             config=resolved_config,
             io=io or self.io,
@@ -168,9 +169,7 @@ class Asset(Serializable[AssetSpec]):
     @property
     def key(self) -> str:
         """Return the unique key for this asset."""
-        if self.dataset:
-            return f"{self.dataset}.{self.name}"
-        elif self.source:
+        if self.source:
             return f"{self.source.name}.{self.name}"
         else:
             return self.name

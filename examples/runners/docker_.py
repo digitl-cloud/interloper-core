@@ -5,7 +5,7 @@ import os
 
 import dotenv
 import interloper as il
-from interloper_assets import example_source
+from interloper_assets import demo_source
 from interloper_docker.runner import DockerRunner
 
 dotenv.load_dotenv()
@@ -16,7 +16,7 @@ def on_event(event: il.Event) -> None:
 
 
 io = il.FileIO("/tmp/data")
-source = example_source(io=io)
+source = demo_source(io=io)
 dag = il.DAG(source)
 partition = il.TimePartition(value=dt.date(2025, 1, 1))
 

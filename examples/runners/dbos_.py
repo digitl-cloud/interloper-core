@@ -5,7 +5,7 @@ from pprint import pp
 
 import interloper as il
 from dbos import DBOS, DBOSConfig
-from interloper_assets import example_source
+from interloper_assets import demo_source
 from interloper_dbos import DBOSRunner
 
 if __name__ == "__main__":
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     DBOS.launch()
 
     partition = il.TimePartition(value=dt.date(2025, 1, 1))
-    dag = il.DAG(example_source())
+    dag = il.DAG(demo_source())
 
     with DBOSRunner(on_event=on_event) as runner:
         result = runner.run(dag, partition)

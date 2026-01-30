@@ -27,8 +27,13 @@ class TestAssetDefinition:
         asset_def = il.AssetDefinition(func)
         assert asset_def.func == func
         assert asset_def.name == "func"
+        assert asset_def.dataset is None
         assert asset_def.schema is None
         assert asset_def.config is None
+        assert asset_def.io is None
+        assert asset_def.partitioning is None
+        assert asset_def.default_io_key is None
+        assert asset_def.deps == {}
 
     def test_key_without_dataset(self):
         """Test key property without dataset."""
@@ -180,28 +185,12 @@ class TestAsset:
         asset_instance = my_asset()
         assert isinstance(asset_instance, il.Asset)
         assert asset_instance.definition == my_asset
+        assert asset_instance.name == "my_asset"
+        assert asset_instance.schema is None
         assert asset_instance.config is None
+        assert asset_instance.dataset is None
+        assert asset_instance.default_io_key is None
         assert isinstance(asset_instance.io, il.MemoryIO)
-
-    def test_key_without_dataset(self):
-        """Test key property without dataset."""
-
-        @il.asset
-        def my_asset(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_instance = my_asset()
-        assert asset_instance.key == "my_asset"
-
-    def test_key_with_dataset(self):
-        """Test key property with dataset."""
-
-        @il.asset(dataset="my_dataset")
-        def my_asset(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_instance = my_asset()
-        assert asset_instance.key == "my_dataset.my_asset"
 
     def test_key_with_source(self):
         """Test key property with source context."""
@@ -215,43 +204,22 @@ class TestAsset:
             return (my_asset,)
 
         source_instance = my_source()
-        asset_instance = source_instance.assets["my_asset"]
 
-        # Asset should have source context
-        assert asset_instance.source is not None
-        assert asset_instance.source.name == "my_source"
+        assert source_instance.my_asset.key == "my_source.my_asset"
 
-        # Key should include source name
-        assert asset_instance.key == "my_source.my_asset"
+    def test_key_with_source_name_override(self):
+        """Test key property with source name override."""
 
-    def test_key_priority_dataset_over_source(self):
-        """Test that dataset takes priority over source for key generation."""
-
-        @il.source
+        @il.source(name="new_source_name")
         def my_source() -> tuple[il.AssetDefinition, ...]:
-            @il.asset(dataset="my_dataset")
+            @il.asset
             def my_asset(context: il.ExecutionContext) -> str:
                 return "value"
 
             return (my_asset,)
 
         source_instance = my_source()
-        asset_instance = source_instance.assets["my_asset"]
-
-        # Should use dataset, not source name
-        assert asset_instance.key == "my_dataset.my_asset"
-
-    def test_key_without_source_or_dataset(self):
-        """Test key property without source or dataset."""
-
-        @il.asset
-        def my_asset(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_instance = my_asset()
-
-        # Should use just the name
-        assert asset_instance.key == "my_asset"
+        assert source_instance.my_asset.key == "new_source_name.my_asset"
 
     def test_key_with_multiple_sources_same_name(self):
         """Test that assets from different sources with same name get different keys."""
@@ -304,6 +272,44 @@ class TestAsset:
 
         # Key should include custom source name
         assert asset_instance.key == "custom_source_name.my_asset"
+
+    def test_with_dataset(self):
+        """Test dataset property."""
+
+        @il.asset(dataset="my_dataset")
+        def my_asset(context: il.ExecutionContext) -> str:
+            return "value"
+
+        asset_instance = my_asset()
+        assert asset_instance.dataset == "my_dataset"
+
+    def test_dataset_from_source_name(self):
+        """Test dataset property from source."""
+
+        @il.source()
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def my_asset(context: il.ExecutionContext) -> str:
+                return "value"
+
+            return (my_asset,)
+
+        source_instance = my_source()
+        assert source_instance.my_asset.dataset == "my_source"
+
+    def test_dataset_from_source_dataset(self):
+        """Test dataset property from source."""
+
+        @il.source(dataset="my_dataset")
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def my_asset(context: il.ExecutionContext) -> str:
+                return "value"
+
+            return (my_asset,)
+
+        source_instance = my_source()
+        assert source_instance.my_asset.dataset == "my_dataset"
 
     def test_deps_initialization(self):
         """Test deps field initialization."""

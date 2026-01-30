@@ -22,7 +22,7 @@ class SourceDefinition:
 
     func: Callable[..., Sequence[AssetDefinition]]
     name: str = ""
-    dataset: str = ""
+    dataset: str | None = None
     config: type[BaseSettings] | None = None
     io: IO | dict[str, IO] | None = None
     default_io_key: str | None = None
@@ -32,9 +32,6 @@ class SourceDefinition:
         if not self.name:
             object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
 
-        if not self.dataset:
-            object.__setattr__(self, "dataset", self.name)
-
     @property
     def path(self) -> str:
         """Return the full import path of the decorated source function."""
@@ -42,6 +39,8 @@ class SourceDefinition:
 
     def __call__(
         self,
+        name: str | None = None,
+        dataset: str | None = None,
         config: BaseSettings | None = None,
         io: IO | dict[str, IO] | None = None,
     ) -> Source:
@@ -122,8 +121,8 @@ class SourceDefinition:
         return Source(
             func=self.func,
             definition=self,
-            name=self.name,
-            dataset=self.dataset,
+            name=name or self.name,
+            dataset=dataset or name or self.dataset or self.name,
             config=resolved_config,
             io=io or self.io,
             default_io_key=self.default_io_key,
@@ -138,8 +137,8 @@ class Source(Serializable[SourceSpec]):
     func: Callable
     name: str
     definition: SourceDefinition
+    dataset: str
     config: BaseSettings | None = None
-    dataset: str | None = None
     io: IO | dict[str, IO] | None = None
     default_io_key: str | None = None
     assets: dict[str, Asset] = field(default_factory=dict)
@@ -148,6 +147,7 @@ class Source(Serializable[SourceSpec]):
         """Link assets back to this source."""
         for asset in self.assets.values():
             asset.source = self
+            asset.dataset = asset.dataset or self.dataset
 
     def copy(
         self,

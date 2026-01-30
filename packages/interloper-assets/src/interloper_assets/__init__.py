@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 from interloper_assets.adservice.source import AdserviceConfig, adservice
 from interloper_assets.adup.source import AdupConfig, adup
-from interloper_assets.example.source import ExampleConfig, example_source
+from interloper_assets.demo.source import DemoConfig, demo_source
 
 
 def get_source_and_config(id: str) -> tuple[il.SourceDefinition, type[BaseSettings] | None]:
@@ -11,8 +11,8 @@ def get_source_and_config(id: str) -> tuple[il.SourceDefinition, type[BaseSettin
         return adservice, AdserviceConfig
     elif id == "adup":
         return adup, AdupConfig
-    elif id == "example":
-        return example_source, ExampleConfig
+    elif id == "demo":
+        return demo_source, DemoConfig
     else:
         raise ValueError(f"Unknown source ID: {id}")
 
@@ -20,6 +20,6 @@ def get_source_and_config(id: str) -> tuple[il.SourceDefinition, type[BaseSettin
 __all__ = [
     "adup",
     "adservice",
-    "example_source",
+    "demo_source",
     "get_source_and_config",
 ]

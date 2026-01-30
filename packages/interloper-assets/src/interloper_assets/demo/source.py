@@ -9,23 +9,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = logging.getLogger(__name__)
 
 
-class ExampleSchema(BaseModel):
+class DemoSchema(BaseModel):
     hello: str
 
 
-class ExampleConfig(BaseSettings):
+class DemoConfig(BaseSettings):
     hello: str = "world"
 
-    model_config = SettingsConfigDict(env_prefix="example_")
+    model_config = SettingsConfigDict(env_prefix="Demo_")
 
 
 partitioning = il.TimePartitionConfig(column="date", allow_window=True)
 
 
 @il.source(
-    config=ExampleConfig,
+    config=DemoConfig,
 )
-def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
+def demo_source(config: DemoConfig) -> Sequence[il.AssetDefinition]:
     def do() -> None:
         import random
         import time
@@ -33,7 +33,7 @@ def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
         time.sleep(random.uniform(1, 3))
 
     @il.asset(
-        schema=ExampleSchema,
+        schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
     )
     def a(
@@ -44,7 +44,7 @@ def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
         return pd.DataFrame([{"hello": config.hello}])
 
     @il.asset(
-        schema=ExampleSchema,
+        schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
     )
     def b(
@@ -56,7 +56,7 @@ def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
         return pd.DataFrame([{"hello": config.hello}])
 
     @il.asset(
-        schema=ExampleSchema,
+        schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
     )
     def c(
@@ -68,7 +68,7 @@ def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
         return pd.DataFrame([{"hello": config.hello}])
 
     @il.asset(
-        schema=ExampleSchema,
+        schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
     )
     def d(
@@ -80,7 +80,7 @@ def example_source(config: ExampleConfig) -> Sequence[il.AssetDefinition]:
         return pd.DataFrame([{"hello": config.hello}])
 
     @il.asset(
-        schema=ExampleSchema,
+        schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
     )
     def e(

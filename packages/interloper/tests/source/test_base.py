@@ -27,9 +27,9 @@ class TestSourceDefinition:
             return (asset1,)
 
         assert isinstance(my_source, il.SourceDefinition)
-        assert my_source.config is None
         assert my_source.name == "my_source"
-        assert my_source.dataset == "my_source"
+        assert my_source.dataset is None
+        assert my_source.config is None
         assert my_source.io is None
 
     def test_with_config(self):
@@ -293,7 +293,6 @@ class TestSource:
         source_instance = my_source()
         # Assets should inherit the dataset
         assert source_instance.assets["asset1"].dataset == "my_dataset"
-        assert source_instance.assets["asset1"].key == "my_dataset.asset1"
 
     def test_dataset_defaults_to_source_name(self):
         """Test that assets default to source name as dataset when source dataset is not set."""

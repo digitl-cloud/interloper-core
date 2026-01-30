@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/Users/g/Dev/internal/interloper/interloper-app/supabase/migrations"
+    ]
+  }
+}

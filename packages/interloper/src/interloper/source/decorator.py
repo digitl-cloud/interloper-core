@@ -45,24 +45,23 @@ def source(
     # Validate default_io_key if multiple IOs
     if isinstance(io, dict) and len(io) > 1 and default_io_key is None:
         raise ValueError("default_io_key is required when io is a dict with multiple keys")
-    
+
     if isinstance(io, dict) and default_io_key and default_io_key not in io:
         raise ValueError(f"default_io_key '{default_io_key}' not found in io dict keys: {list(io.keys())}")
-    
+
     def decorator(f: Callable[..., Any]) -> SourceDefinition:
         return SourceDefinition(
             func=f,
-            name=name or "",
+            name=name,  # type: ignore[arg-type]
             config=config,
-            dataset=dataset or "",
+            dataset=dataset,
             io=io,
             default_io_key=default_io_key,
         )
-    
+
     # Called without parentheses: @source
     if func is not None:
         return decorator(func)
-    
+
     # Called with parentheses: @source(...)
     return decorator
-
