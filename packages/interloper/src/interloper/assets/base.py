@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from interloper.assets.context import ExecutionContext
+from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
 from interloper.io.base import IO
 from interloper.io.context import IOContext
@@ -55,6 +56,7 @@ class AssetDefinition:
 
     def __call__(
         self,
+        *,
         name: str | None = None,
         config: BaseSettings | None = None,
         io: IO | dict[str, IO] | None = None,
@@ -376,7 +378,7 @@ class Asset(Serializable[AssetSpec]):
                 partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
                 io_metadata = {
                     **context.metadata,
-                    "asset_key": self.key,
+                    **get_asset_event_metadata(self),
                     "partition_or_window": partition_str,
                     "io_key": read_io_key,
                 }

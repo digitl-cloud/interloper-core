@@ -39,6 +39,7 @@ class SourceDefinition:
 
     def __call__(
         self,
+        *,
         name: str | None = None,
         dataset: str | None = None,
         config: BaseSettings | None = None,

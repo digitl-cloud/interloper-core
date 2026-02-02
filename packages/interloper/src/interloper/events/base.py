@@ -14,7 +14,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from queue import Queue
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from interloper.assets.base import Asset
 
 # Marker prefix for log-based event streaming
 INTERLOPER_EVENT_MARKER = "[INTERLOPER_EVENT]"
@@ -331,9 +334,15 @@ def unsubscribe(handler: Callable[[Event], None]) -> None:
     EventBus.get_instance().unsubscribe(handler)
 
 
-# Eagerly initialize the event bus so HTTP emission is available even if callers
-# only use the module-level helpers and never explicitly touch the singleton.
-EventBus.get_instance()
+def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
+    """Get the metadata for an asset event."""
+    metadata = {
+        "asset_key": asset.key,
+        "asset_name": asset.name,
+    }
+    if asset.source is not None:
+        metadata["source_name"] = asset.source.name
+    return metadata
 
 
 # Propagate all events to a remote event bus if configured (used by containerized runs)
@@ -363,9 +372,6 @@ def on_event(event: Event) -> None:  # noqa: D103
             pass
 
 
-subscribe(on_event)
-
-
 def parse_event_from_log_line(line: str) -> Event | None:
     """Parse an event from a log line if it contains the event marker.
 
@@ -385,3 +391,11 @@ def parse_event_from_log_line(line: str) -> Event | None:
         return Event.from_json(json_str)
     except (ValueError, json.JSONDecodeError, KeyError):
         return None
+
+
+# Eagerly initialize the event bus so HTTP emission is available even if callers
+# only use the module-level helpers and never explicitly touch the singleton.
+EventBus.get_instance()
+
+
+subscribe(on_event)
