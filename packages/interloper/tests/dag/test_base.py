@@ -276,8 +276,8 @@ class TestDAGDependencyResolution:
         dag = il.DAG(upstream_asset(), downstream_asset())
         assert "upstream_asset" in dag.predecessors["downstream_asset"]
 
-    def test_inferred_dependency_with_dataset_looks_up_dataset_dot_param_not_key(self):
-        """With dataset set, inference uses dataset.param_name; keys are name-only so explicit deps required."""
+    def test_standalone_assets_with_dataset_infer_deps_by_param_name(self):
+        """Standalone assets infer deps by param name (dataset is for storage, not keys)."""
 
         @il.asset(dataset="dataset1")
         def upstream_asset(context: il.ExecutionContext) -> str:
@@ -287,9 +287,9 @@ class TestDAGDependencyResolution:
         def downstream_asset(context: il.ExecutionContext, upstream_asset: str) -> str:
             return f"downstream_{upstream_asset}"
 
-        # No explicit deps: DAG infers "dataset1.upstream_asset" but key is "upstream_asset", so not in DAG.
-        with pytest.raises(ValueError, match="depends on 'dataset1.upstream_asset' which is not in the DAG"):
-            il.DAG(upstream_asset(), downstream_asset())
+        # Standalone assets have key = asset name, deps are inferred as param name
+        dag = il.DAG(upstream_asset(), downstream_asset())
+        assert "upstream_asset" in dag.predecessors["downstream_asset"]
 
     def test_explicit_dep_key_not_in_dag_raises(self):
         """Explicit dep pointing to a key not in the DAG raises."""

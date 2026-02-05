@@ -190,6 +190,121 @@ class TestSourceDefinition:
         source_instance = my_source(config=WrongConfig())
         assert source_instance.assets["asset1"].config == SampleConfig()
 
+    def test_callable_with_assets_filter(self):
+        """Test calling SourceDefinition with assets filter."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            @il.asset
+            def asset_b(context: il.ExecutionContext) -> str:
+                return "b"
+
+            @il.asset
+            def asset_c(context: il.ExecutionContext) -> str:
+                return "c"
+
+            return (asset_a, asset_b, asset_c)
+
+        # Filter to only asset_a and asset_c
+        source_instance = my_source(assets=["asset_a", "asset_c"])
+        assert set(source_instance.assets.keys()) == {"asset_a", "asset_c"}
+        assert "asset_b" not in source_instance.assets
+
+    def test_callable_with_assets_filter_single(self):
+        """Test calling SourceDefinition with single asset filter."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            @il.asset
+            def asset_b(context: il.ExecutionContext) -> str:
+                return "b"
+
+            return (asset_a, asset_b)
+
+        # Filter to only asset_b
+        source_instance = my_source(assets=["asset_b"])
+        assert set(source_instance.assets.keys()) == {"asset_b"}
+
+    def test_callable_with_assets_filter_invalid_name(self):
+        """Test calling SourceDefinition with invalid asset name raises ValueError."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            @il.asset
+            def asset_b(context: il.ExecutionContext) -> str:
+                return "b"
+
+            return (asset_a, asset_b)
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid asset names: \['nonexistent'\]. Valid asset names are: \['asset_a', 'asset_b'\].",
+        ):
+            my_source(assets=["nonexistent"])
+
+    def test_callable_with_assets_filter_multiple_invalid_names(self):
+        """Test calling SourceDefinition with multiple invalid asset names."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            return (asset_a,)
+
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid asset names: \['invalid1', 'invalid2'\]. Valid asset names are: \['asset_a'\].",
+        ):
+            my_source(assets=["invalid1", "invalid2"])
+
+    def test_callable_with_assets_filter_empty_list(self):
+        """Test calling SourceDefinition with empty assets list."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            return (asset_a,)
+
+        # Empty list should result in no assets
+        source_instance = my_source(assets=[])
+        assert source_instance.assets == {}
+
+    def test_callable_with_assets_filter_none_includes_all(self):
+        """Test calling SourceDefinition with assets=None includes all assets."""
+
+        @il.source
+        def my_source() -> tuple[il.AssetDefinition, ...]:
+            @il.asset
+            def asset_a(context: il.ExecutionContext) -> str:
+                return "a"
+
+            @il.asset
+            def asset_b(context: il.ExecutionContext) -> str:
+                return "b"
+
+            return (asset_a, asset_b)
+
+        # None (default) should include all assets
+        source_instance = my_source(assets=None)
+        assert set(source_instance.assets.keys()) == {"asset_a", "asset_b"}
+
 
 class TestSource:
     """Tests for Source."""

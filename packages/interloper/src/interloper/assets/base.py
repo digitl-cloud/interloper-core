@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import warnings
 from collections.abc import Callable
@@ -22,6 +23,7 @@ from interloper.partitioning.base import Partition, PartitionConfig, PartitionWi
 from interloper.serialization.asset import AssetSpec
 from interloper.serialization.base import Serializable
 from interloper.utils.imports import get_object_path
+from interloper.utils.text import to_display
 
 if TYPE_CHECKING:
     from interloper.assets.context import ExecutionContext
@@ -33,9 +35,11 @@ if TYPE_CHECKING:
 class AssetDefinition:
     """Definition of an asset created by the @asset decorator."""
 
+    _id: str = field(default="", init=False, repr=False)
     func: Callable[..., Any]
     source_definition: SourceDefinition | None = None
     name: str = ""
+    display_name: str = ""
     schema: type[BaseModel] | None = None
     config: type[BaseSettings] | None = None
     io: IO | dict[str, IO] | None = None
@@ -45,14 +49,25 @@ class AssetDefinition:
     deps: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Set name to function name if not provided."""
+        """Set name to function name if not provided, and compute the ID."""
+        self._compute_id()
+
         if not self.name:
             object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
 
+        if not self.display_name:
+            object.__setattr__(self, "display_name", to_display(self.name))
+
+    def _compute_id(self) -> None:
+        """Compute and cache the definition ID based on current state."""
+        path = get_object_path(self.func)
+        hash_value = hashlib.sha256(path.encode()).hexdigest()[:12]
+        object.__setattr__(self, "_id", f"dfa_{hash_value}")
+
     @property
-    def key(self) -> str:
-        """Return the unique key for this asset definition: dataset.name or name."""
-        return f"{self.dataset}.{self.name}" if self.dataset else self.name
+    def id(self) -> str:
+        """Return the definition ID (hashed import path)."""
+        return self._id
 
     def __call__(
         self,
@@ -110,8 +125,9 @@ class Asset(Serializable[AssetSpec]):
     """Runtime instance of an asset."""
 
     func: Callable
-    name: str
     definition: AssetDefinition
+    name: str
+    display_name: str = ""
     schema: type[BaseModel] | None = None
     config: BaseSettings | None = None
     io: IO | dict[str, IO] | None = None
@@ -121,14 +137,23 @@ class Asset(Serializable[AssetSpec]):
     deps: dict[str, str] = field(default_factory=dict)
     source: Source | None = field(default=None, init=False, repr=False)
     materializable: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Apply defaults after initialization.
+        """Apply defaults after initialization."""
+        if not self.display_name:
+            object.__setattr__(self, "display_name", self.definition.display_name)
 
-        - If no IO is configured at definition or call-time, default to MemoryIO singleton.
-        """
         if self.io is None:
             self.io = MemoryIO.singleton()
+
+    @property
+    def key(self) -> str:
+        """Return the unique key for this asset."""
+        if self.source:
+            return f"{self.source.name}.{self.name}"
+        else:
+            return self.name
 
     def copy(
         self,
@@ -168,14 +193,6 @@ class Asset(Serializable[AssetSpec]):
             path = get_object_path(self.func)  # Points to the actual function
         return path
 
-    @property
-    def key(self) -> str:
-        """Return the unique key for this asset."""
-        if self.source:
-            return f"{self.source.name}.{self.name}"
-        else:
-            return self.name
-
     def run(
         self,
         partition_or_window: Partition | PartitionWindow | None = None,
@@ -210,8 +227,7 @@ class Asset(Serializable[AssetSpec]):
         )
 
         # Build function kwargs with dependency resolution
-        sig = inspect.signature(self.func)
-        kwargs = self._build_kwargs(sig, context, partition_or_window, dag)
+        kwargs = self._build_kwargs(context, partition_or_window, dag)
 
         # Execute function
         result = self.func(**kwargs)
@@ -281,7 +297,7 @@ class Asset(Serializable[AssetSpec]):
         for io_key, io in ios:
             io_metadata = {
                 **metadata,
-                "asset_key": self.key,
+                **get_asset_event_metadata(self),
                 "partition_or_window": partition_str,
                 "io_key": io_key,
             }
@@ -295,7 +311,6 @@ class Asset(Serializable[AssetSpec]):
 
     def _build_kwargs(
         self,
-        sig: inspect.Signature,
         context: ExecutionContext,
         partition_or_window: Partition | PartitionWindow | None,
         dag: DAG | None,
@@ -307,7 +322,6 @@ class Asset(Serializable[AssetSpec]):
         - Upstream dependencies (loaded from IO via DAG)
 
         Args:
-            sig: Function signature
             context: Context object
             partition_or_window: Either a Partition or PartitionWindow object
             dag: DAG for dependency resolution
@@ -319,6 +333,7 @@ class Asset(Serializable[AssetSpec]):
             ValueError: If dependencies cannot be resolved
         """
         kwargs: dict[str, Any] = {}
+        sig = inspect.signature(self.func)
 
         for param_name in sig.parameters:
             if param_name == "context":
@@ -333,16 +348,7 @@ class Asset(Serializable[AssetSpec]):
                         "Pass a DAG to run() or materialize() for dependency resolution."
                     )
 
-                # Resolve dependency key: check explicit mapping first, then infer
-                if param_name in self.deps:
-                    # Explicit mapping provided
-                    upstream_key = self.deps[param_name]
-                else:
-                    # Infer from parameter name - assume same dataset
-                    if self.dataset:
-                        upstream_key = f"{self.dataset}.{param_name}"
-                    else:
-                        upstream_key = param_name
+                upstream_key = dag.resolve_dependency_key(self, param_name)
 
                 if upstream_key not in dag.asset_map:
                     raise ValueError(f"Dependency '{upstream_key}' not found in DAG for asset '{self.name}'")

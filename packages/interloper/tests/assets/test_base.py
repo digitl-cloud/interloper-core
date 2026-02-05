@@ -35,32 +35,40 @@ class TestAssetDefinition:
         assert asset_def.default_io_key is None
         assert asset_def.deps == {}
 
-    def test_key_without_dataset(self):
-        """Test key property without dataset."""
+    def test_id_is_hashed_definition_id(self):
+        """Test id property returns hashed definition ID."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
         asset_def = il.AssetDefinition(func, name="my_asset")
-        assert asset_def.key == "my_asset"
+        # ID should be hashed and start with dfa_ prefix (definition-asset)
+        assert asset_def.id.startswith("dfa_")
+        assert len(asset_def.id) == 16  # "dfa_" + 12 hex chars
 
-    def test_key_with_dataset(self):
-        """Test key property with dataset."""
-
-        def func(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_def = il.AssetDefinition(func, name="my_asset", dataset="my_dataset")
-        assert asset_def.key == "my_dataset.my_asset"
-
-    def test_key_without_dataset_or_source(self):
-        """Test key property without dataset or source context."""
+    def test_id_is_deterministic(self):
+        """Test id property is deterministic for same function."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_def = il.AssetDefinition(func, name="my_asset")
-        assert asset_def.key == "my_asset"
+        asset_def1 = il.AssetDefinition(func, name="my_asset")
+        asset_def2 = il.AssetDefinition(func, name="different_name")
+        # Same function should produce same definition ID
+        assert asset_def1.id == asset_def2.id
+
+    def test_different_funcs_have_different_ids(self):
+        """Test different functions have different definition IDs."""
+
+        def func1(context: il.ExecutionContext) -> str:
+            return "value1"
+
+        def func2(context: il.ExecutionContext) -> str:
+            return "value2"
+
+        asset_def1 = il.AssetDefinition(func1)
+        asset_def2 = il.AssetDefinition(func2)
+        assert asset_def1.id != asset_def2.id
 
     def test_deps_initialization(self):
         """Test deps field initialization."""

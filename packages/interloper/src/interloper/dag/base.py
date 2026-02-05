@@ -41,6 +41,9 @@ class DAG(Serializable):
         (`AssetDefinition`, `SourceDefinition`). Definitions are instantiated
         with best-effort config inference (env-based) when available.
         """
+        if not assets_or_sources:
+            raise ValueError("DAG must contain at least one asset or source")
+
         # Collect all assets
         for item in assets_or_sources:
             if isinstance(item, SourceDefinition):
@@ -88,16 +91,7 @@ class DAG(Serializable):
                 if param_name in ("context", "config"):
                     continue
 
-                # Resolve dependency key: check explicit mapping first, then infer
-                if param_name in asset.deps:
-                    # Explicit mapping provided
-                    upstream_key = asset.deps[param_name]
-                else:
-                    # Infer from parameter name - assume same dataset
-                    if asset.dataset:
-                        upstream_key = f"{asset.dataset}.{param_name}"
-                    else:
-                        upstream_key = param_name
+                upstream_key = self.resolve_dependency_key(asset, param_name)
 
                 # This is a dependency
                 if upstream_key in self.asset_map:
@@ -109,6 +103,51 @@ class DAG(Serializable):
                         f"Asset '{asset.key}' depends on '{upstream_key}' which is not in the DAG. "
                         f"Available assets: {list(self.asset_map.keys())}"
                     )
+
+    def _resolve_source_alias_key(self, source_name: str, param_name: str) -> str | None:
+        """Resolve a dependency by matching a renamed asset within the same source."""
+        matches: list[str] = []
+        for asset in self.assets:
+            if not asset.source or asset.source.name != source_name:
+                continue
+            original_name = asset.metadata.get("source_original_name")
+            if original_name == param_name:
+                matches.append(asset.key)
+
+        if not matches:
+            return None
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous dependency '{param_name}' in source '{source_name}'. "
+                f"Multiple renamed assets match: {sorted(matches)}."
+            )
+        return matches[0]
+
+    def resolve_dependency_key(self, asset: Asset, param_name: str) -> str:
+        """Resolve a dependency key for a parameter.
+
+        Resolution order:
+        - Explicit mapping via asset.deps
+        - Same-source implicit mapping (param -> source.asset), including renamed assets
+        - Standalone implicit mapping (param -> param)
+        """
+        if param_name in asset.deps:
+            return asset.deps[param_name]
+
+        if asset.source:
+            # Asset keys use source.name, not dataset
+            upstream_key = f"{asset.source.name}.{param_name}"
+            if upstream_key in self.asset_map:
+                return upstream_key
+
+            alias_key = self._resolve_source_alias_key(asset.source.name, param_name)
+            if alias_key is not None:
+                return alias_key
+
+            return upstream_key
+
+        # Standalone asset - just use param name
+        return param_name
 
     def _validate(self) -> None:
         """Validate the DAG.
@@ -300,4 +339,3 @@ class DAG(Serializable):
             asset.materializable = asset.key not in completed_keys
 
         return dag
-
