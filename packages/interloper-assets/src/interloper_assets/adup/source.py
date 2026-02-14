@@ -2,13 +2,13 @@ import datetime as dt
 
 import interloper as il
 import pandas as pd
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from interloper_assets.adup import constants
 from interloper_assets.adup.schemas.ads import Ads
 
 
-class AdupConfig(BaseSettings):
+class AdupConfig(il.Config):
     client_id: str
     client_secret: str
 
@@ -17,13 +17,17 @@ class AdupConfig(BaseSettings):
 
 @il.source(
     config=AdupConfig,
+    tags=["Advertising"],
 )
-def adup(config: AdupConfig) -> tuple[il.AssetDefinition, ...]:
-    auth = il.OAuth2ClientCredentialsAuth(constants.BASE_URL, config.client_id, config.client_secret)
-    client = il.RESTClient(constants.BASE_URL, auth)
+class Adup:
+    """Adup advertising platform integration."""
 
-    def get_report(report_type: str, start_date: dt.date, end_date: dt.date) -> dict:
-        response = client.post(
+    def setup(self, config: AdupConfig) -> None:
+        auth = il.OAuth2ClientCredentialsAuth(constants.BASE_URL, config.client_id, config.client_secret)
+        self.client = il.RESTClient(constants.BASE_URL, auth)
+
+    def get_report(self, report_type: str, start_date: dt.date, end_date: dt.date) -> dict:
+        response = self.client.post(
             "/reports/v202101/report",
             json={
                 "report_name": report_type,
@@ -45,8 +49,10 @@ def adup(config: AdupConfig) -> tuple[il.AssetDefinition, ...]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def account(context: il.ExecutionContext) -> pd.DataFrame:
-        response = client.get("/advertisers/me")
+    def account(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Advertiser account information."""
+
+        response = self.client.get("/advertisers/me")
         response.raise_for_status()
         data = response.json()
         return pd.DataFrame([data])
@@ -55,10 +61,10 @@ def adup(config: AdupConfig) -> tuple[il.AssetDefinition, ...]:
         schema=Ads,
         partitioning=il.TimePartitionConfig(column="Date", allow_window=True),
     )
-    def ads(context: il.ExecutionContext) -> pd.DataFrame:
+    def ads(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Ad performance insights with metrics like impressions, clicks, conversions, and cost."""
+
         (start_date, end_date) = context.partition_date_window
-        response = get_report("AD_PERFORMANCE_REPORT", start_date, end_date)
+        response = self.get_report("AD_PERFORMANCE_REPORT", start_date, end_date)
         data = response["rows"]
         return pd.DataFrame(data)
-
-    return (account, ads)

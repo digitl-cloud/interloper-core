@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import inspect
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
 
 from interloper.assets.context import ExecutionContext
+from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
 from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
 from interloper.io.base import IO
@@ -23,64 +22,77 @@ from interloper.partitioning.base import Partition, PartitionConfig, PartitionWi
 from interloper.serialization.asset import AssetSpec
 from interloper.serialization.base import Serializable
 from interloper.utils.imports import get_object_path
-from interloper.utils.text import to_display
+from interloper.utils.text import to_label, validate_name
 
 if TYPE_CHECKING:
     from interloper.assets.context import ExecutionContext
     from interloper.dag.base import DAG
     from interloper.source.base import Source, SourceDefinition
+    from interloper.source.config import Config
 
 
 @dataclass(frozen=True)
 class AssetDefinition:
     """Definition of an asset created by the @asset decorator."""
 
-    _id: str = field(default="", init=False, repr=False)
     func: Callable[..., Any]
     source_definition: SourceDefinition | None = None
     name: str = ""
-    display_name: str = ""
+    label: str = ""
     schema: type[BaseModel] | None = None
-    config: type[BaseSettings] | None = None
-    io: IO | dict[str, IO] | None = None
+    config: type[Config] | None = None
+    tags: tuple[str, ...] = ()
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
-    default_io_key: str | None = None
-    deps: dict[str, str] = field(default_factory=dict)
+    requires: dict[str, AssetDefinitionKey] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Set name to function name if not provided, and compute the ID."""
-        self._compute_id()
-
+        """Set name to function name if not provided, validate."""
         if not self.name:
             object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
 
-        if not self.display_name:
-            object.__setattr__(self, "display_name", to_display(self.name))
+        validate_name(self.name)
 
-    def _compute_id(self) -> None:
-        """Compute and cache the definition ID based on current state."""
-        path = get_object_path(self.func)
-        hash_value = hashlib.sha256(path.encode()).hexdigest()[:12]
-        object.__setattr__(self, "_id", f"dfa_{hash_value}")
+        if not self.label:
+            object.__setattr__(self, "label", to_label(self.name))
 
     @property
-    def id(self) -> str:
-        """Return the definition ID (hashed import path)."""
-        return self._id
+    def definition_key(self) -> AssetDefinitionKey:
+        """Return the asset definition key.
+
+        Format: ``{source-definition-key}:{asset-name}`` for source-bound assets,
+        or just ``{asset-name}`` for standalone assets.
+        """
+        if self.source_definition:
+            return AssetDefinitionKey(f"{self.source_definition.name}:{self.name}")
+        return AssetDefinitionKey(self.name)
 
     def __call__(
         self,
         *,
         name: str | None = None,
-        config: BaseSettings | None = None,
+        config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
-        deps: dict[str, str] | None = None,
+        deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
         default_io_key: str | None = None,
         materializable: bool = True,
     ) -> Asset:
-        """Instantiate the asset with runtime parameters."""
+        """Instantiate the asset with runtime parameters.
+
+        Args:
+            name: Override asset name.
+            config: Override config instance.
+            io: Override IO backend.
+            deps: Explicit dependency mapping (param name → asset instance key).
+            dataset: Override dataset name.
+            default_io_key: Override default IO key for multi-IO setups.
+            materializable: Whether the asset can be materialized.
+        """
+        if name is not None:
+            validate_name(name)
+
         # If config is provided, check it's the correct type (if self.config is set)
         if config is not None and self.config is not None and not issubclass(type(config), self.config):
             raise TypeError(
@@ -100,21 +112,16 @@ class AssetDefinition:
                     f"Provide config explicitly or set environment variables. Error: {e}"
                 ) from e
 
-        # Merge deps: runtime override > definition-level
-        merged_deps: dict[str, str] = dict(self.deps)
-        if deps:
-            merged_deps.update(deps)
-
         return Asset(
             func=self.func,
             name=name or self.name,
             schema=self.schema,
             config=resolved_config,
-            io=io or self.io,
+            io=io,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
-            default_io_key=default_io_key or self.default_io_key,
-            deps=merged_deps,
+            default_io_key=default_io_key,
+            deps=deps or {},
             definition=self,
             materializable=materializable,
         )
@@ -127,39 +134,43 @@ class Asset(Serializable[AssetSpec]):
     func: Callable
     definition: AssetDefinition
     name: str
-    display_name: str = ""
+    label: str = ""
     schema: type[BaseModel] | None = None
-    config: BaseSettings | None = None
+    config: Config | None = None
     io: IO | dict[str, IO] | None = None
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
     default_io_key: str | None = None
-    deps: dict[str, str] = field(default_factory=dict)
+    deps: dict[str, AssetInstanceKey] = field(default_factory=dict)
     source: Source | None = field(default=None, init=False, repr=False)
     materializable: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Apply defaults after initialization."""
-        if not self.display_name:
-            object.__setattr__(self, "display_name", self.definition.display_name)
+        if not self.label:
+            object.__setattr__(self, "label", self.definition.label)
 
         if self.io is None:
             self.io = MemoryIO.singleton()
 
     @property
-    def key(self) -> str:
-        """Return the unique key for this asset."""
+    def instance_key(self) -> AssetInstanceKey:
+        """Return the unique key for this asset instance."""
         if self.source:
-            return f"{self.source.name}.{self.name}"
-        else:
-            return self.name
+            return AssetInstanceKey(f"{self.source.instance_key}:{self.name}")
+        return AssetInstanceKey(self.name)
+
+    @property
+    def definition_key(self) -> AssetDefinitionKey:
+        """Return the asset definition key."""
+        return self.definition.definition_key
 
     def copy(
         self,
-        config: BaseSettings | None = None,
+        config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
-        deps: dict[str, str] | None = None,
+        deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
         materializable: bool | None = None,
     ) -> Asset:
@@ -184,11 +195,11 @@ class Asset(Serializable[AssetSpec]):
 
         Overrides the base class path property.
 
-        If the asset is a source, the path is the import path of the source function plus the asset name.
-        If the asset is not a source, the path is the import path of the asset function.
+        If the asset belongs to a source, the path is the source class path plus the asset name.
+        If the asset is standalone, the path is the import path of the asset function.
         """
         if self.source:
-            path = f"{get_object_path(self.source.func)}:{self.name}"
+            path = f"{get_object_path(self.source.definition.cls)}:{self.name}"
         else:
             path = get_object_path(self.func)  # Points to the actual function
         return path
@@ -220,8 +231,8 @@ class Asset(Serializable[AssetSpec]):
 
         # Create context
         context = ExecutionContext(
+            asset_key=self.instance_key,
             partition_or_window=partition_or_window,
-            asset_name=self.name,
             partitioning=self.partitioning,
             metadata=metadata,
         )
@@ -303,7 +314,7 @@ class Asset(Serializable[AssetSpec]):
             }
             emit(EventType.IO_WRITE_STARTED, metadata=io_metadata)
             try:
-                io.write(io_context, result)  # ty:ignore[unresolved-attribute]
+                io.write(io_context, result)
                 emit(EventType.IO_WRITE_COMPLETED, metadata=io_metadata)
             except Exception as e:
                 emit(EventType.IO_WRITE_FAILED, metadata={**io_metadata, "error": str(e)})
@@ -360,9 +371,10 @@ class Asset(Serializable[AssetSpec]):
                 read_io_key = None
                 if isinstance(upstream_asset.io, dict):
                     # Use default_io_key
+                    io_dict = cast(dict[str, IO], upstream_asset.io)
                     read_io_key = upstream_asset.default_io_key
                     if read_io_key:
-                        read_io = upstream_asset.io[read_io_key]
+                        read_io = io_dict[read_io_key]
                 else:
                     read_io = upstream_asset.io
 
@@ -417,7 +429,7 @@ class Asset(Serializable[AssetSpec]):
 
         return AssetSpec(
             path=self.path,
-            io=io_spec,  # ty:ignore[invalid-argument-type]
+            io=io_spec,
             materializable=self.materializable,
             config=self.config.model_dump() if self.config is not None else None,
         )

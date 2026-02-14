@@ -25,7 +25,7 @@ class SerialRunner(Runner[str]):
         partition_or_window: Partition | PartitionWindow | None,
     ) -> str:
         self._execute_asset(asset, partition_or_window)
-        return asset.key
+        return asset.instance_key
 
     def _wait_any(self, handles: list[str]) -> str:
         return handles[0]

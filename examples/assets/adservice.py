@@ -1,7 +1,7 @@
 import datetime as dt
 
 import interloper as il
-from interloper_assets import adservice
+from interloper_assets import Adservice
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -15,6 +15,6 @@ if __name__ == "__main__":
 
     partition = il.TimePartition(dt.date(2024, 1, 1))
     io = il.FileIO("data/")
-    source = adservice(io=io)
+    source = Adservice(io=io)
     result = il.DAG(source).materialize(partition_or_window=partition)
     print(result)

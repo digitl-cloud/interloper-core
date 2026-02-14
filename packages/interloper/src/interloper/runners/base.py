@@ -214,14 +214,14 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
 
             while not self.state.is_run_complete():
                 # Fill capacity with any currently ready assets not yet submitted
-                submitted_keys = {asset.key for asset in inflight.values()}
+                submitted_keys = {asset.instance_key for asset in inflight.values()}
                 ready_assets = self.state.ready_assets
 
                 for asset in ready_assets:
                     if len(inflight) >= self._capacity:
                         break
 
-                    if asset.key in submitted_keys:
+                    if asset.instance_key in submitted_keys:
                         continue
 
                     handle = self._submit_asset(asset, partition_or_window)

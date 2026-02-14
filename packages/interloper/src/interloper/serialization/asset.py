@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
-from pydantic_settings.main import BaseSettings
 
 from interloper.serialization.base import Spec
 from interloper.serialization.io import IOSpec
@@ -15,6 +14,7 @@ if TYPE_CHECKING:
     from interloper.assets.base import Asset, AssetDefinition
     from interloper.io.base import IO
     from interloper.source.base import SourceDefinition
+    from interloper.source.config import Config
 
 
 class AssetSpec(Spec):
@@ -46,7 +46,7 @@ class AssetSpec(Spec):
         self,
         definition: SourceDefinition | AssetDefinition,
         data: dict[str, Any] | None,
-    ) -> BaseSettings | None:
+    ) -> Config | None:
         if definition.config is not None and data is not None:
             return definition.config.model_validate(data)
         return None

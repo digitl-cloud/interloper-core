@@ -81,7 +81,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
                     if error_msg:
                         print(f"Asset {asset_key} failed: {error_msg}")
             except Exception as e:
-                print(f"Asset {asset.key} failed with exception: {e}")
+                print(f"Asset {asset.instance_key} failed with exception: {e}")
                 self.state.mark_asset_failed(asset, str(e))
 
         future.add_done_callback(done_callback)
@@ -149,6 +149,6 @@ def execute_in_process(
             partition_or_window=partition_or_window,
             dag=dag,
         )
-        return (asset.key, True, None)
+        return (asset.instance_key, True, None)
     except Exception as e:
-        return (asset.key, False, str(e))
+        return (asset.instance_key, False, str(e))

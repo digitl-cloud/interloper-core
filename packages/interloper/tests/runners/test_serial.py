@@ -135,6 +135,6 @@ class TestSerialRunner:
         # Verify that both sources' assets were executed
         # The assets should be tracked by their keys, not names
         executed_keys = set(result.completed_assets)
-        expected_keys = {asset.key for asset in double_source_dag.assets}
+        expected_keys = {asset.instance_key for asset in double_source_dag.assets}
         assert executed_keys == expected_keys
 

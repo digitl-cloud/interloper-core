@@ -8,23 +8,23 @@ import interloper as il
 def _build_simple_dag(tmp_path):
     io = il.FileIO(str(tmp_path / "data"))
 
-    @il.asset(io=io)
+    @il.asset
     def a() -> str:
         return "a"
 
-    @il.asset(io=io)
+    @il.asset
     def b(a: str) -> str:
         return f"b({a})"
 
-    @il.asset(io=io)
+    @il.asset
     def c(a: str) -> str:
         return f"c({a})"
 
-    @il.asset(io=io)
+    @il.asset
     def d(b: str, c: str) -> str:
         return f"d({b},{c})"
 
-    return il.DAG(a, b, c, d)
+    return il.DAG(a(io=io), b(io=io), c(io=io), d(io=io))
 
 
 # class TestInProcessBackfiller:

@@ -32,36 +32,36 @@ def dag(tmp_path):
     """
     io = il.FileIO(tmp_path)
 
-    @il.asset(io=io)
+    @il.asset
     def a(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 1}]
 
-    @il.asset(io=io)
+    @il.asset
     def b(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 2}]
 
-    @il.asset(io=io)
+    @il.asset
     def c(context: il.ExecutionContext, a: list[dict]) -> list[dict]:
         return [{"v": a[0]["v"] + 1}]
 
-    @il.asset(io=io)
+    @il.asset
     def d(context: il.ExecutionContext, a: list[dict]) -> list[dict]:
         return [{"v": a[0]["v"] * 3}]
 
-    @il.asset(io=io)
+    @il.asset
     def e(context: il.ExecutionContext, b: list[dict], c: list[dict]) -> list[dict]:
         return [{"v": int(b[0]["v"] + c[0]["v"])}]
 
-    @il.asset(io=io)
+    @il.asset
     def f(context: il.ExecutionContext, d: list[dict]) -> list[dict]:
         return [{"v": d[0]["v"] - 1}]
 
-    @il.asset(io=io)
+    @il.asset
     def g(context: il.ExecutionContext, e: list[dict], f: list[dict]) -> list[dict]:
         return [{"v": int(e[0]["v"] + f[0]["v"])}]
 
     # Build DAG and replace asset functions with mocks
-    assets = [a(), b(), c(), d(), e(), f(), g()]
+    assets = [a(io=io), b(io=io), c(io=io), d(io=io), e(io=io), f(io=io), g(io=io)]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -89,36 +89,36 @@ def dag_partitioned(tmp_path):
     io = il.FileIO(tmp_path)
     part = il.TimePartitionConfig(column="date")
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def a(context: il.ExecutionContext) -> list[dict]:
         return [{"date": context.partition_date, "v": 1}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def b(context: il.ExecutionContext) -> list[dict]:
         return [{"date": context.partition_date, "v": 2}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def c(context: il.ExecutionContext, a: list[dict]) -> list[dict]:
         return [{"date": context.partition_date, "v": int(a[0]["v"] + 1)}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def d(context: il.ExecutionContext, a: list[dict]) -> list[dict]:
         return [{"date": context.partition_date, "v": int(a[0]["v"] * 3)}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def e(context: il.ExecutionContext, b: list[dict], c: list[dict]) -> list[dict]:
         return [{"date": context.partition_date, "v": int(b[0]["v"] + c[0]["v"])}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def f(context: il.ExecutionContext, d: list[dict]) -> list[dict]:
         return [{"date": context.partition_date, "v": int(d[0]["v"] - 1)}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def g(context: il.ExecutionContext, e: list[dict], f: list[dict]) -> list[dict]:
         return [{"date": context.partition_date, "v": int(e[0]["v"] + f[0]["v"])}]
 
     # Build DAG and replace asset functions with mocks
-    assets = [a(), b(), c(), d(), e(), f(), g()]
+    assets = [a(io=io), b(io=io), c(io=io), d(io=io), e(io=io), f(io=io), g(io=io)]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -150,25 +150,25 @@ def dag_mixed(tmp_path):
     io = il.FileIO(tmp_path)
     part = il.TimePartitionConfig(column="date")
 
-    @il.asset(io=io)
+    @il.asset
     def a(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 1}]
 
-    @il.asset(io=io)
+    @il.asset
     def b(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 2}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def c(context: il.ExecutionContext, a: list[dict]) -> list[dict]:
         # partitioned, depends on non-partitioned a
         return [{"date": context.partition_date, "v": int(a[0]["v"] + 1)}]
 
-    @il.asset(io=io, partitioning=part)
+    @il.asset(partitioning=part)
     def e(context: il.ExecutionContext, b: list[dict], c: list[dict]) -> list[dict]:
         # partitioned, depends on non-partitioned b and partitioned c
         return [{"date": context.partition_date, "v": int(b[0]["v"] + c[0]["v"])}]
 
-    assets = [a(), b(), c(), e()]
+    assets = [a(io=io), b(io=io), c(io=io), e(io=io)]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -194,31 +194,27 @@ def double_source_dag(tmp_path):
     part = il.TimePartitionConfig(column="date")
 
     @il.source
-    def source1() -> tuple[il.AssetDefinition, ...]:
-        @il.asset(io=io, partitioning=part)
-        def a(context: il.ExecutionContext) -> list[dict]:
+    class Source1:
+        @il.asset(partitioning=part)
+        def a(self, context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 1}]
 
-        @il.asset(io=io, partitioning=part)
-        def b(context: il.ExecutionContext) -> list[dict]:
+        @il.asset(partitioning=part)
+        def b(self, context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 2}]
-
-        return (a, b)
 
     @il.source
-    def source2() -> tuple[il.AssetDefinition, ...]:
-        @il.asset(io=io, partitioning=part)
-        def a(context: il.ExecutionContext) -> list[dict]:
+    class Source2:
+        @il.asset(partitioning=part)
+        def a(self, context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 1}]
 
-        @il.asset(io=io, partitioning=part)
-        def b(context: il.ExecutionContext) -> list[dict]:
+        @il.asset(partitioning=part)
+        def b(self, context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date, "v": 2}]
 
-        return (a, b)
-
     # Build DAG and replace asset functions with mocks
-    dag = il.DAG(source1(), source2())
+    dag = il.DAG(Source1(io=io), Source2(io=io))
 
     # Replace each asset's func with a MagicMock that preserves the original signature
     import inspect
@@ -247,6 +243,6 @@ def file_based_dag(tmp_path):
     # Use the module-level assets but override their IO to use tmp_path
     asset_a = test_assets.asset_a()(io=io)  # type: ignore[attr-defined]
     asset_b = test_assets.asset_b()(io=io)  # type: ignore[attr-defined]
-    asset_c = test_assets.asset_c()(io=io)  # type: ignore[attr-defined]
+    asset_c = test_assets.asset_c(io=io, deps={"a": "asset_a"})  # type: ignore[attr-defined]
 
     return il.DAG(asset_a, asset_b, asset_c)

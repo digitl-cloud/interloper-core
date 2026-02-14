@@ -337,7 +337,7 @@ def unsubscribe(handler: Callable[[Event], None]) -> None:
 def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
     """Get the metadata for an asset event."""
     metadata = {
-        "asset_key": asset.key,
+        "asset_key": asset.instance_key,
         "asset_name": asset.name,
     }
     if asset.source is not None:

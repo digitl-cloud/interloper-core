@@ -4,7 +4,7 @@ import datetime as dt
 
 import dotenv
 import interloper as il
-from interloper_assets import adup
+from interloper_assets import Adup
 from interloper_k8s.runner import KubernetesRunner
 
 dotenv.load_dotenv()
@@ -14,7 +14,7 @@ def on_event(event: il.Event) -> None:
     print(event)
 
 
-source = adup()
+source = Adup()
 dag = il.DAG(source)
 partition = il.TimePartition(value=dt.date(2025, 1, 1))
 

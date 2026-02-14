@@ -5,7 +5,7 @@ import os
 
 import dotenv
 import interloper as il
-from interloper_assets import adup
+from interloper_assets import Adup
 from interloper_docker.backfiller import DockerBackfiller
 from interloper_docker.runner import DockerRunner
 
@@ -19,7 +19,7 @@ def on_event(event: il.Event) -> None:
 data_path = os.path.abspath("./data")
 partitioning = il.TimePartitionConfig(column="date")
 io = il.FileIO("/tmp/data")
-dag = il.DAG(adup(io=io))
+dag = il.DAG(Adup(io=io))
 window = il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 2))
 
 # NOTE: In DinD, child containers created via the Docker socket see volumes from the host's perspective,

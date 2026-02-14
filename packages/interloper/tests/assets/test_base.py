@@ -4,7 +4,6 @@ import datetime as dt
 
 import pytest
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
 
 import interloper as il
 
@@ -30,84 +29,47 @@ class TestAssetDefinition:
         assert asset_def.dataset is None
         assert asset_def.schema is None
         assert asset_def.config is None
-        assert asset_def.io is None
         assert asset_def.partitioning is None
-        assert asset_def.default_io_key is None
-        assert asset_def.deps == {}
+        assert asset_def.requires == {}
 
-    def test_id_is_hashed_definition_id(self):
-        """Test id property returns hashed definition ID."""
-
-        def func(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_def = il.AssetDefinition(func, name="my_asset")
-        # ID should be hashed and start with dfa_ prefix (definition-asset)
-        assert asset_def.id.startswith("dfa_")
-        assert len(asset_def.id) == 16  # "dfa_" + 12 hex chars
-
-    def test_id_is_deterministic(self):
-        """Test id property is deterministic for same function."""
-
-        def func(context: il.ExecutionContext) -> str:
-            return "value"
-
-        asset_def1 = il.AssetDefinition(func, name="my_asset")
-        asset_def2 = il.AssetDefinition(func, name="different_name")
-        # Same function should produce same definition ID
-        assert asset_def1.id == asset_def2.id
-
-    def test_different_funcs_have_different_ids(self):
-        """Test different functions have different definition IDs."""
-
-        def func1(context: il.ExecutionContext) -> str:
-            return "value1"
-
-        def func2(context: il.ExecutionContext) -> str:
-            return "value2"
-
-        asset_def1 = il.AssetDefinition(func1)
-        asset_def2 = il.AssetDefinition(func2)
-        assert asset_def1.id != asset_def2.id
-
-    def test_deps_initialization(self):
-        """Test deps field initialization."""
+    def test_requires_initialization(self):
+        """Test requires field initialization."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
         asset_def = il.AssetDefinition(func)
-        assert asset_def.deps == {}
+        assert asset_def.requires == {}
 
-    def test_deps_with_explicit_mapping(self):
-        """Test deps with explicit dependency mapping."""
-
-        def func(context: il.ExecutionContext) -> str:
-            return "value"
-
-        deps = {"param1": "dataset1.asset1", "param2": "dataset2.asset2"}
-        asset_def = il.AssetDefinition(func, deps=deps)
-        assert asset_def.deps == deps
-
-    def test_call_with_deps_override(self):
-        """Test __call__ with deps override."""
+    def test_requires_with_explicit_mapping(self):
+        """Test requires with explicit definition key mapping."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_def = il.AssetDefinition(func, deps={"param1": "original.asset"})
-        asset = asset_def(deps={"param1": "override.asset"})
-        assert asset.deps == {"param1": "override.asset"}
+        requires = {"campaign": "facebook_ads:campaign", "display": "amazon_ads:display"}
+        asset_def = il.AssetDefinition(func, requires=requires)
+        assert asset_def.requires == requires
 
-    def test_call_with_deps_merge(self):
-        """Test __call__ with deps merge."""
+    def test_call_with_deps(self):
+        """Test __call__ with deps (instance-level only)."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_def = il.AssetDefinition(func, deps={"param1": "original.asset"})
-        asset = asset_def(deps={"param2": "new.asset"})
-        assert asset.deps == {"param1": "original.asset", "param2": "new.asset"}
+        asset_def = il.AssetDefinition(func)
+        asset = asset_def(deps={"param1": "source.asset"})
+        assert asset.deps == {"param1": "source.asset"}
+
+    def test_call_without_deps(self):
+        """Test __call__ without deps results in empty deps."""
+
+        def func(context: il.ExecutionContext) -> str:
+            return "value"
+
+        asset_def = il.AssetDefinition(func)
+        asset = asset_def()
+        assert asset.deps == {}
 
     def test_custom_name(self):
         """Test AssetDefinition with custom name."""
@@ -118,9 +80,77 @@ class TestAssetDefinition:
         asset_def = il.AssetDefinition(func, name="custom_name")
         assert asset_def.name == "custom_name"
 
-    def test_with_all_parameters(self, tmp_path):
+    def test_invalid_name_rejected(self):
+        """Test that invalid names are rejected at definition time."""
+
+        def func(context: il.ExecutionContext) -> str:
+            return "value"
+
+        with pytest.raises(ValueError, match="invalid"):
+            il.AssetDefinition(func, name="my-asset")
+
+        with pytest.raises(ValueError, match="invalid"):
+            il.AssetDefinition(func, name="123")
+
+    def test_invalid_name_rejected_at_instantiation(self):
+        """Test that invalid name overrides are rejected when calling a definition."""
+
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> str:
+            return "value"
+
+        with pytest.raises(ValueError, match="invalid"):
+            my_asset(name="bad-name")
+
+    def test_definition_key_standalone(self):
+        """Standalone asset definition_key equals the asset name."""
+
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> str:
+            return "value"
+
+        assert my_asset.definition_key == "my_asset"
+
+    def test_definition_key_source_bound(self):
+        """Source-bound asset definition_key is source_name:asset_name."""
+
+        @il.source
+        class MySource:
+            @il.asset
+            def my_asset(self, context: il.ExecutionContext) -> str:
+                return "value"
+
+        asset_def = MySource.my_asset
+        assert asset_def.source_definition is MySource
+        assert asset_def.definition_key == "MySource:my_asset"
+
+    def test_source_definition_wired_by_decorator(self):
+        """The @source decorator wires source_definition on collected asset defs."""
+
+        @il.source
+        class MySource:
+            @il.asset
+            def a(self, context: il.ExecutionContext) -> str:
+                return "a"
+
+            @il.asset
+            def b(self, context: il.ExecutionContext) -> str:
+                return "b"
+
+        for asset_def in MySource.asset_defs.values():
+            assert asset_def.source_definition is MySource
+
+    def test_source_definition_none_for_standalone(self):
+        """Standalone asset definitions have source_definition=None."""
+
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> str:
+            return "value"
+
+        assert my_asset.source_definition is None
+
+    def test_with_all_parameters(self):
         """Test AssetDefinition with all parameters."""
-        io = il.FileIO(tmp_path)
         partitioning = il.TimePartitionConfig(column="date")
 
         def func(context: il.ExecutionContext) -> str:
@@ -130,18 +160,14 @@ class TestAssetDefinition:
             func,
             name="test",
             schema=SampleSchema,
-            io=io,
             partitioning=partitioning,
             dataset="data",
-            default_io_key="default",
         )
 
         assert asset_def.name == "test"
         assert asset_def.schema == SampleSchema
-        assert asset_def.io == io
         assert asset_def.partitioning == partitioning
         assert asset_def.dataset == "data"
-        assert asset_def.default_io_key == "default"
 
     def test_callable_creates_asset_instance(self):
         """Test that calling AssetDefinition creates an Asset instance."""
@@ -155,9 +181,8 @@ class TestAssetDefinition:
 
     def test_callable_with_config_override(self):
         """Test calling AssetDefinition with config override."""
-        from pydantic_settings import BaseSettings
 
-        class Config(BaseSettings):
+        class Config(il.Config):
             key: str = "default"
 
         def func(context: il.ExecutionContext) -> str:
@@ -174,10 +199,11 @@ class TestAssetDefinition:
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_def = il.AssetDefinition(func, io=il.FileIO("default/"))
+        asset_def = il.AssetDefinition(func)
         new_io = il.FileIO("override/")
         asset_instance = asset_def(io=new_io)
         assert isinstance(asset_instance, il.Asset)
+        assert asset_instance.io == new_io
 
 
 class TestAsset:
@@ -197,81 +223,70 @@ class TestAsset:
         assert asset_instance.schema is None
         assert asset_instance.config is None
         assert asset_instance.dataset is None
-        assert asset_instance.default_io_key is None
         assert isinstance(asset_instance.io, il.MemoryIO)
 
     def test_key_with_source(self):
         """Test key property with source context."""
 
         @il.source
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-            return (my_asset,)
+        source_instance = MySource()
 
-        source_instance = my_source()
-
-        assert source_instance.my_asset.key == "my_source.my_asset"
+        assert source_instance.my_asset.instance_key == "MySource:my_asset"
 
     def test_key_with_source_name_override(self):
         """Test key property with source name override."""
 
         @il.source(name="new_source_name")
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-            return (my_asset,)
-
-        source_instance = my_source()
-        assert source_instance.my_asset.key == "new_source_name.my_asset"
+        source_instance = MySource()
+        assert source_instance.my_asset.instance_key == "new_source_name:my_asset"
 
     def test_key_with_multiple_sources_same_name(self):
         """Test that assets from different sources with same name get different keys."""
 
         @il.source
-        def source1() -> tuple[il.AssetDefinition, ...]:
+        class Source1:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value1"
 
-            return (my_asset,)
-
         @il.source
-        def source2() -> tuple[il.AssetDefinition, ...]:
+        class Source2:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value2"
 
-            return (my_asset,)
-
-        source1_instance = source1()
-        source2_instance = source2()
+        source1_instance = Source1()
+        source2_instance = Source2()
 
         asset1 = source1_instance.assets["my_asset"]
         asset2 = source2_instance.assets["my_asset"]
 
         # Both assets have the same name but different keys
         assert asset1.name == asset2.name == "my_asset"
-        assert asset1.key == "source1.my_asset"
-        assert asset2.key == "source2.my_asset"
-        assert asset1.key != asset2.key
+        assert asset1.instance_key == "Source1:my_asset"
+        assert asset2.instance_key == "Source2:my_asset"
+        assert asset1.instance_key != asset2.instance_key
 
     def test_key_with_custom_source_name(self):
         """Test key property with custom source name."""
 
         @il.source(name="custom_source_name")
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-            return (my_asset,)
-
-        source_instance = my_source()
+        source_instance = MySource()
         asset_instance = source_instance.assets["my_asset"]
 
         # Asset should have source context with custom name
@@ -279,7 +294,7 @@ class TestAsset:
         assert asset_instance.source.name == "custom_source_name"
 
         # Key should include custom source name
-        assert asset_instance.key == "custom_source_name.my_asset"
+        assert asset_instance.instance_key == "custom_source_name:my_asset"
 
     def test_with_dataset(self):
         """Test dataset property."""
@@ -295,28 +310,24 @@ class TestAsset:
         """Test dataset property from source."""
 
         @il.source()
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-            return (my_asset,)
-
-        source_instance = my_source()
-        assert source_instance.my_asset.dataset == "my_source"
+        source_instance = MySource()
+        assert source_instance.my_asset.dataset == "MySource"
 
     def test_dataset_from_source_dataset(self):
         """Test dataset property from source."""
 
         @il.source(dataset="my_dataset")
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-            return (my_asset,)
-
-        source_instance = my_source()
+        source_instance = MySource()
         assert source_instance.my_asset.dataset == "my_dataset"
 
     def test_deps_initialization(self):
@@ -330,40 +341,39 @@ class TestAsset:
         assert asset_instance.deps == {}
 
     def test_deps_with_explicit_mapping(self):
-        """Test deps with explicit dependency mapping."""
+        """Test deps with explicit dependency mapping at instantiation."""
 
-        @il.asset(deps={"param1": "dataset1.asset1", "param2": "dataset2.asset2"})
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset()
+        asset_instance = my_asset(deps={"param1": "dataset1.asset1", "param2": "dataset2.asset2"})
         assert asset_instance.deps == {"param1": "dataset1.asset1", "param2": "dataset2.asset2"}
 
-    def test_call_with_deps_override(self):
-        """Test __call__ with deps override."""
+    def test_call_with_deps_at_instantiation(self):
+        """Test deps passed at instantiation time."""
 
-        @il.asset(deps={"param1": "original.asset"})
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
         asset_instance = my_asset(deps={"param1": "override.asset"})
         assert asset_instance.deps == {"param1": "override.asset"}
 
-    def test_call_with_deps_merge(self):
-        """Test __call__ with deps merge."""
+    def test_call_without_deps_has_empty_deps(self):
+        """Test instantiation without deps results in empty deps."""
 
-        @il.asset(deps={"param1": "original.asset"})
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset(deps={"param2": "new.asset"})
-        assert asset_instance.deps == {"param1": "original.asset", "param2": "new.asset"}
+        asset_instance = my_asset()
+        assert asset_instance.deps == {}
 
     def test_with_config(self):
         """Test Asset with config using decorator."""
-        from pydantic_settings import BaseSettings
 
-        class Config(BaseSettings):
+        class Config(il.Config):
             key: str = "test"
 
         @il.asset(config=Config)
@@ -376,15 +386,16 @@ class TestAsset:
         assert asset_instance.config == config
 
     def test_with_io(self, tmp_path):
-        """Test Asset with IO using decorator."""
+        """Test Asset with IO passed at call time."""
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset()
+        io = il.FileIO(tmp_path)
+        asset_instance = my_asset(io=io)
         assert isinstance(asset_instance, il.Asset)
-        assert asset_instance.io is not None
+        assert asset_instance.io is io
 
     def test_run_without_partition(self):
         """Test Asset.run() without partition."""
@@ -425,25 +436,22 @@ class TestAsset:
     def test_materialize_without_partition(self, tmp_path):
         """Test Asset.materialize() without partition."""
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset()
+        asset_instance = my_asset(io=il.FileIO(tmp_path))
         value = asset_instance.materialize()
         assert value == "value"
 
     def test_materialize_with_partition(self, tmp_path):
         """Test Asset.materialize() with partition."""
 
-        @il.asset(
-            io=il.FileIO(tmp_path),
-            partitioning=il.TimePartitionConfig(column="date"),
-        )
+        @il.asset(partitioning=il.TimePartitionConfig(column="date"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        asset_instance = my_asset()
+        asset_instance = my_asset(io=il.FileIO(tmp_path))
         value = asset_instance.materialize(partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
         assert value == [{"date": dt.date(2025, 1, 1)}]
 
@@ -454,17 +462,15 @@ class TestAsset:
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        @il.asset(
-            io={
-                "local": il.FileIO(str(local_dir)),
-                "cloud": il.FileIO(str(cloud_dir)),
-            },
-            default_io_key="local",
-        )
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset()
+        ios = {
+            "local": il.FileIO(str(local_dir)),
+            "cloud": il.FileIO(str(cloud_dir)),
+        }
+        asset_instance = my_asset(io=ios, default_io_key="local")
         value = asset_instance.materialize()
         assert value == "value"
 
@@ -481,18 +487,19 @@ class TestAsset:
 
     def test_dependency_resolution(self, tmp_path):
         """Test asset with dependencies requires DAG."""
+        io = il.FileIO(tmp_path)
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def upstream(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def downstream(context: il.ExecutionContext, upstream: str) -> str:
             return upstream + "b"
 
         # Dependencies cannot be resolved without a DAG
         # This should fail because upstream data needs to be loaded from IO
-        downstream_instance = downstream()
+        downstream_instance = downstream(io=io)
         with pytest.raises(ValueError, match="Pass a DAG to run\\(\\) or materialize\\(\\) for dependency resolution"):
             # Will fail: cannot resolve 'upstream' parameter
             value = downstream_instance.run()
@@ -501,14 +508,14 @@ class TestAsset:
     def test_asset_copy_overrides_and_preserves_fields(self, tmp_path):
         """Asset.copy should override provided fields and preserve others without mutating original."""
 
-        class Cfg(BaseSettings):
+        class Cfg(il.Config):
             key: str = "x"
 
-        @il.asset(config=Cfg, deps={"a": "ds.up"}, dataset="ds")
+        @il.asset(config=Cfg, dataset="ds")
         def my_asset(context: il.ExecutionContext, config: Cfg) -> str:
             return "value"
 
-        original = my_asset(io=il.FileIO(tmp_path))
+        original = my_asset(io=il.FileIO(tmp_path), deps={"a": "ds.up"})
 
         new_cfg = Cfg(key="y")
         new_io = il.FileIO(tmp_path / "other")
@@ -540,21 +547,19 @@ class TestAsset:
         io = il.FileIO(tmp_path)
 
         @il.source
-        def src() -> tuple[il.AssetDefinition, ...]:
-            @il.asset(io=io)
-            def a(context: il.ExecutionContext) -> str:
+        class Src:
+            @il.asset
+            def a(self, context: il.ExecutionContext) -> str:
                 return "v"
 
-            return (a,)
-
-        source_instance = src()
+        source_instance = Src(io=io)
         asset_from_source = source_instance.assets["a"]
 
         copied = asset_from_source.copy()
 
         # The copied asset should still reference the original source
         assert copied.source is source_instance
-        assert copied.key == asset_from_source.key
+        assert copied.instance_key == asset_from_source.instance_key
 
 
 class TestConfigInference:
@@ -562,9 +567,9 @@ class TestConfigInference:
 
     def test_config_inferred_from_env_vars(self, monkeypatch):
         """Test that config can be inferred from environment variables."""
-        from pydantic_settings import BaseSettings, SettingsConfigDict
+        from pydantic_settings import SettingsConfigDict
 
-        class EnvConfig(BaseSettings):
+        class EnvConfig(il.Config):
             a: str
             b: str
 
@@ -587,9 +592,9 @@ class TestConfigInference:
 
     def test_config_override_takes_precedence(self, monkeypatch):
         """Test that explicit config override takes precedence over env vars."""
-        from pydantic_settings import BaseSettings, SettingsConfigDict
+        from pydantic_settings import SettingsConfigDict
 
-        class EnvConfig(BaseSettings):
+        class EnvConfig(il.Config):
             a: str
 
             model_config = SettingsConfigDict(env_prefix="TEST_")
@@ -609,9 +614,8 @@ class TestConfigInference:
 
     def test_config_mandatory_when_configured(self):
         """Test that config is mandatory when configured in decorator."""
-        from pydantic_settings import BaseSettings
 
-        class RequiredConfig(BaseSettings):
+        class RequiredConfig(il.Config):
             required_field: str  # No default value, must be provided
 
         @il.asset(config=RequiredConfig)
@@ -638,9 +642,8 @@ class TestConfigInference:
 
     def test_config_with_defaults_works_without_env(self):
         """Test that config with all defaults doesn't require env vars."""
-        from pydantic_settings import BaseSettings
 
-        class DefaultConfig(BaseSettings):
+        class DefaultConfig(il.Config):
             a: str = "A"
 
         @il.asset(config=DefaultConfig)
@@ -654,9 +657,8 @@ class TestConfigInference:
 
     def test_config_parameter_optional_in_signature(self):
         """Test that config parameter is optional in function signature even when configured."""
-        from pydantic_settings import BaseSettings
 
-        class OptionalConfig(BaseSettings):
+        class OptionalConfig(il.Config):
             a: str = "A"
 
         @il.asset(config=OptionalConfig)
@@ -671,9 +673,9 @@ class TestConfigInference:
 
     def test_partial_env_config_fails(self, monkeypatch):
         """Test that partial env config fails when required fields are missing."""
-        from pydantic_settings import BaseSettings, SettingsConfigDict
+        from pydantic_settings import SettingsConfigDict
 
-        class PartialConfig(BaseSettings):
+        class PartialConfig(il.Config):
             a: str
             b: str
 

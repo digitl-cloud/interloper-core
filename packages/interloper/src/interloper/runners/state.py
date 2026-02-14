@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 from interloper.assets.base import Asset
+from interloper.assets.keys import AssetInstanceKey
 from interloper.dag.base import DAG
 from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
@@ -38,7 +39,7 @@ class RunState:
         self.metadata: dict[str, Any] = metadata or {}
         if "run_id" not in self.metadata:
             self.metadata["run_id"] = str(uuid.uuid4())
-        self.asset_executions: dict[str, AssetExecutionInfo] = {}
+        self.asset_executions: dict[AssetInstanceKey, AssetExecutionInfo] = {}
         self.partition_or_window: Partition | PartitionWindow | None = None
         self.start_time: dt.datetime | None = None
         self.end_time: dt.datetime | None = None
@@ -64,17 +65,17 @@ class RunState:
             else:
                 status = ExecutionStatus.QUEUED
 
-            self.asset_executions[asset.key] = AssetExecutionInfo(asset_key=asset.key, status=status)
+            self.asset_executions[asset.instance_key] = AssetExecutionInfo(asset_key=asset.instance_key, status=status)
 
         # Second pass to find ready assets
         for asset in self.queued_assets:
-            has_parents = self.dag.predecessors[asset.key] is not None
+            has_parents = self.dag.predecessors[asset.instance_key] is not None
             all_parents_skipped = all(
                 self.asset_executions[pred].status == ExecutionStatus.SKIPPED
-                for pred in self.dag.predecessors[asset.key]
+                for pred in self.dag.predecessors[asset.instance_key]
             )
             if not has_parents or all_parents_skipped:
-                self.asset_executions[asset.key].status = ExecutionStatus.READY
+                self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
 
     @property
     def queued_assets(self) -> list[Asset]:
@@ -139,7 +140,7 @@ class RunState:
         Returns:
             List of Asset objects with the specified status.
         """
-        return [asset for asset in self.dag.assets if self.asset_executions[asset.key].status == status]
+        return [asset for asset in self.dag.assets if self.asset_executions[asset.instance_key].status == status]
 
     def is_run_complete(self) -> bool:
         """Check if all assets are completed or failed.
@@ -168,7 +169,7 @@ class RunState:
         }
         emit(EventType.RUN_STARTED, metadata=metadata)
 
-    def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[str, AssetExecutionInfo]:
+    def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[AssetInstanceKey, AssetExecutionInfo]:
         """End DAG execution, emit RUN_COMPLETED/FAILED event, return asset_executions."""
         self.end_time = dt.datetime.now()
 
@@ -188,7 +189,7 @@ class RunState:
         Args:
             asset: The asset to mark as running
         """
-        self.asset_executions[asset.key].mark_running()
+        self.asset_executions[asset.instance_key].mark_running()
 
         metadata = {
             **self.metadata,
@@ -203,7 +204,7 @@ class RunState:
         Args:
             asset: The asset to mark as completed
         """
-        self.asset_executions[asset.key].mark_completed()
+        self.asset_executions[asset.instance_key].mark_completed()
 
         metadata = {
             **self.metadata,
@@ -212,7 +213,7 @@ class RunState:
         }
         emit(EventType.ASSET_COMPLETED, metadata=metadata)
 
-        self._update_dependent_assets(asset.key)
+        self._update_dependent_assets(asset.instance_key)
 
     def mark_asset_failed(self, asset: Asset, error: str) -> None:
         """Mark an asset as failed and emit ASSET_FAILED event.
@@ -221,7 +222,7 @@ class RunState:
             asset: The asset to mark as failed
             error: Error message describing the failure
         """
-        self.asset_executions[asset.key].mark_failed(error)
+        self.asset_executions[asset.instance_key].mark_failed(error)
 
         metadata = {
             **self.metadata,
@@ -230,7 +231,7 @@ class RunState:
         }
         emit(EventType.ASSET_FAILED, metadata=metadata)
 
-        self._propagate_failure(asset.key)
+        self._propagate_failure(asset.instance_key)
 
     def mark_asset_cancelled(self, asset: Asset) -> None:
         """Mark an asset as cancelled and emit ASSET_CANCELLED event.
@@ -238,9 +239,9 @@ class RunState:
         Args:
             asset: The asset to mark as cancelled
         """
-        self.asset_executions[asset.key].mark_cancelled()
+        self.asset_executions[asset.instance_key].mark_cancelled()
 
-    def _update_dependent_assets(self, completed_asset: str) -> None:
+    def _update_dependent_assets(self, completed_asset: AssetInstanceKey) -> None:
         """Check if any dependent assets are now ready.
 
         Uses successors to efficiently find assets that depend on the completed one.
@@ -254,12 +255,13 @@ class RunState:
 
             # Check if all predecessors are completed
             predecessors = self.dag.predecessors[successor]
-            all_preds_completed = all(pred in [asset.key for asset in self.completed_assets] for pred in predecessors)
+            completed_keys = [asset.instance_key for asset in self.completed_assets]
+            all_preds_completed = all(pred in completed_keys for pred in predecessors)
 
-            if self.asset_executions[asset.key].status == ExecutionStatus.QUEUED and all_preds_completed:
-                self.asset_executions[asset.key].status = ExecutionStatus.READY
+            if self.asset_executions[asset.instance_key].status == ExecutionStatus.QUEUED and all_preds_completed:
+                self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
 
-    def _propagate_failure(self, failed_asset: str) -> None:
+    def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
         """Mark dependents as FAILED if they depend (directly or indirectly) on a failed asset.
 
         Uses successors to efficiently propagate failures down the graph.
@@ -269,9 +271,9 @@ class RunState:
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]
 
-            if self.asset_executions[asset.key].status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED):
+            if self.asset_executions[asset.instance_key].status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED):
                 continue
 
-            self.asset_executions[asset.key].status = ExecutionStatus.FAILED
+            self.asset_executions[asset.instance_key].status = ExecutionStatus.FAILED
             # Recursively propagate failure down the graph
             self._propagate_failure(successor)

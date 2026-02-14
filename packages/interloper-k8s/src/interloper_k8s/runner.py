@@ -152,7 +152,7 @@ class KubernetesRunner(Runner[str]):
     def _build_job_name(self, asset: Asset) -> str:
         """Build the name for the Kubernetes job."""
         # K8s names must be lowercase, alphanumeric, and can contain hyphens
-        safe_key = asset.key.replace(".", "-").replace("_", "-").lower()
+        safe_key = asset.instance_key.replace(".", "-").replace("_", "-").lower()
         return f"interloper-{self.state.run_id[:8]}-{safe_key}"[:63]
 
     def _build_tolerations(self) -> list[client.V1Toleration]:
@@ -185,7 +185,7 @@ class KubernetesRunner(Runner[str]):
             The job name (string) for the asset execution
         """
         # Build a mini-DAG: target asset + its parents (non-materializable)
-        mini_dag = self.state.dag.mini_dag(asset.key)
+        mini_dag = self.state.dag.mini_dag(asset.instance_key)
 
         cmd = self._build_command(mini_dag, partition_or_window, self.state.run_id)
         job_name = self._build_job_name(asset)
@@ -221,7 +221,7 @@ class KubernetesRunner(Runner[str]):
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "interloper.asset_key": asset.key.replace(".", "-").lower(),
+                        "interloper.asset_key": asset.instance_key.replace(".", "-").lower(),
                         "interloper.run_id": self.state.run_id[:8],
                     }
                 ),
@@ -239,11 +239,11 @@ class KubernetesRunner(Runner[str]):
                 name=job_name,
                 namespace=self._namespace,
                 labels={
-                    "interloper.asset_key": asset.key.replace(".", "-").lower(),
+                    "interloper.asset_key": asset.instance_key.replace(".", "-").lower(),
                     "interloper.run_id": self.state.run_id[:8],
                 },
                 annotations={
-                    "interloper.asset_key": asset.key,
+                    "interloper.asset_key": asset.instance_key,
                 },
             ),
             spec=job_spec,

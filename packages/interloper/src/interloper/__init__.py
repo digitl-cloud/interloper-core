@@ -2,6 +2,7 @@
 
 from interloper.assets import Asset, AssetDefinition, asset
 from interloper.assets.context import ExecutionContext
+from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
 from interloper.backfillers import Backfiller
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.serial import SerialBackfiller
@@ -21,6 +22,7 @@ from interloper.runners import MultiProcessRunner, MultiThreadRunner, Runner, Se
 from interloper.runners.results import AssetExecutionInfo, ExecutionStatus, RunResult
 from interloper.serialization import AssetSpec, BackfillerSpec, ConfigSpec, DAGSpec, IOSpec, RunnerSpec
 from interloper.source import Source, SourceDefinition, source
+from interloper.source.config import Config
 
 __version__ = "0.1.0"
 
@@ -28,11 +30,14 @@ __all__ = [
     "asset",
     "Asset",
     "AssetDefinition",
+    "AssetDefinitionKey",
     "AssetExecutionInfo",
+    "AssetInstanceKey",
     "AssetSpec",
     "Backfiller",
     "BackfillerSpec",
     "BackfillResult",
+    "Config",
     "ConfigSpec",
     "DAG",
     "DAGSpec",

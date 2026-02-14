@@ -28,7 +28,7 @@ dev = [
     "python-dotenv>=1.1.1",
     "python-semantic-release>=10.0.0",
     "ruff>=0.9.4",
-    "ty>=0.0.13",
+    "pyright>=1.1.400",
 ]
 
 # ###############
@@ -52,12 +52,26 @@ publish-url = "https://europe-python.pkg.dev/dc-int-connectors-prd/python-public
 explicit = true
 
 # ###############
+# PYRIGHT
+# ###############
+[tool.pyright]
+include = [
+    "packages/interloper/src",
+    "packages/interloper-argo/src",
+    "packages/interloper-assets/src",
+    "packages/interloper-dbos/src",
+    "packages/interloper-docker/src",
+    "packages/interloper-k8s/src",
+]
+typeCheckingMode = "basic"
+reportMissingParameterType = true
+
+# ###############
 # RUFF
 # ###############
 [tool.ruff]
 target-version = "py310"
 line-length = 120
-exclude = ["libs/**"]
 
 [tool.ruff.lint]
 extend-select = ["E", "I", "UP", "ANN001", "ANN201", "ANN202"]

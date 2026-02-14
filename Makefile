@@ -2,7 +2,7 @@
 
 check:
 	uv run ruff check
-	uv run ty check
+	uv run pyright
 	uv run pytest
 
 docker-build:

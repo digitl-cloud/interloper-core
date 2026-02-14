@@ -1,67 +1,67 @@
 """Decorator for defining sources."""
 
-from collections.abc import Callable
-from typing import Any, overload
+from __future__ import annotations
 
-from pydantic_settings import BaseSettings
+from collections.abc import Callable, Sequence
+from typing import overload
 
-from interloper.io.base import IO
+from interloper.assets.base import AssetDefinition
 from interloper.source.base import SourceDefinition
+from interloper.source.config import Config
 
 
 @overload
-def source(func: Callable[..., Any]) -> SourceDefinition: ...
+def source(cls: type) -> SourceDefinition: ...
 
 
 @overload
 def source(
     *,
     name: str | None = None,
-    config: type[BaseSettings] | None = None,
+    config: type[Config] | None = None,
+    tags: Sequence[str] | None = None,
     dataset: str | None = None,
-    io: IO | dict[str, IO] | None = None,
-    default_io_key: str | None = None,
-) -> Callable[[Callable[..., Any]], SourceDefinition]: ...
+) -> Callable[[type], SourceDefinition]: ...
 
 
 def source(
-    func: Callable[..., Any] | None = None,
+    cls: type | None = None,
     *,
     name: str | None = None,
-    config: type[BaseSettings] | None = None,
+    config: type[Config] | None = None,
+    tags: Sequence[str] | None = None,
     dataset: str | None = None,
-    io: IO | dict[str, IO] | None = None,
-    default_io_key: str | None = None,
-) -> SourceDefinition | Callable[[Callable[..., Any]], SourceDefinition]:
-    """Decorator to define a source.
+) -> SourceDefinition | Callable[[type], SourceDefinition]:
+    """Class decorator to define a source.
 
     Can be used with or without parentheses:
         @source
-        def my_source(): ...
+        class MySource: ...
 
         @source(config=MyConfig)
-        def my_source(config): ...
+        class MySource: ...
     """
-    # Validate default_io_key if multiple IOs
-    if isinstance(io, dict) and len(io) > 1 and default_io_key is None:
-        raise ValueError("default_io_key is required when io is a dict with multiple keys")
 
-    if isinstance(io, dict) and default_io_key and default_io_key not in io:
-        raise ValueError(f"default_io_key '{default_io_key}' not found in io dict keys: {list(io.keys())}")
+    def decorator(cls: type) -> SourceDefinition:
+        collected: list[AssetDefinition] = []
+        for attr_value in cls.__dict__.values():
+            if isinstance(attr_value, AssetDefinition):
+                collected.append(attr_value)
 
-    def decorator(f: Callable[..., Any]) -> SourceDefinition:
-        return SourceDefinition(
-            func=f,
-            name=name,  # type: ignore[arg-type]
+        source_def = SourceDefinition(
+            cls=cls,
+            asset_defs={ad.name: ad for ad in collected},
+            name=name or "",
             config=config,
+            tags=tuple(tags) if tags else (),
             dataset=dataset,
-            io=io,
-            default_io_key=default_io_key,
         )
 
+        return source_def
+
     # Called without parentheses: @source
-    if func is not None:
-        return decorator(func)
+    if cls is not None:
+        return decorator(cls)
 
     # Called with parentheses: @source(...)
     return decorator

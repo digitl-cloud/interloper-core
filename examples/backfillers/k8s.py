@@ -4,7 +4,7 @@ import datetime as dt
 
 import dotenv
 import interloper as il
-from interloper_assets import adup
+from interloper_assets import Adup
 from interloper_k8s.backfiller import KubernetesBackfiller
 
 dotenv.load_dotenv()
@@ -14,7 +14,7 @@ def on_event(event: il.Event) -> None:
     print(event)
 
 
-dag = il.DAG(adup())
+dag = il.DAG(Adup())
 window = il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 2))
 
 with KubernetesBackfiller(

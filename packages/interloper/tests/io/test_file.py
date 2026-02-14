@@ -2,7 +2,6 @@
 
 import datetime as dt
 
-import pytest
 from pydantic import BaseModel
 
 import interloper as il
@@ -141,12 +140,13 @@ class TestMultipleIOs:
             "cloud": il.FileIO(str(cloud_dir)),
         }
 
-        @il.asset(io=ios, default_io_key="local")
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        assert my_asset.io == ios
-        assert my_asset.default_io_key == "local"
+        asset_instance = my_asset(io=ios, default_io_key="local")
+        assert asset_instance.io == ios
+        assert asset_instance.default_io_key == "local"
 
     def test_write_to_all_ios(self, tmp_path):
         """Test that materialize writes to all IOs."""
@@ -160,11 +160,11 @@ class TestMultipleIOs:
             "cloud": il.FileIO(str(cloud_dir)),
         }
 
-        @il.asset(io=ios, default_io_key="local")
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset()
+        asset_instance = my_asset(io=ios, default_io_key="local")
         # Materialize should write to both local and cloud
         asset_instance.materialize()
 
@@ -182,17 +182,25 @@ class TestMultipleIOs:
             "cloud": il.FileIO(str(cloud_dir)),
         }
 
-        @il.asset(io=ios, default_io_key="local")
+        @il.asset
         def upstream(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(str(main_dir)))
+        @il.asset
         def downstream(context: il.ExecutionContext, upstream: str) -> str:
             # Should read upstream from "local" IO
             return upstream + "b"
 
+        # IO is now passed at instantiation time
+        upstream(io=ios, default_io_key="local")
+        downstream(io=il.FileIO(str(main_dir)))
+
     def test_missing_default_io_key(self, tmp_path):
-        """Test that missing default_io_key with dict raises error."""
+        """Test that missing default_io_key with dict io creates asset without error.
+
+        Validation of default_io_key now happens at DAG dependency resolution time,
+        not at asset creation time.
+        """
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
@@ -203,15 +211,21 @@ class TestMultipleIOs:
             "cloud": il.FileIO(str(cloud_dir)),
         }
 
-        # Should raise error when default_io_key is missing with multiple IOs
-        with pytest.raises(Exception):
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return [{"value": 1}]
 
-            @il.asset(io=ios)  # Missing default_io_key
-            def my_asset(context: il.ExecutionContext) -> list[dict]:
-                return [{"value": 1}]
+        # Creating asset with dict io but no default_io_key is allowed at instantiation time
+        asset_instance = my_asset(io=ios)
+        assert asset_instance.io == ios
+        assert asset_instance.default_io_key is None
 
     def test_invalid_default_io_key(self, tmp_path):
-        """Test that invalid default_io_key raises error."""
+        """Test that invalid default_io_key creates asset without error.
+
+        Validation of default_io_key now happens at DAG dependency resolution time,
+        not at asset creation time.
+        """
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
@@ -222,10 +236,12 @@ class TestMultipleIOs:
             "cloud": il.FileIO(str(cloud_dir)),
         }
 
-        # Should raise error when default_io_key doesn't match any key
-        with pytest.raises(Exception):
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return [{"value": 1}]
 
-            @il.asset(io=ios, default_io_key="invalid")
-            def my_asset(context: il.ExecutionContext) -> list[dict]:
-                return [{"value": 1}]
+        # Creating asset with an invalid default_io_key is allowed at instantiation time
+        asset_instance = my_asset(io=ios, default_io_key="invalid")
+        assert asset_instance.io == ios
+        assert asset_instance.default_io_key == "invalid"
 

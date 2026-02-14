@@ -3,73 +3,91 @@
 from __future__ import annotations
 
 import copy
-import hashlib
+import functools
 import inspect
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
-from pydantic_settings import BaseSettings
-
 from interloper.assets.base import Asset, AssetDefinition
 from interloper.io.base import IO
 from interloper.serialization.base import Serializable
 from interloper.serialization.source import SourceSpec
+from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
-from interloper.utils.text import to_display
+from interloper.utils.text import to_label, validate_name
 
 
 @dataclass(frozen=True)
 class SourceDefinition:
-    """Definition of a source created by the @source decorator."""
+    """Definition of a source created by the @source class decorator."""
 
-    _id: str = field(default="", init=False, repr=False)
-    func: Callable[..., Sequence[AssetDefinition]]
+    cls: type
+    asset_defs: dict[str, AssetDefinition] = field(default_factory=dict)
     name: str = ""
-    display_name: str = ""
+    label: str = ""
     dataset: str | None = None
-    config: type[BaseSettings] | None = None
-    io: IO | dict[str, IO] | None = None
-    default_io_key: str | None = None
+    config: type[Config] | None = None
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Set name to function name if not provided, and compute the ID."""
-        self._compute_id()
-
+        """Set name to class name if not provided, validate."""
         if not self.name:
-            object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
+            object.__setattr__(self, "name", self.cls.__name__)
 
-        if not self.display_name:
-            object.__setattr__(self, "display_name", to_display(self.name))
+        validate_name(self.name)
 
-    def _compute_id(self) -> None:
-        """Compute and cache the definition ID based on current state."""
-        path = get_object_path(self.func)
-        hash_value = hashlib.sha256(path.encode()).hexdigest()[:12]
-        object.__setattr__(self, "_id", f"dfs_{hash_value}")
+        if not self.label:
+            object.__setattr__(self, "label", to_label(self.name))
+
+        self._wire_asset_defs()
+        self._infer_requires()
+
+    def _wire_asset_defs(self) -> None:
+        for asset_def in self.asset_defs.values():
+            object.__setattr__(asset_def, "source_definition", self)
+
+    def _infer_requires(self) -> None:
+        """Auto-populate requires for params whose names match sibling assets."""
+        for asset_def in self.asset_defs.values():
+            sig = inspect.signature(asset_def.func)
+            for param_name in sig.parameters:
+                if param_name in ("self", "context", "config"):
+                    continue
+                if param_name in asset_def.requires:
+                    continue
+                if param_name in self.asset_defs and param_name != asset_def.name:
+                    asset_def.requires[param_name] = self.asset_defs[param_name].definition_key
 
     @property
     def path(self) -> str:
-        """Return the full import path of the decorated source function."""
-        return get_object_path(self.func)
-
-    @property
-    def id(self) -> str:
-        """Return the definition ID (hashed import path)."""
-        return self._id
+        """Return the full import path of the decorated source class."""
+        return get_object_path(self.cls)
 
     def __call__(
         self,
         *,
         name: str | None = None,
         dataset: str | None = None,
-        config: BaseSettings | None = None,
+        config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
         assets: Sequence[str] | dict[str, str] | None = None,
     ) -> Source:
         """Instantiate the source with optional runtime parameter override."""
 
-        def resolve_source_config() -> BaseSettings | None:
+        def instantiate_class(config: Config | None) -> Any:
+            """Instantiate the source class, bind config, and call setup if defined."""
+            instance = self.cls()
+            if config is not None:
+                instance.config = config
+            setup = getattr(instance, "setup", None)
+            if setup is not None:
+                setup(config)
+            return instance
+
+        def resolve_source_config() -> Config | None:
+            """Resolve the config for the source."""
             if config is not None and self.config is not None and not issubclass(type(config), self.config):
                 raise TypeError(
                     f"Config provided to source '{self.name}' must be of type {self.config.__name__}, "
@@ -89,8 +107,9 @@ class SourceDefinition:
 
         def resolve_asset_config(
             asset_def: AssetDefinition,
-            source_config: BaseSettings | None,
-        ) -> BaseSettings | None:
+            source_config: Config | None,
+        ) -> Config | None:
+            """Resolve the config for an asset."""
             if config is not None and asset_def.config is not None and not issubclass(type(config), asset_def.config):
                 print(
                     f"Warning: Config provided to source '{self.name}' is not of compatible with asset "
@@ -113,124 +132,136 @@ class SourceDefinition:
 
             return source_config
 
-        def load_asset_defs(source_config: BaseSettings | None) -> Sequence[AssetDefinition]:
-            sig = inspect.signature(self.func)
-            kwargs = {"config": source_config} if "config" in sig.parameters else {}
-            asset_defs = self.func(**kwargs)
-            if not all(isinstance(asset_def, AssetDefinition) for asset_def in asset_defs):
-                raise TypeError("All items returned from the source function must be of type AssetDefinition.")
-            return asset_defs
+        def resolve_asset_defs(
+            defs: list[AssetDefinition],
+        ) -> tuple[list[AssetDefinition], dict[str, str]]:
+            """Filter and validate asset definitions based on the ``assets`` parameter.
 
-        def normalize_assets(
-            asset_defs: Sequence[AssetDefinition],
-        ) -> tuple[list[str] | None, dict[str, str]]:
+            Returns the filtered definitions and a rename map.
+            """
             if assets is None:
-                return None, {}
+                return list(defs), {}
 
             if isinstance(assets, dict):
                 assets_map = cast(dict[str, str], assets)
-                asset_filter: list[str] = list(assets_map.keys())
+                selected: list[str] = list(assets_map.keys())
                 rename_map: dict[str, str] = dict(assets_map)
             else:
-                assets_list = cast(Sequence[str], assets)
-                asset_filter = list(assets_list)
+                selected = list(cast(Sequence[str], assets))
                 rename_map = {}
 
-            asset_def_names = {asset_def.name for asset_def in asset_defs}
-            invalid_names = set(asset_filter) - asset_def_names
-            if invalid_names:
-                raise ValueError(
-                    f"Invalid asset names: {sorted(invalid_names)}. Valid asset names are: {sorted(asset_def_names)}."
-                )
-            renamed_names = [rename_map.get(name, name) for name in asset_filter]
-            if len(set(renamed_names)) != len(renamed_names):
-                raise ValueError(
-                    "Renamed asset names must be unique. "
-                    f"Got duplicates after rename: {sorted(renamed_names)}."
-                )
+            names = {d.name for d in defs}
+            invalid = set(selected) - names
+            if invalid:
+                raise ValueError(f"Invalid asset names: {sorted(invalid)}. Valid asset names are: {sorted(names)}.")
+            renamed = [rename_map.get(n, n) for n in selected]
+            if len(set(renamed)) != len(renamed):
+                raise ValueError(f"Renamed asset names must be unique. Got duplicates after rename: {sorted(renamed)}.")
 
-            return asset_filter, rename_map
+            return [d for d in defs if d.name in selected], rename_map
 
-        def filter_asset_defs(
-            asset_defs: Sequence[AssetDefinition],
-            asset_filter: list[str] | None,
-        ) -> list[AssetDefinition]:
-            if asset_filter is None:
-                return list(asset_defs)
+        def bind_asset_method(func: Callable, instance: Any) -> Callable:
+            """Bind an unbound method to an instance, removing ``self`` from the signature."""
 
-            return [asset_def for asset_def in asset_defs if asset_def.name in asset_filter]
+            @functools.wraps(func)
+            def bound(*args: Any, **kwargs: Any) -> Any:
+                return func(instance, *args, **kwargs)
+
+            original_sig = inspect.signature(func)
+            new_params = [p for name, p in original_sig.parameters.items() if name != "self"]
+            bound.__signature__ = original_sig.replace(parameters=new_params)  # type: ignore[attr-defined]
+            return bound
+
+        if name is not None:
+            validate_name(name)
 
         resolved_config = resolve_source_config()
-        asset_defs = load_asset_defs(resolved_config)
-        asset_filter, rename_map = normalize_assets(asset_defs)
-        asset_defs = filter_asset_defs(asset_defs, asset_filter)
+
+        # Instantiate the source class
+        cls_instance = instantiate_class(resolved_config)
+
+        # Resolve asset definitions (filter + rename)
+        filtered_defs, rename_map = resolve_asset_defs(list(self.asset_defs.values()))
 
         asset_instances: dict[str, Asset] = {}
-        for asset_def in asset_defs:
+        for asset_def in filtered_defs:
             asset_config = resolve_asset_config(asset_def, resolved_config)
-            asset_io = io or asset_def.io or self.io or None
-            asset_dataset = self.dataset if asset_def.dataset is None else None
-            asset_default_io_key = self.default_io_key if asset_def.default_io_key is None else None
             asset_name = rename_map.get(asset_def.name, asset_def.name)
 
             asset_instance = asset_def(
                 name=asset_name,
                 config=asset_config,
-                io=asset_io,
-                dataset=asset_dataset,
-                default_io_key=asset_default_io_key,
+                io=io,
+                dataset=self.dataset if asset_def.dataset is None else None,
             )
+
+            # Bind the unbound method to the class instance
+            asset_instance.func = bind_asset_method(asset_def.func, cls_instance)
             if asset_def.name != asset_name:
                 asset_instance.metadata["source_original_name"] = asset_def.name
             asset_instances[asset_instance.name] = asset_instance
 
         return Source(
-            func=self.func,
             definition=self,
             name=name or self.name,
             dataset=dataset or name or self.dataset or self.name,
             config=resolved_config,
-            io=io or self.io,
-            default_io_key=self.default_io_key,
+            io=io,
             assets=asset_instances,
         )
+
+    def __getattr__(self, name: str) -> AssetDefinition:
+        """Access assets by name as attributes."""
+        try:
+            return self.asset_defs[name]
+        except KeyError:
+            raise AttributeError(f"Source {self.name} has no asset definition named '{name}'")
 
 
 @dataclass
 class Source(Serializable[SourceSpec]):
     """Runtime instance of a source containing multiple assets."""
 
-    func: Callable
     definition: SourceDefinition
     name: str
-    display_name: str = ""
+    label: str = ""
     dataset: str | None = None
-    config: BaseSettings | None = None
+    config: Config | None = None
     io: IO | dict[str, IO] | None = None
-    default_io_key: str | None = None
     assets: dict[str, Asset] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Link assets back to this source."""
-        if not self.display_name:
-            object.__setattr__(self, "display_name", self.definition.display_name)
+        if not self.label:
+            object.__setattr__(self, "label", self.definition.label)
 
         for asset in self.assets.values():
             asset.source = self
             asset.dataset = asset.dataset or self.dataset or self.name
 
+    @property
+    def instance_key(self) -> str:
+        """Return the source instance key (the source name)."""
+        return self.name
+
     def copy(
         self,
-        config: BaseSettings | None = None,
+        config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
     ) -> Source:
-        """Create a new source instance with runtime parameters."""
+        """Create an independent copy of this source with optional overrides."""
         source = copy.copy(self)
         if config is not None:
             source.config = config
         if io is not None:
             source.io = io
+
+        # Deep-copy assets so the new source is fully independent
+        source.assets = {name: copy.copy(asset) for name, asset in self.assets.items()}
+        for asset in source.assets.values():
+            asset.source = source
+
         return source
 
     def __getattr__(self, name: str) -> Asset:
@@ -256,7 +287,7 @@ class Source(Serializable[SourceSpec]):
 
         return SourceSpec(
             path=self.path,
-            io=io_spec,  # ty:ignore[invalid-argument-type]
+            io=io_spec,
             assets=materializable_assets,
             config=self.config.model_dump() if self.config is not None else None,
         )

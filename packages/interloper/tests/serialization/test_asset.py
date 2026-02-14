@@ -36,9 +36,8 @@ class TestAssetSpec:
 
     def test_assetspec_with_config_roundtrip(self):
         """Test AssetSpec roundtrip with config."""
-        from pydantic_settings import BaseSettings
 
-        class TestConfig(BaseSettings):
+        class TestConfig(il.Config):
             api_key: str = "default_key"
             endpoint: str = "https://api.example.com"
 
@@ -60,12 +59,12 @@ class TestAssetSpec:
         """Test AssetSpec roundtrip with IO."""
         file_io = il.FileIO(base_path="data")
 
-        @il.asset(io=file_io)
+        @il.asset
         def io_asset():
             return "value"
 
         # Convert to spec
-        spec = io_asset().to_spec()
+        spec = io_asset(io=file_io).to_spec()
         assert spec.path.split(".")[-1] == "io_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
         assert isinstance(spec.io, IOSpec)
@@ -83,15 +82,12 @@ class TestAssetSpec:
         file_io1 = il.FileIO(base_path="data1")
         file_io2 = il.FileIO(base_path="data2")
 
-        @il.asset(
-            io={"io1": file_io1, "io2": file_io2},
-            default_io_key="io1",
-        )
+        @il.asset
         def multi_io_asset():
             return "value"
 
         # Convert to spec
-        spec = multi_io_asset().to_spec()
+        spec = multi_io_asset(io={"io1": file_io1, "io2": file_io2}, default_io_key="io1").to_spec()
         assert spec.path.split(".")[-1] == "multi_io_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
         assert isinstance(spec.io, dict)

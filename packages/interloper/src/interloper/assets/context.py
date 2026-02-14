@@ -3,6 +3,7 @@
 import datetime as dt
 from typing import Any
 
+from interloper.assets.keys import AssetInstanceKey
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
 from interloper.partitioning.time import TimePartitionConfig
 
@@ -12,7 +13,7 @@ class ExecutionContext:
 
     def __init__(
         self,
-        asset_name: str | None = None,
+        asset_key: AssetInstanceKey,
         partitioning: PartitionConfig | None = None,
         partition_or_window: Partition | PartitionWindow | None = None,
         metadata: dict[str, Any] | None = None,
@@ -20,12 +21,12 @@ class ExecutionContext:
         """Initialize the context.
 
         Args:
-            asset_name: The name of the asset being executed
+            asset_key: The name of the asset being executed
             partitioning: The partitioning configuration
             partition_or_window: Either a Partition or PartitionWindow object
             metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
         """
-        self._asset_name = asset_name
+        self._asset_key = asset_key
         self._partitioning = partitioning
         self._partition_or_window = partition_or_window
         self._metadata = metadata or {}
@@ -89,9 +90,9 @@ class ExecutionContext:
         return (self._partition_or_window.start, self._partition_or_window.end)
 
     @property
-    def asset_name(self) -> str:
+    def asset_key(self) -> AssetInstanceKey:
         """The name of the current asset being executed."""
-        return self._asset_name or ""
+        return self._asset_key
 
     @property
     def metadata(self) -> dict[str, Any]:

@@ -1,10 +1,9 @@
 import logging
-from collections.abc import Sequence
 
 import interloper as il
 import pandas as pd
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ class DemoSchema(BaseModel):
     hello: str
 
 
-class DemoConfig(BaseSettings):
+class DemoConfig(il.Config):
     hello: str = "world"
 
     model_config = SettingsConfigDict(env_prefix="Demo_")
@@ -24,9 +23,14 @@ partitioning = il.TimePartitionConfig(column="date", allow_window=True)
 
 @il.source(
     config=DemoConfig,
+    tags=["Testing"],
 )
-def demo_source(config: DemoConfig) -> Sequence[il.AssetDefinition]:
-    def do() -> None:
+class DemoSource:
+    """Demo source. Defines a small DAG (a -> b,c,d -> e) with time partitioning."""
+
+    config: DemoConfig
+
+    def do(self) -> None:
         import random
         import time
 
@@ -35,65 +39,78 @@ def demo_source(config: DemoConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        tags=["Report"],
     )
     def a(
+        self,
         context: il.ExecutionContext,
     ) -> pd.DataFrame:
-        print(f"Hello from A {config.hello}")
-        do()
-        return pd.DataFrame([{"hello": config.hello}])
+        """Root asset. Returns a single row with the configured greeting."""
+        print(f"Hello from A {self.config.hello}")
+        self.do()
+        return pd.DataFrame([{"hello": self.config.hello}])
 
     @il.asset(
         schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        tags=["Report"],
     )
     def b(
+        self,
         context: il.ExecutionContext,
         a: str,
     ) -> pd.DataFrame:
-        print(f"Hello from B {config.hello}")
-        do()
-        return pd.DataFrame([{"hello": config.hello}])
+        """Depends on A. Part of the example DAG (a -> b -> e)."""
+        print(f"Hello from B {self.config.hello}")
+        self.do()
+        return pd.DataFrame([{"hello": self.config.hello}])
 
     @il.asset(
         schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        tags=["Report"],
     )
     def c(
+        self,
         context: il.ExecutionContext,
         a: str,
     ) -> pd.DataFrame:
-        print(f"Hello from C {config.hello}")
-        do()
-        return pd.DataFrame([{"hello": config.hello}])
+        """Depends on A. Part of the example DAG (a -> c -> e)."""
+        print(f"Hello from C {self.config.hello}")
+        self.do()
+        return pd.DataFrame([{"hello": self.config.hello}])
 
     @il.asset(
         schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        tags=["Report"],
     )
     def d(
+        self,
         context: il.ExecutionContext,
         a: str,
     ) -> pd.DataFrame:
-        print(f"Hello from D {config.hello}")
-        do()
-        return pd.DataFrame([{"hello": config.hello}])
+        """Depends on A. Part of the example DAG (a -> d -> e)."""
+        print(f"Hello from D {self.config.hello}")
+        self.do()
+        return pd.DataFrame([{"hello": self.config.hello}])
 
     @il.asset(
         schema=DemoSchema,
         partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        tags=["Report"],
     )
     def e(
+        self,
         context: il.ExecutionContext,
         b: str,
         c: str,
         d: str,
     ) -> pd.DataFrame:
-        print(f"Hello from E {config.hello}")
-        do()
-        return pd.DataFrame([{"hello": config.hello}])
-
-    return (a, b, c, d, e)
+        """Depends on B, C, and D. Sink asset of the example DAG."""
+        print(f"Hello from E {self.config.hello}")
+        self.do()
+        return pd.DataFrame([{"hello": self.config.hello}])
 
 
 #    ↗ b ↘

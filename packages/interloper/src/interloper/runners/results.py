@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from interloper.assets.keys import AssetInstanceKey
 from interloper.partitioning.base import Partition, PartitionWindow
 
 
@@ -24,7 +25,7 @@ class ExecutionStatus(str, Enum):
 class AssetExecutionInfo:
     """Execution information for a single asset."""
 
-    asset_key: str
+    asset_key: AssetInstanceKey
     status: ExecutionStatus
     start_time: dt.datetime | None = None
     end_time: dt.datetime | None = None
@@ -76,17 +77,17 @@ class RunResult:
 
     partition_or_window: Partition | PartitionWindow | None = None
     status: ExecutionStatus = ExecutionStatus.COMPLETED
-    asset_executions: dict[str, AssetExecutionInfo] = field(default_factory=dict)
+    asset_executions: dict[AssetInstanceKey, AssetExecutionInfo] = field(default_factory=dict)
     execution_time: float = 0.0
 
     # Backward compatibility
     @property
-    def completed_assets(self) -> list[str]:
+    def completed_assets(self) -> list[AssetInstanceKey]:
         """List of asset keys that completed successfully."""
         return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.COMPLETED]
 
     @property
-    def failed_assets(self) -> list[str]:
+    def failed_assets(self) -> list[AssetInstanceKey]:
         """List of asset keys that failed."""
         return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.FAILED]
 

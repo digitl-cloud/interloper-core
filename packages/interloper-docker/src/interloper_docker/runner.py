@@ -102,7 +102,7 @@ class DockerRunner(Runner[Container]):
 
     def _build_name(self, asset: Asset) -> str:
         """Build the name for the container."""
-        name = f"interloper_run_{self.state.run_id[:8]}-{asset.key}"
+        name = f"interloper_run_{self.state.run_id[:8]}-{asset.instance_key}"
         return name.replace(":", "-").replace("_", "-").lower()
 
     def _submit_asset(
@@ -123,7 +123,7 @@ class DockerRunner(Runner[Container]):
             The container object for the asset execution
         """
         # Build a mini-DAG: target asset + its parents (non-materializable)
-        mini_dag = self.state.dag.mini_dag(asset.key)
+        mini_dag = self.state.dag.mini_dag(asset.instance_key)
 
         cmd = self._build_command(mini_dag, partition_or_window, self.state.run_id)
         name = self._build_name(asset)
@@ -138,7 +138,7 @@ class DockerRunner(Runner[Container]):
             command=cmd,
             environment=env,
             volumes=volumes if volumes else None,
-            labels={"interloper.asset_key": asset.key},
+            labels={"interloper.asset_key": asset.instance_key},
             remove=False,
             detach=True,
             stdout=True,

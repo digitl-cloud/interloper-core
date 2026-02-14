@@ -1,18 +1,17 @@
 import datetime as dt
 import logging
-from collections.abc import Sequence
 
 import httpx
 import interloper as il
 import pandas as pd
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from interloper_assets.adservice.schemas.campaigns import Campaigns
 
 logger = logging.getLogger(__name__)
 
 
-class AdserviceConfig(BaseSettings):
+class AdserviceConfig(il.Config):
     api_key: str
 
     model_config = SettingsConfigDict(env_prefix="adservice_")
@@ -20,13 +19,19 @@ class AdserviceConfig(BaseSettings):
 
 @il.source(
     config=AdserviceConfig,
+    tags=["Advertising"],
 )
-def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
-    base_url = "https://api.adservice.com/v2/client"
-    auth = httpx.BasicAuth(username="api", password=config.api_key)
-    client = il.RESTClient(base_url, auth)
+class Adservice:
+    """Adservice advertising platform integration."""
+
+    def setup(self, config: AdserviceConfig) -> None:
+        base_url = "https://api.adservice.com/v2/client"
+        auth = httpx.BasicAuth(username="api", password=config.api_key)
+        self.client = il.RESTClient(base_url, auth)
+        self.base_url = base_url
 
     def get_report(
+        self,
         start_date: dt.date,
         end_date: dt.date,
         report_type: str,
@@ -34,8 +39,8 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
         end_group: str | None = None,
         sales_amount: int | None = None,
     ) -> dict:
-        response = client.get(
-            url=f"{base_url}/{report_type}",
+        response = self.client.get(
+            url=f"{self.base_url}/{report_type}",
             params={
                 "from_date": start_date.isoformat(),
                 "to_date": end_date.isoformat(),
@@ -51,8 +56,10 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
         schema=Campaigns,
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def campaigns(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Campaign performance statistics with metrics like impressions, clicks, and conversions."""
+
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="statistics",
@@ -66,8 +73,9 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def conversions(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def conversions(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Conversion events and attribution data."""
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="conversions",
@@ -78,8 +86,10 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def conversions_time_of_day(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def conversions_time_of_day(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Conversion events broken down by time of day."""
+
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="statistics/conversions/timeofday",
@@ -90,8 +100,10 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def campaigns_by_city(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def campaigns_by_city(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Campaign performance segmented by city."""
+
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="statistics/devicedetails",
@@ -103,8 +115,10 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def campaigns_by_browser(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def campaigns_by_browser(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Campaign performance segmented by browser."""
+
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="statistics/devicedetails",
@@ -116,8 +130,10 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
     @il.asset(
         partitioning=il.TimePartitionConfig(column="date"),
     )
-    def campaigns_by_device_type(context: il.ExecutionContext) -> pd.DataFrame:
-        response = get_report(
+    def campaigns_by_device_type(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Campaign performance segmented by device type."""
+
+        response = self.get_report(
             start_date=context.partition_date,
             end_date=context.partition_date,
             report_type="statistics/devicedetails",
@@ -125,12 +141,3 @@ def adservice(config: AdserviceConfig) -> Sequence[il.AssetDefinition]:
         )
         data = response["data"]
         return pd.DataFrame(data)
-
-    return (
-        campaigns,
-        conversions,
-        conversions_time_of_day,
-        campaigns_by_city,
-        campaigns_by_browser,
-        campaigns_by_device_type,
-    )

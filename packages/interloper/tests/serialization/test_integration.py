@@ -7,23 +7,17 @@ from pathlib import Path
 import interloper as il
 from interloper.serialization import AssetSpec, DAGSpec
 
-# Helper source with a closure for testing top-level import
+# Helper source with a module-level value for testing top-level import
 _closed_over_value = "secret_value"
 
 
 @il.source(dataset="closure_source")
-def my_source():
-    """A source defined at the module level for serialization tests.
-
-    Returns:
-        The asset
-    """
+class MySource:
+    """A source defined at the module level for serialization tests."""
 
     @il.asset
-    def my_asset(context: il.ExecutionContext) -> str:
+    def my_asset(self, context: il.ExecutionContext) -> str:
         return f"Asset has access to: {_closed_over_value}"
-
-    return (my_asset,)
 
 
 class TestSerializationIntegration:
@@ -34,20 +28,20 @@ class TestSerializationIntegration:
         with tempfile.TemporaryDirectory() as temp_dir:
             file_io = il.FileIO(base_path=temp_dir)
 
-            @il.asset(io=file_io)
+            @il.asset
             def source_asset():
                 return "source_data"
 
-            @il.asset(io=file_io)
+            @il.asset
             def processed_asset(source_asset):
                 return f"processed_{source_asset}"
 
-            @il.asset(io=file_io)
+            @il.asset
             def final_asset(processed_asset):
                 return f"final_{processed_asset}"
 
             # Create DAG directly from decorated functions
-            dag = il.DAG(source_asset(), processed_asset(), final_asset())
+            dag = il.DAG(source_asset(io=file_io), processed_asset(io=file_io), final_asset(io=file_io))
 
             # Serialize DAG
             dag_spec = dag.to_spec()
@@ -99,19 +93,19 @@ class TestSourcedAssetSerialization:
     """Tests for serializing assets that belong to sources."""
 
     def test_asset_from_source_with_closure_serialization(self):
-        """Test that an asset from a source with a closure can be serialized."""
-        source_instance = my_source()
+        """Test that an asset from a source with a class can be serialized."""
+        source_instance = MySource()
         asset_instance = source_instance.assets["my_asset"]
 
         # Check the special path format
         spec = asset_instance.to_spec()
         assert ":" in spec.path
-        # The path should now correctly point to the top-level source function
-        assert "my_source:my_asset" in spec.path
+        # The path should now correctly point to the top-level source class
+        assert "MySource:my_asset" in spec.path
 
     def test_asset_from_source_with_closure_reconstruction(self):
         """Test reconstructing a sourced asset and executing it."""
-        source_instance = my_source()
+        source_instance = MySource()
         asset_instance = source_instance.assets["my_asset"]
 
         # Get the spec

@@ -6,9 +6,9 @@ repos:
       - id: ruff-check
   - repo: local
     hooks:
-      - id: ty
-        name: ty check
-        entry: uv run ty check
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
         language: system
         pass_filenames: false
         always_run: true

@@ -69,7 +69,7 @@ class TestMultiProcessRunner:
         result = runner.run(dag=dag)
 
         assert result.status == "failed"
-        assert "asset_a_fails" in result.failed_assets
+        assert "asset-a-fails" in result.failed_assets
 
     def test_fail_fast_false(self, file_based_dag, tmp_path):
         """When fail_fast=False, continue executing independent branches."""
@@ -89,13 +89,13 @@ class TestMultiProcessRunner:
         result = runner.run(dag=dag)
 
         assert result.status == il.ExecutionStatus.COMPLETED  # The run itself is successful, even if some assets fail
-        assert "asset_a_fails" in result.failed_assets
-        assert "asset_b_success" in result.completed_assets
+        assert "asset-a-fails" in result.failed_assets
+        assert "asset-b-success" in result.completed_assets
 
         # 'b' should have run successfully - check the pickle file
         import pickle
 
-        asset_b_file = data_dir / "asset_b_success" / "data.pkl"
+        asset_b_file = data_dir / "asset-b-success" / "data.pkl"
         assert asset_b_file.exists()
         with asset_b_file.open("rb") as f:
             assert pickle.load(f) == "b_success_ran"
@@ -117,6 +117,6 @@ class TestMultiProcessRunner:
         # Verify that both sources' assets were executed
         # The assets should be tracked by their keys, not names
         executed_keys = set(result.completed_assets)
-        expected_keys = {asset.key for asset in double_source_dag.assets}
+        expected_keys = {asset.instance_key for asset in double_source_dag.assets}
         assert executed_keys == expected_keys
 

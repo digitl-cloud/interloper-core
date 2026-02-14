@@ -52,7 +52,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None = None,
         workflow_id: str | None = None,
-    ) -> RunResult:  # ty:ignore[invalid-method-override]
+    ) -> RunResult:
         """Materialize the DAG using a DBOS workflow.
 
         Args:
@@ -103,7 +103,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
 
         self._queue.enqueue(self._execute_asset_workflow, DBOS.workflow_id, asset.to_spec(), partition_or_window)
 
-        return asset.key
+        return asset.instance_key
 
     def _wait_any(self, handles: list[str]) -> str:
         """Wait for any asset to complete and return the key of the completed asset."""
@@ -121,7 +121,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     def _wait_all(self) -> None:
         while not self.state.is_run_complete():
             try:
-                self._wait_any([asset.key for asset in self.state.running_assets])
+                self._wait_any([asset.instance_key for asset in self.state.running_assets])
             except Exception:
                 pass
 
@@ -145,7 +145,8 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         except Exception:
             self._wait_all()
             raise RuntimeError(
-                f"Failed to materialize workflow. Failed assets: {[asset.key for asset in self.state.failed_assets]}"
+                f"Failed to materialize workflow. Failed assets: "
+                f"{[asset.instance_key for asset in self.state.failed_assets]}"
             )
 
     @DBOS.workflow(name="execute_asset")
@@ -165,10 +166,10 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         try:
             result = self._execute_asset_step(asset_spec, partition_or_window)
         except Exception as e:
-            DBOS.send(workflow_id, (ExecutionStatus.FAILED.value, asset.key, e))
+            DBOS.send(workflow_id, (ExecutionStatus.FAILED.value, asset.instance_key, e))
             raise e
 
-        DBOS.send(workflow_id, (ExecutionStatus.COMPLETED.value, asset.key, None))
+        DBOS.send(workflow_id, (ExecutionStatus.COMPLETED.value, asset.instance_key, None))
         return result
 
     @DBOS.step(name="execute_asset")

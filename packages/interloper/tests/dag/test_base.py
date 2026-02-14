@@ -2,12 +2,12 @@
 
 Key semantics:
 - Standalone asset (no source): key = asset.name
-- Asset from a source: key = source.name + "." + asset.name
+- Asset from a source: key = source.name + ":" + asset.name
 
 Dependency resolution:
 - With no dataset, param name is used as upstream key (matches standalone keys).
-- With dataset set, inference uses dataset.param_name; standalone keys are
-  name-only, so explicit deps are required when referencing other assets.
+- With dataset set, inference uses source.name:param_name; standalone
+  keys use the name directly, so explicit deps are required when referencing other assets.
 """
 
 import datetime as dt
@@ -44,18 +44,16 @@ class TestDAGInitialization:
 
     def test_accepts_source_instance(self):
         @il.source
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def a1(context: il.ExecutionContext) -> str:
+            def a1(self, context: il.ExecutionContext) -> str:
                 return "a"
 
             @il.asset
-            def a2(context: il.ExecutionContext) -> str:
+            def a2(self, context: il.ExecutionContext) -> str:
                 return "b"
 
-            return (a1, a2)
-
-        dag = il.DAG(my_source())
+        dag = il.DAG(MySource())
         assert len(dag.assets) == 2
 
     def test_accepts_mixed_assets_and_sources(self):
@@ -64,17 +62,15 @@ class TestDAGInitialization:
             return "a"
 
         @il.source
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def source_asset(context: il.ExecutionContext) -> str:
+            def source_asset(self, context: il.ExecutionContext) -> str:
                 return "b"
 
-            return (source_asset,)
-
-        dag = il.DAG(standalone(), my_source())
+        dag = il.DAG(standalone(), MySource())
         assert len(dag.assets) == 2
         assert "standalone" in dag.asset_map
-        assert "my_source.source_asset" in dag.asset_map
+        assert "MySource:source_asset" in dag.asset_map
 
     def test_accepts_asset_definition_instantiates(self):
         @il.asset
@@ -87,18 +83,16 @@ class TestDAGInitialization:
 
     def test_accepts_source_definition_instantiates(self):
         @il.source
-        def my_source() -> tuple[il.AssetDefinition, ...]:
+        class MySource:
             @il.asset
-            def a1(context: il.ExecutionContext) -> str:
+            def a1(self, context: il.ExecutionContext) -> str:
                 return "a"
 
             @il.asset
-            def a2(context: il.ExecutionContext) -> str:
+            def a2(self, context: il.ExecutionContext) -> str:
                 return "b"
 
-            return (a1, a2)
-
-        dag = il.DAG(my_source)
+        dag = il.DAG(MySource)
         assert len(dag.assets) == 2
         assert any(a.name == "a1" for a in dag.assets)
         assert any(a.name == "a2" for a in dag.assets)
@@ -113,22 +107,18 @@ class TestDAGInitialization:
             return "y"
 
         @il.source
-        def source_def() -> tuple[il.AssetDefinition, ...]:
+        class SourceDef:
             @il.asset
-            def source_asset(context: il.ExecutionContext) -> str:
+            def source_asset(self, context: il.ExecutionContext) -> str:
                 return "z"
 
-            return (source_asset,)
-
-        dag = il.DAG(from_def, from_instance(), source_def)
+        dag = il.DAG(from_def, from_instance(), SourceDef)
         assert any(a.name == "from_def" for a in dag.assets)
         assert any(a.name == "from_instance" for a in dag.assets)
         assert any(a.name == "source_asset" for a in dag.assets)
 
     def test_asset_definition_with_config_instantiates(self):
-        from pydantic_settings import BaseSettings
-
-        class TestConfig(BaseSettings):
+        class TestConfig(il.Config):
             value: str = "default"
 
         @il.asset(config=TestConfig)
@@ -140,20 +130,19 @@ class TestDAGInitialization:
         assert any(a.name == "config_asset" for a in dag.assets)
 
     def test_source_definition_with_config_instantiates(self):
-        from pydantic_settings import BaseSettings
-
-        class TestConfig(BaseSettings):
+        class TestConfig(il.Config):
             value: str = "default"
 
         @il.source(config=TestConfig)
-        def config_source(config: TestConfig) -> tuple[il.AssetDefinition, ...]:
+        class ConfigSource:
+            def setup(self, config: TestConfig) -> None:
+                self.cfg = config
+
             @il.asset
-            def source_asset(context: il.ExecutionContext) -> str:
-                return config.value
+            def source_asset(self, context: il.ExecutionContext) -> str:
+                return self.cfg.value
 
-            return (source_asset,)
-
-        dag = il.DAG(config_source)
+        dag = il.DAG(ConfigSource)
         assert len(dag.assets) == 1
         assert any(a.name == "source_asset" for a in dag.assets)
 
@@ -183,52 +172,44 @@ class TestDAGKeys:
         assert dag.asset_map["asset1"].name == "asset1"
         assert dag.asset_map["asset2"].name == "asset2"
 
-    def test_source_asset_key_equals_source_name_dot_asset_name(self):
-        """Assets from a source use source.name.asset.name as key."""
+    def test_source_asset_key_equals_source_name_colon_asset_name(self):
+        """Assets from a source use source_name:asset_name as key."""
 
         @il.source
-        def source1() -> tuple[il.AssetDefinition, ...]:
+        class Source1:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "v1"
 
-            return (my_asset,)
-
         @il.source
-        def source2() -> tuple[il.AssetDefinition, ...]:
+        class Source2:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "v2"
 
-            return (my_asset,)
-
-        dag = il.DAG(source1(), source2())
+        dag = il.DAG(Source1(), Source2())
         assert len(dag.asset_map) == 2
-        assert "source1.my_asset" in dag.asset_map
-        assert "source2.my_asset" in dag.asset_map
+        assert "Source1:my_asset" in dag.asset_map
+        assert "Source2:my_asset" in dag.asset_map
 
     def test_source_asset_key_uses_custom_source_name_when_given(self):
         """Source instances can override name; key uses that name."""
 
         @il.source(name="custom_source1")
-        def s1() -> tuple[il.AssetDefinition, ...]:
+        class S1:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "v1"
 
-            return (my_asset,)
-
         @il.source(name="custom_source2")
-        def s2() -> tuple[il.AssetDefinition, ...]:
+        class S2:
             @il.asset
-            def my_asset(context: il.ExecutionContext) -> str:
+            def my_asset(self, context: il.ExecutionContext) -> str:
                 return "v2"
 
-            return (my_asset,)
-
-        dag = il.DAG(s1(), s2())
-        assert "custom_source1.my_asset" in dag.asset_map
-        assert "custom_source2.my_asset" in dag.asset_map
+        dag = il.DAG(S1(), S2())
+        assert "custom_source1:my_asset" in dag.asset_map
+        assert "custom_source2:my_asset" in dag.asset_map
 
     def test_duplicate_key_raises_when_two_standalone_assets_same_name(self):
         """Two standalone assets with the same name produce the same key → ValueError."""
@@ -269,11 +250,11 @@ class TestDAGDependencyResolution:
         def upstream_asset(context: il.ExecutionContext) -> str:
             return "upstream"
 
-        @il.asset(dataset="dataset2", deps={"upstream": "upstream_asset"})
+        @il.asset(dataset="dataset2")
         def downstream_asset(context: il.ExecutionContext, upstream: str) -> str:
             return f"downstream_{upstream}"
 
-        dag = il.DAG(upstream_asset(), downstream_asset())
+        dag = il.DAG(upstream_asset(), downstream_asset(deps={"upstream": "upstream_asset"}))
         assert "upstream_asset" in dag.predecessors["downstream_asset"]
 
     def test_standalone_assets_with_dataset_infer_deps_by_param_name(self):
@@ -294,48 +275,48 @@ class TestDAGDependencyResolution:
     def test_explicit_dep_key_not_in_dag_raises(self):
         """Explicit dep pointing to a key not in the DAG raises."""
 
-        @il.asset(deps={"missing": "nonexistent.asset"})
+        @il.asset
         def my_asset(context: il.ExecutionContext, missing: str) -> str:
             return missing
 
         with pytest.raises(ValueError, match="depends on 'nonexistent.asset' which is not in the DAG"):
-            il.DAG(my_asset())
+            il.DAG(my_asset(deps={"missing": "nonexistent.asset"}))
 
 
 class TestDAGStructure:
     """Dependency graph structure: chains, multiple deps, cycles, missing upstream."""
 
     def test_chain_dependencies(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "b"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_c(context: il.ExecutionContext, asset_b: str) -> str:
             return asset_b + "c"
 
-        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        dag = il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)), asset_c(io=il.FileIO(tmp_path)))
         assert dag.predecessors["asset_b"] == ["asset_a"]
         assert dag.predecessors["asset_c"] == ["asset_b"]
 
     def test_multiple_dependencies(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext) -> str:
             return "b"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_c(context: il.ExecutionContext, asset_a: str, asset_b: str) -> str:
             return asset_a + asset_b
 
-        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        dag = il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)), asset_c(io=il.FileIO(tmp_path)))
         assert set(dag.predecessors["asset_c"]) == {"asset_a", "asset_b"}
 
     def test_definition_dependencies_build_correctly(self):
@@ -351,94 +332,90 @@ class TestDAGStructure:
         assert "upstream_asset" in dag.predecessors["downstream_asset"]
 
     def test_circular_dependency_raises(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext, asset_b: str) -> str:
             return asset_b
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a
 
         with pytest.raises(ValueError, match="Circular dependency"):
-            il.DAG(asset_a(), asset_b())
+            il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)))
 
     def test_missing_upstream_param_raises(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext, missing_asset: str) -> str:
             return missing_asset
 
         with pytest.raises(Exception):
-            il.DAG(my_asset())
+            il.DAG(my_asset(io=il.FileIO(tmp_path)))
 
 
 class TestDAGPartitioning:
     """Partition rules: non-partitioned → partitioned ok; partitioned → non-partitioned invalid."""
 
     def test_non_partitioned_to_partitioned_valid(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def config_asset(context: il.ExecutionContext) -> str:
             return "config"
 
         @il.asset(
-            io=il.FileIO(tmp_path),
             partitioning=il.TimePartitionConfig(column="date"),
         )
         def daily_asset(context: il.ExecutionContext, config_asset: str) -> str:
             return f"{config_asset}_{context.partition_date}"
 
-        dag = il.DAG(config_asset(), daily_asset())
+        dag = il.DAG(config_asset(io=il.FileIO(tmp_path)), daily_asset(io=il.FileIO(tmp_path)))
         assert "config_asset" in dag.predecessors["daily_asset"]
 
     def test_partitioned_to_non_partitioned_raises(self, tmp_path):
         @il.asset(
-            io=il.FileIO(tmp_path),
             partitioning=il.TimePartitionConfig(column="date"),
         )
         def daily_asset(context: il.ExecutionContext) -> str:
             return f"daily_{context.partition_date}"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def summary_asset(context: il.ExecutionContext, daily_asset: str) -> str:
             return daily_asset
 
         with pytest.raises(Exception):
-            il.DAG(daily_asset(), summary_asset())
+            il.DAG(daily_asset(io=il.FileIO(tmp_path)), summary_asset(io=il.FileIO(tmp_path)))
 
 
 class TestDAGMaterialize:
     """DAG.materialize() behavior."""
 
     def test_materialize_without_partition(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset())
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
         result = dag.materialize()
         assert isinstance(result, il.RunResult)
 
     def test_materialize_with_partition(self, tmp_path):
         @il.asset(
-            io=il.FileIO(tmp_path),
             partitioning=il.TimePartitionConfig(column="date"),
         )
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        dag = il.DAG(my_asset())
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
         result = dag.materialize(partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
         assert isinstance(result, il.RunResult)
 
     def test_materialize_with_partition_window(self, tmp_path):
         @il.asset(
-            io=il.FileIO(tmp_path),
             partitioning=il.TimePartitionConfig(column="date", allow_window=True),
         )
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             start, end = context.partition_date_window
             return [{"start": start, "end": end}]
 
-        dag = il.DAG(my_asset())
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
         result = dag.materialize(
             partition_or_window=il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 7))
         )
@@ -446,148 +423,149 @@ class TestDAGMaterialize:
 
     @pytest.mark.skip(reason="Default MemoryIO means upstream assets always have IO by default")
     def test_materialize_with_upstream_no_io(self, tmp_path):
-        @il.asset(io=None)
+        @il.asset
         def upstream(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def downstream(context: il.ExecutionContext, upstream: str) -> str:
             return upstream + "b"
 
-        dag = il.DAG(upstream(), downstream())
+        dag = il.DAG(upstream(), downstream(io=il.FileIO(tmp_path)))
         result = dag.materialize()
         assert result.status == "failed"
         assert "downstream" in result.failed_assets
 
     @pytest.mark.skip(reason="Type hint validation not yet implemented")
     def test_type_hint_matching(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def upstream(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def downstream(context: il.ExecutionContext, upstream: int) -> str:
             return "b"
 
         with pytest.raises(Exception):
-            il.DAG(upstream(), downstream())
+            il.DAG(upstream(io=il.FileIO(tmp_path)), downstream(io=il.FileIO(tmp_path)))
 
 
 class TestDAGGraphTraversal:
     """get_predecessors / get_successors and invalid key handling."""
 
     def test_get_predecessors_single(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def upstream_asset(context: il.ExecutionContext) -> str:
             return "upstream"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def downstream_asset(context: il.ExecutionContext, upstream_asset: str) -> str:
             return upstream_asset + "_processed"
 
-        dag = il.DAG(upstream_asset(), downstream_asset())
+        dag = il.DAG(upstream_asset(io=il.FileIO(tmp_path)), downstream_asset(io=il.FileIO(tmp_path)))
         preds = dag.get_predecessors("downstream_asset")
         assert preds == ["upstream_asset"]
 
     def test_get_predecessors_multiple(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext) -> str:
             return "b"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_c(context: il.ExecutionContext, asset_a: str, asset_b: str) -> str:
             return asset_a + asset_b
 
-        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        dag = il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)), asset_c(io=il.FileIO(tmp_path)))
         preds = dag.get_predecessors("asset_c")
         assert set(preds) == {"asset_a", "asset_b"}
 
     def test_get_predecessors_empty_for_root(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def root_asset(context: il.ExecutionContext) -> str:
             return "root"
 
-        dag = il.DAG(root_asset())
+        dag = il.DAG(root_asset(io=il.FileIO(tmp_path)))
         assert dag.get_predecessors("root_asset") == []
 
     def test_get_successors_single(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def upstream_asset(context: il.ExecutionContext) -> str:
             return "upstream"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def downstream_asset(context: il.ExecutionContext, upstream_asset: str) -> str:
             return upstream_asset + "_processed"
 
-        dag = il.DAG(upstream_asset(), downstream_asset())
+        dag = il.DAG(upstream_asset(io=il.FileIO(tmp_path)), downstream_asset(io=il.FileIO(tmp_path)))
         succs = dag.get_successors("upstream_asset")
         assert succs == ["downstream_asset"]
 
     def test_get_successors_multiple(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "_b"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_c(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "_c"
 
-        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        dag = il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)), asset_c(io=il.FileIO(tmp_path)))
         succs = dag.get_successors("asset_a")
         assert set(succs) == {"asset_b", "asset_c"}
 
     def test_get_successors_empty_for_leaf(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def leaf_asset(context: il.ExecutionContext) -> str:
             return "leaf"
 
-        dag = il.DAG(leaf_asset())
+        dag = il.DAG(leaf_asset(io=il.FileIO(tmp_path)))
         assert dag.get_successors("leaf_asset") == []
 
     def test_get_predecessors_invalid_key_raises(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset())
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
         with pytest.raises(KeyError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_predecessors("invalid_key")
 
     def test_get_successors_invalid_key_raises(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset())
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
         with pytest.raises(KeyError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_successors("invalid_key")
 
     def test_diamond_dag_traversal(self, tmp_path):
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_a(context: il.ExecutionContext) -> str:
             return "a"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "_b"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_c(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "_c"
 
-        @il.asset(io=il.FileIO(tmp_path))
+        @il.asset
         def asset_d(context: il.ExecutionContext, asset_b: str, asset_c: str) -> str:
             return asset_b + "_" + asset_c
 
-        dag = il.DAG(asset_a(), asset_b(), asset_c(), asset_d())
+        io = il.FileIO(tmp_path)
+        dag = il.DAG(asset_a(io=io), asset_b(io=io), asset_c(io=io), asset_d(io=io))
 
         assert dag.get_predecessors("asset_a") == []
         assert set(dag.get_successors("asset_a")) == {"asset_b", "asset_c"}
@@ -597,19 +575,145 @@ class TestDAGGraphTraversal:
     def test_traversal_with_explicit_deps(self, tmp_path):
         """Traversal works when dependency is resolved via explicit deps (param name ≠ key)."""
 
-        @il.asset(dataset="dataset1", io=il.FileIO(tmp_path))
+        @il.asset(dataset="dataset1")
         def upstream_asset(context: il.ExecutionContext) -> str:
             return "upstream"
 
         @il.asset(
             dataset="dataset2",
-            deps={"external": "upstream_asset"},
-            io=il.FileIO(tmp_path),
         )
         def downstream_asset(context: il.ExecutionContext, external: str) -> str:
             return f"downstream_{external}"
 
-        dag = il.DAG(upstream_asset(), downstream_asset())
+        io = il.FileIO(tmp_path)
+        dag = il.DAG(
+            upstream_asset(io=io),
+            downstream_asset(io=io, deps={"external": "upstream_asset"}),
+        )
 
         assert dag.get_predecessors("downstream_asset") == ["upstream_asset"]
         assert dag.get_successors("upstream_asset") == ["downstream_asset"]
+
+
+class TestDAGRequiresValidation:
+    """Validation of requires constraints against upstream definition keys."""
+
+    def test_requires_matching_definition_key_passes(self):
+        """Asset with requires wired to the correct upstream definition — no error."""
+
+        @il.asset
+        def upstream(context: il.ExecutionContext) -> str:
+            return "data"
+
+        @il.asset(requires={"upstream": il.AssetDefinitionKey("upstream")})
+        def downstream(context: il.ExecutionContext, upstream: str) -> str:
+            return upstream
+
+        # Should not raise
+        dag = il.DAG(upstream(), downstream())
+        assert "upstream" in dag.predecessors["downstream"]
+
+    def test_requires_mismatched_definition_key_raises(self):
+        """Asset with requires wired to a different upstream definition — ValueError."""
+
+        @il.asset
+        def upstream(context: il.ExecutionContext) -> str:
+            return "data"
+
+        @il.asset(requires={"upstream": il.AssetDefinitionKey("other_source:upstream")})
+        def downstream(context: il.ExecutionContext, upstream: str) -> str:
+            return upstream
+
+        with pytest.raises(
+            ValueError,
+            match=r"requires parameter 'upstream' to come from definition 'other_source:upstream'",
+        ):
+            il.DAG(upstream(), downstream())
+
+    def test_requires_partial_only_declared_params_checked(self):
+        """Asset with requires on one param but not another — only the declared param is checked."""
+
+        @il.asset
+        def asset_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def asset_b(context: il.ExecutionContext) -> str:
+            return "b"
+
+        @il.asset(requires={"asset_a": il.AssetDefinitionKey("asset_a")})
+        def downstream(context: il.ExecutionContext, asset_a: str, asset_b: str) -> str:
+            return asset_a + asset_b
+
+        # Should not raise — asset_a matches, asset_b has no requires constraint
+        dag = il.DAG(asset_a(), asset_b(), downstream())
+        assert set(dag.predecessors["downstream"]) == {"asset_a", "asset_b"}
+
+    def test_no_requires_skips_validation(self):
+        """Asset without requires — no validation (existing behavior)."""
+
+        @il.asset
+        def upstream(context: il.ExecutionContext) -> str:
+            return "data"
+
+        @il.asset
+        def downstream(context: il.ExecutionContext, upstream: str) -> str:
+            return upstream
+
+        # Should not raise — no requires declared
+        dag = il.DAG(upstream(), downstream())
+        assert "upstream" in dag.predecessors["downstream"]
+
+    def test_requires_with_source_assets(self):
+        """Requires validation works with source-bound assets."""
+
+        @il.source
+        class SourceA:
+            @il.asset
+            def data(self, context: il.ExecutionContext) -> str:
+                return "a"
+
+        @il.source
+        class SourceB:
+            @il.asset
+            def data(self, context: il.ExecutionContext) -> str:
+                return "b"
+
+        @il.asset(requires={"source_a_data": il.AssetDefinitionKey("SourceA:data")})
+        def consumer(context: il.ExecutionContext, source_a_data: str) -> str:
+            return source_a_data
+
+        # Wire to the correct source via explicit deps
+        dag = il.DAG(
+            SourceA(),
+            SourceB(),
+            consumer(deps={"source_a_data": "SourceA:data"}),
+        )
+        assert "SourceA:data" in dag.predecessors["consumer"]
+
+    def test_requires_mismatch_with_source_assets_raises(self):
+        """Requires validation catches wiring to wrong source."""
+
+        @il.source
+        class SourceA:
+            @il.asset
+            def data(self, context: il.ExecutionContext) -> str:
+                return "a"
+
+        @il.source
+        class SourceB:
+            @il.asset
+            def data(self, context: il.ExecutionContext) -> str:
+                return "b"
+
+        # Requires source-a's data but we wire to source-b
+        @il.asset(requires={"wrong_data": il.AssetDefinitionKey("nonexistent_source:data")})
+        def consumer(context: il.ExecutionContext, wrong_data: str) -> str:
+            return wrong_data
+
+        with pytest.raises(ValueError, match="requires parameter 'wrong_data' to come from definition"):
+            il.DAG(
+                SourceA(),
+                SourceB(),
+                consumer(deps={"wrong_data": "SourceB:data"}),
+            )

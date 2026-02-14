@@ -7,26 +7,26 @@ loaded from a spec.
 import interloper as il
 
 
-@il.asset(io=il.FileIO("data/"))
+@il.asset
 def asset_a(context: il.ExecutionContext) -> str:  # noqa: D103
     return "a_ran"
 
 
-@il.asset(io=il.FileIO("data/"))
+@il.asset
 def asset_b(context: il.ExecutionContext) -> str:  # noqa: D103
     return "b_ran"
 
 
-@il.asset(io=il.FileIO("data/"), deps={"a": "asset_a"})
+@il.asset
 def asset_c(context: il.ExecutionContext, a: str) -> str:  # noqa: D103
     return f"c_ran_with_{a}"
 
 
-@il.asset(io=il.FileIO("data/"))
+@il.asset
 def asset_a_fails(context: il.ExecutionContext) -> str:  # noqa: D103
     raise RuntimeError("boom")
 
 
-@il.asset(io=il.FileIO("data/"))
+@il.asset
 def asset_b_success(context: il.ExecutionContext) -> str:  # noqa: D103
     return "b_success_ran"

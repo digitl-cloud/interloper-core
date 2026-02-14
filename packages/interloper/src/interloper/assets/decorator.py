@@ -1,14 +1,16 @@
 """Decorator for defining assets."""
 
-from collections.abc import Callable
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
 from typing import Any, overload
 
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
 
 from interloper.assets.base import AssetDefinition
-from interloper.io.base import IO
+from interloper.assets.keys import AssetDefinitionKey
 from interloper.partitioning.base import PartitionConfig
+from interloper.source.config import Config
 
 
 @overload
@@ -20,12 +22,12 @@ def asset(
     *,
     name: str | None = None,
     schema: type[BaseModel] | None = None,
-    config: type[BaseSettings] | None = None,
-    io: IO | dict[str, IO] | None = None,
+    config: type[Config] | None = None,
+    tags: Sequence[str] | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
-    default_io_key: str | None = None,
-    deps: dict[str, str] | None = None,
+    requires: dict[str, AssetDefinitionKey] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Callable[[Callable[..., Any]], AssetDefinition]: ...
 
 
@@ -34,12 +36,12 @@ def asset(
     *,
     name: str | None = None,
     schema: type[BaseModel] | None = None,
-    config: type[BaseSettings] | None = None,
-    io: IO | dict[str, IO] | None = None,
+    config: type[Config] | None = None,
+    tags: Sequence[str] | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
-    default_io_key: str | None = None,
-    deps: dict[str, str] | None = None,
+    requires: dict[str, AssetDefinitionKey] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> AssetDefinition | Callable[[Callable[..., Any]], AssetDefinition]:
     """Decorator to define an asset.
 
@@ -50,30 +52,23 @@ def asset(
         @asset(schema=MySchema)
         def my_asset(): ...
     """
-    # Validate default_io_key if multiple IOs
-    if isinstance(io, dict) and len(io) > 1 and default_io_key is None:
-        raise ValueError("default_io_key is required when io is a dict with multiple keys")
-    
-    if isinstance(io, dict) and default_io_key and default_io_key not in io:
-        raise ValueError(f"default_io_key '{default_io_key}' not found in io dict keys: {list(io.keys())}")
-    
+
     def decorator(f: Callable[..., Any]) -> AssetDefinition:
         return AssetDefinition(
             func=f,
             name=name or "",
             schema=schema,
             config=config,
-            io=io,
+            tags=tuple(tags) if tags else (),
             partitioning=partitioning,
             dataset=dataset,
-            default_io_key=default_io_key,
-            deps=deps or {},
+            requires=requires or {},
+            metadata=dict(metadata) if metadata else {},
         )
-    
+
     # Called without parentheses: @asset
     if func is not None:
         return decorator(func)
-    
+
     # Called with parentheses: @asset(...)
     return decorator
-
