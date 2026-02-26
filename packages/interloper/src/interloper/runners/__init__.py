@@ -6,9 +6,9 @@ from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.serial import SerialRunner
 
 __all__ = [
+    "MultiProcessRunner",
+    "MultiThreadRunner",
     "Runner",
     "SerialRunner",
-    "MultiThreadRunner",
-    "MultiProcessRunner",
 ]
 

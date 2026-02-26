@@ -9,9 +9,9 @@ from interloper.serialization.runner import RunnerSpec
 
 __all__ = [
     "AssetSpec",
+    "BackfillerSpec",
     "ConfigSpec",
     "DAGSpec",
-    "RunnerSpec",
     "IOSpec",
-    "BackfillerSpec",
+    "RunnerSpec",
 ]

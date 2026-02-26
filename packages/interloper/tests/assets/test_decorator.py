@@ -97,7 +97,7 @@ class TestAssetDecorator:
 
         @il.asset(partitioning=partitioning)
         def my_asset(context: il.ExecutionContext) -> list[dict]:
-            return [{"date": dt.date.today()}]
+            return [{"date": dt.date(2025, 1, 1)}]
 
         assert my_asset.partitioning == partitioning
 
@@ -122,7 +122,7 @@ class TestAssetDecorator:
             dataset="data",
         )
         def my_asset(context: il.ExecutionContext) -> list[dict]:
-            return [{"value": 1, "name": "test", "date": dt.date.today()}]
+            return [{"value": 1, "name": "test", "date": dt.date(2025, 1, 1)}]
 
         assert my_asset.name == "custom"
         assert my_asset.schema == SampleSchema

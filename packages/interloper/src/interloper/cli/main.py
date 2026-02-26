@@ -2,7 +2,10 @@
 
 import argparse
 import datetime as dt
+import importlib.util
 import json
+import sys
+from pathlib import Path
 
 from interloper import SerialBackfiller
 from interloper.cli.config import Config
@@ -15,15 +18,30 @@ from interloper.utils.imports import require_import
 
 
 def _load_script(path: str) -> DAG:
-    script_globals: dict[str, object] = {}
-    with open(path) as f:
-        exec(f.read(), script_globals)
+    script_path = Path(path).expanduser().resolve()
+    if not script_path.exists():
+        raise FileNotFoundError(f"Script file not found: {script_path}")
+    if not script_path.is_file():
+        raise ValueError(f"Script path is not a file: {script_path}")
 
-    dags = [obj for obj in script_globals.values() if isinstance(obj, DAG)]
+    module_name = f"interloper_user_script_{abs(hash(str(script_path)))}"
+    spec = importlib.util.spec_from_file_location(module_name, script_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Unable to load script module from path: {script_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        # Avoid leaking user script modules into global import state.
+        sys.modules.pop(module_name, None)
+
+    dags = [obj for obj in vars(module).values() if isinstance(obj, DAG)]
     if not dags:
-        raise ValueError(f"No DAG objects found in script {path}")
+        raise ValueError(f"No DAG objects found in script {script_path}")
     if len(dags) > 1:
-        raise ValueError(f"Multiple DAG objects found in script {path}")
+        raise ValueError(f"Multiple DAG objects found in script {script_path}")
 
     return dags[0]
 

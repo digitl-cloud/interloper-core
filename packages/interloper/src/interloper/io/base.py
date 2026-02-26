@@ -36,7 +36,6 @@ class IO(Serializable):
             context: IO context with asset and partition information
             data: Data to write
         """
-        pass
 
     @abstractmethod
     def read(self, context: IOContext) -> Any:
@@ -48,9 +47,7 @@ class IO(Serializable):
         Returns:
             The read data
         """
-        pass
 
     @abstractmethod
     def to_spec(self) -> IOSpec:
         """Convert to serializable spec."""
-        pass

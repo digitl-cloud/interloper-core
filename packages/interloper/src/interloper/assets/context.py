@@ -45,13 +45,13 @@ class ExecutionContext:
             raise AttributeError("`context.partition_date` is not available, no partition provided.")
 
         if not isinstance(self._partitioning, TimePartitionConfig):
-            raise AttributeError(
+            raise AttributeError(  # noqa: TRY004 (AttributeError is desired here)
                 "`context.partition_date` is not available, asset is not time-partitioned. "
                 "Use `TimePartitionConfig` in the asset decorator."
             )
 
         if isinstance(self._partition_or_window, PartitionWindow):
-            raise AttributeError(
+            raise AttributeError(  # noqa: TRY004 (AttributeError is desired here)
                 "`context.partition_date` is not available. "
                 "Context currently holds a partition window, not a partition."
             )
@@ -72,7 +72,7 @@ class ExecutionContext:
             raise AttributeError("`context.partition_date_window` is not available, no partition provided.")
 
         if not isinstance(self._partitioning, TimePartitionConfig):
-            raise AttributeError(
+            raise AttributeError(  # noqa: TRY004 (AttributeError is desired here)
                 "`context.partition_date_window` is not available, asset is not time-partitioned. "
                 "Use `TimePartitionConfig` in the asset decorator."
             )

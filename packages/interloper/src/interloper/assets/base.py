@@ -25,7 +25,6 @@ from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
 
 if TYPE_CHECKING:
-    from interloper.assets.context import ExecutionContext
     from interloper.dag.base import DAG
     from interloper.source.base import Source, SourceDefinition
     from interloper.source.config import Config
@@ -232,6 +231,16 @@ class Asset(Serializable[AssetSpec]):
         if self.partitioning is not None and partition_or_window is None:
             raise ValueError(f"Asset '{self.name}' is partitioned, but no partition/partition_window provided")
 
+        if (
+            self.partitioning is not None
+            and isinstance(partition_or_window, PartitionWindow)
+            and not self.partitioning.allow_window
+        ):
+            raise ValueError(
+                f"Asset '{self.instance_key}' does not support windowed runs (allow_window=False). "
+                "Use a partition window with backfill(windowed=False) to run one partition per run."
+            )
+
         # Create context
         context = ExecutionContext(
             asset_key=self.instance_key,
@@ -321,7 +330,7 @@ class Asset(Serializable[AssetSpec]):
                 emit(EventType.IO_WRITE_COMPLETED, metadata=io_metadata)
             except Exception as e:
                 emit(EventType.IO_WRITE_FAILED, metadata={**io_metadata, "error": str(e)})
-                raise e
+                raise
 
     def _build_kwargs(
         self,

@@ -160,7 +160,7 @@ class RunState:
             partition_or_window: Either a Partition or PartitionWindow object
         """
         self.partition_or_window = partition_or_window
-        self.start_time = dt.datetime.now()
+        self.start_time = dt.datetime.now(dt.timezone.utc)
         self.end_time = None
 
         metadata = {
@@ -171,7 +171,7 @@ class RunState:
 
     def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[AssetInstanceKey, AssetExecutionInfo]:
         """End DAG execution, emit RUN_COMPLETED/FAILED event, return asset_executions."""
-        self.end_time = dt.datetime.now()
+        self.end_time = dt.datetime.now(dt.timezone.utc)
 
         event_type = EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED
         metadata = {

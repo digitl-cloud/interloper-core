@@ -53,8 +53,8 @@ class EventHttpServer:
         def serve() -> None:
             try:
                 server.serve_forever(poll_interval=0.2)
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                print(f"Error in event HTTP server loop: {e}")
 
         t = threading.Thread(target=serve, daemon=True)
         t.start()
@@ -65,8 +65,8 @@ class EventHttpServer:
         if self._server is not None:
             try:
                 self._server.shutdown()
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                print(f"Error shutting down event HTTP server: {e}")
             self._server.server_close()
             self._server = None
         self._thread = None
@@ -78,7 +78,7 @@ class EventHttpServer:
         class EventHttpHandler(BaseHTTPRequestHandler):
             """HTTP handler that forwards JSON events to the local event bus."""
 
-            def do_POST(self) -> None:  # noqa: N802
+            def do_POST(self) -> None:
                 """Handle a POST request."""
                 if self.path != "/events":
                     self.send_response(404)
@@ -110,7 +110,7 @@ class EventHttpServer:
                     print(f"Error decoding event: {body.decode('utf-8')}")
                     self.send_response(400, "Error decoding event")
                     self.end_headers()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     print(f"Error forwarding event: {e}")
                     self.send_response(500, "Error forwarding event")
                     self.end_headers()
@@ -135,7 +135,4 @@ class EventHttpServer:
             return False
 
         # Include filter: if provided, must be in the list
-        if self._include is not None and event_type not in self._include:
-            return False
-
-        return True
+        return not (self._include is not None and event_type not in self._include)

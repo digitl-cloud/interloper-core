@@ -219,9 +219,8 @@ class DAG(Serializable):
             return False
 
         for asset_key in self.predecessors:
-            if asset_key not in visited:
-                if has_cycle(asset_key):
-                    raise ValueError(f"Circular dependency detected involving asset '{asset_key}'")
+            if asset_key not in visited and has_cycle(asset_key):
+                raise ValueError(f"Circular dependency detected involving asset '{asset_key}'")
 
     def topological_generations(self) -> list[list[Asset]]:
         """Return assets grouped by parallelizable generations.
@@ -353,9 +352,9 @@ class DAG(Serializable):
         """
         dag = state.dag.copy()
 
-        completed_keys = set(
+        completed_keys = {
             key for key, info in state.asset_executions.items() if info.status == ExecutionStatus.COMPLETED
-        )
+        }
 
         for asset in dag.assets:
             asset.materializable = asset.instance_key not in completed_keys

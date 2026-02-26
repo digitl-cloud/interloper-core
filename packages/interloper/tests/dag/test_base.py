@@ -348,7 +348,7 @@ class TestDAGStructure:
         def my_asset(context: il.ExecutionContext, missing_asset: str) -> str:
             return missing_asset
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             il.DAG(my_asset(io=il.FileIO(tmp_path)))
 
 
@@ -380,7 +380,7 @@ class TestDAGPartitioning:
         def summary_asset(context: il.ExecutionContext, daily_asset: str) -> str:
             return daily_asset
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             il.DAG(daily_asset(io=il.FileIO(tmp_path)), summary_asset(io=il.FileIO(tmp_path)))
 
 
@@ -421,6 +421,22 @@ class TestDAGMaterialize:
         )
         assert isinstance(result, il.RunResult)
 
+    def test_materialize_with_partition_window_not_allowed_raises(self, tmp_path):
+        @il.asset(
+            partitioning=il.TimePartitionConfig(column="date", allow_window=False),
+        )
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return [{"date": context.partition_date}]
+
+        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
+        with pytest.raises(ValueError, match="Windowed runs require all partitioned assets"):
+            dag.materialize(
+                partition_or_window=il.TimePartitionWindow(
+                    start=dt.date(2025, 1, 1),
+                    end=dt.date(2025, 1, 7),
+                )
+            )
+
     @pytest.mark.skip(reason="Default MemoryIO means upstream assets always have IO by default")
     def test_materialize_with_upstream_no_io(self, tmp_path):
         @il.asset
@@ -446,7 +462,7 @@ class TestDAGMaterialize:
         def downstream(context: il.ExecutionContext, upstream: int) -> str:
             return "b"
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             il.DAG(upstream(io=il.FileIO(tmp_path)), downstream(io=il.FileIO(tmp_path)))
 
 

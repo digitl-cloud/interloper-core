@@ -18,7 +18,7 @@ class DemoConfig(il.Config):
     model_config = SettingsConfigDict(env_prefix="Demo_")
 
 
-partitioning = il.TimePartitionConfig(column="date", allow_window=True)
+partitioning = il.TimePartitionConfig(column="date", allow_window=False)
 
 
 @il.source(
@@ -38,7 +38,7 @@ class DemoSource:
 
     @il.asset(
         schema=DemoSchema,
-        partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        partitioning=partitioning,
         tags=["Report"],
     )
     def a(
@@ -52,7 +52,7 @@ class DemoSource:
 
     @il.asset(
         schema=DemoSchema,
-        partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        partitioning=partitioning,
         tags=["Report"],
     )
     def b(
@@ -67,7 +67,7 @@ class DemoSource:
 
     @il.asset(
         schema=DemoSchema,
-        partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        partitioning=partitioning,
         tags=["Report"],
     )
     def c(
@@ -82,7 +82,7 @@ class DemoSource:
 
     @il.asset(
         schema=DemoSchema,
-        partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        partitioning=partitioning,
         tags=["Report"],
     )
     def d(
@@ -97,7 +97,7 @@ class DemoSource:
 
     @il.asset(
         schema=DemoSchema,
-        partitioning=il.TimePartitionConfig(column="date", allow_window=True),
+        partitioning=partitioning,
         tags=["Report"],
     )
     def e(

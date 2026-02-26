@@ -43,12 +43,11 @@ def source(
     """
 
     def decorator(cls: type) -> SourceDefinition:
-        collected: list[AssetDefinition] = []
-        for attr_value in cls.__dict__.values():
-            if isinstance(attr_value, AssetDefinition):
-                collected.append(attr_value)
+        collected: list[AssetDefinition] = [
+            attr_value for attr_value in cls.__dict__.values() if isinstance(attr_value, AssetDefinition)
+        ]
 
-        source_def = SourceDefinition(
+        return SourceDefinition(
             cls=cls,
             asset_defs={ad.name: ad for ad in collected},
             name=name or "",
@@ -56,8 +55,6 @@ def source(
             tags=tuple(tags) if tags else (),
             dataset=dataset,
         )
-
-        return source_def
 
     # Called without parentheses: @source
     if cls is not None:

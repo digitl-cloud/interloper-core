@@ -16,13 +16,12 @@ class Spec(BaseModel, ABC):
     @abstractmethod
     def reconstruct(self) -> Any:
         """Reconstruct the object from the spec."""
-        pass
 
 
 T = TypeVar("T", bound=Spec)
 
 
-class Serializable(Generic[T], ABC):
+class Serializable(ABC, Generic[T]):
     """Abstract base class for all serializable objects."""
 
     @property
@@ -33,4 +32,3 @@ class Serializable(Generic[T], ABC):
     @abstractmethod
     def to_spec(self) -> T:
         """Convert to serializable spec."""
-        pass

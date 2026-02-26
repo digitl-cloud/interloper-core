@@ -39,7 +39,7 @@ class SourceSpec(Spec):
 
         if self.assets is not None:
             for asset in source.assets.values():
-                asset.materializable = True if asset.name in self.assets else False
+                asset.materializable = asset.name in self.assets
 
         return source
 

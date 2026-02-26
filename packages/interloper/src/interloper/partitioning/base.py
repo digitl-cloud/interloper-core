@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Generator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -55,6 +55,5 @@ class PartitionWindow(ABC):
         return f"{self.start}-{self.end}"
 
     @abstractmethod
-    def __iter__(self) -> Generator[Partition, None, None]:
+    def __iter__(self) -> Iterator[Partition]:
         """Iterate over the partitions in the window."""
-        pass

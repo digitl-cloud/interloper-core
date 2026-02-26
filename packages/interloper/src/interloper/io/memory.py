@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from interloper.io.base import IO
 from interloper.io.context import IOContext
@@ -13,7 +13,7 @@ from interloper.serialization.io import IOSpec
 class MemoryIO(IO):
     """IO implementation for reading and writing to memory."""
 
-    _storage: dict[str, Any] = {}
+    _storage: ClassVar[dict[str, Any]] = {}
 
     def write(self, context: IOContext, data: Any) -> None:
         """Write data to memory.

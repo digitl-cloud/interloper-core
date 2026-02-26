@@ -16,12 +16,12 @@ from interloper.events.server import EventHttpServer
 __all__ = [
     "Event",
     "EventBus",
+    "EventHttpServer",
     "EventType",
+    "disable_event_forwarding",
     "emit",
+    "enable_event_forwarding",
+    "get_asset_event_metadata",
     "subscribe",
     "unsubscribe",
-    "enable_event_forwarding",
-    "disable_event_forwarding",
-    "EventHttpServer",
-    "get_asset_event_metadata",
 ]

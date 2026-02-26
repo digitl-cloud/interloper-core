@@ -633,7 +633,7 @@ class TestSourceConfigInference:
                 return "value"
 
         # Should fail when config can't be inferred and no override provided
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             MySource()
 
     def test_config_not_mandatory_when_not_configured(self):

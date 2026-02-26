@@ -77,7 +77,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         self._subscribed_via_context_manager = True
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Exit the context manager and unsubscribe from events.
 
         Args:
@@ -94,11 +94,9 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
 
     def _on_start(self) -> None:
         """Optional lifecycle hook before a run begins (e.g., create pools)."""
-        pass
 
     def _on_end(self) -> None:
         """Optional lifecycle hook after a run ends (e.g., shutdown pools)."""
-        pass
 
     @property
     def state(self) -> RunState:
@@ -164,15 +162,14 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             )
 
             self.state.mark_asset_completed(asset)
-
-            return result
-
         except Exception as e:
             self.state.mark_asset_failed(asset, str(e))
 
             # If reraise is True, always re-raise. Otherwise, re-raise only if fail_fast is True.
             if self._reraise or self._fail_fast:
-                raise e
+                raise
+            return None
+        return result
 
     @abstractmethod
     def _wait_any(self, handles: list[HandleT]) -> HandleT:
@@ -183,6 +180,32 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
     def _cancel_all(self, handles: list[HandleT]) -> None:
         """Best-effort cancellation of outstanding handles when failing fast."""
         raise NotImplementedError
+
+    def _preflight_validation(self, dag: DAG, partition_or_window: Partition | PartitionWindow | None) -> None:
+        """Preflight check for the run."""
+        self._validate_partition_window_support(dag, partition_or_window)
+
+    def _validate_partition_window_support(
+        self,
+        dag: DAG,
+        partition_or_window: Partition | PartitionWindow | None,
+    ) -> None:
+        """Validate that all materialized partitioned assets allow windowed runs."""
+        if not isinstance(partition_or_window, PartitionWindow):
+            return
+
+        unsupported_assets = [
+            asset.instance_key
+            for asset in dag.assets
+            if asset.materializable and asset.partitioning is not None and not asset.partitioning.allow_window
+        ]
+        if unsupported_assets:
+            raise ValueError(
+                "Windowed runs require all partitioned assets to set allow_window=True. "
+                "Unsupported assets: "
+                f"{sorted(unsupported_assets)}. "
+                "Use a partition window with backfill(windowed=False) to run one partition per run."
+            )
 
     def run(
         self,
@@ -203,6 +226,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         Returns:
             RunResult
         """
+        self._preflight_validation(dag, partition_or_window)
         self._state = RunState(dag, metadata=metadata)
         self.state.start_run(partition_or_window)
 
@@ -252,7 +276,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             asset_executions = self.state.end_run(ExecutionStatus.FAILED, str(e))
 
             if self._reraise:
-                raise e
+                raise
             else:
                 print(f"Exception in run {self.state.run_id}: {e}")
                 print(traceback.format_exc())
@@ -266,5 +290,5 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         finally:
             try:
                 self._on_end()
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                print(f"Error in runner shutdown hook: {e}")

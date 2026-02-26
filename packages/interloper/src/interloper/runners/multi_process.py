@@ -80,7 +80,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
                     self.state.mark_asset_failed(asset, error_msg or "Unknown error")
                     if error_msg:
                         print(f"Asset {asset_key} failed: {error_msg}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"Asset {asset.instance_key} failed with exception: {e}")
                 self.state.mark_asset_failed(asset, str(e))
 
@@ -107,18 +107,18 @@ class MultiProcessRunner(Runner[Future[Any]]):
         for h in handles:
             try:
                 h.cancel()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def to_spec(self) -> RunnerSpec:
         """Convert to MultiProcessRunnerSpec spec."""
         return RunnerSpec(
             path=self.path,
-            init=dict(
-                max_workers=self._max_workers,
-                fail_fast=self._fail_fast,
-                reraise=self._reraise,
-            ),
+            init={
+                "max_workers": self._max_workers,
+                "fail_fast": self._fail_fast,
+                "reraise": self._reraise,
+            },
         )
 
 
@@ -151,6 +151,6 @@ def execute_in_process(
             partition_or_window=partition_or_window,
             dag=dag,
         )
-        return (asset.instance_key, True, None)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return (asset.instance_key, False, str(e))
+    return (asset.instance_key, True, None)

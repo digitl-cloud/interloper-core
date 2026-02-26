@@ -10,6 +10,8 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
+from typing_extensions import Self
+
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.state import BackfillState
 from interloper.dag.base import DAG
@@ -60,7 +62,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             flush()
             unsubscribe(self._on_event)
 
-    def __enter__(self) -> Backfiller:
+    def __enter__(self) -> Self:
         """Enter the context manager.
 
         The subscription is already active from __init__ if on_event was provided.
@@ -72,7 +74,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         self._subscribed_via_context_manager = True
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Exit the context manager and unsubscribe from events.
 
         Args:
@@ -88,11 +90,9 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
 
     def _on_start(self) -> None:
         """Optional lifecycle hook before a run begins (e.g., create pools)."""
-        pass
 
     def _on_end(self) -> None:
         """Optional lifecycle hook after a run ends (e.g., shutdown pools)."""
-        pass
 
     @property
     def state(self) -> BackfillState:
@@ -133,10 +133,10 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             self.state.mark_run_running(partition_or_window)
             result = self.runner.run(dag, partition_or_window, metadata={"backfill_id": self.state.backfill_id})
             self.state.mark_run_completed(partition_or_window, result)
-            return result
         except Exception as e:
             self.state.mark_run_failed(partition_or_window, str(e))
-            raise e
+            raise
+        return result
 
     @abstractmethod
     def _wait_any(self, handles: list[HandleT]) -> HandleT:
@@ -167,8 +167,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             queued.append(partition_or_window)
         else:
             assert isinstance(partition_or_window, PartitionWindow)
-            for partition in partition_or_window:
-                queued.append(partition)
+            queued.extend(partition_or_window)
 
         self._state = BackfillState(partitions=queued.copy(), metadata=metadata)
         self.state.start_backfill()
@@ -201,7 +200,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
                 execution_time=self.state.elapsed_time or 0,
             )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError) as e:
             import traceback
 
             error_msg = str(e) if e else f"{type(e).__name__} with no message"
@@ -217,5 +216,5 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         finally:
             try:
                 self._on_end()
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                print(f"Error in backfiller shutdown hook: {e}")

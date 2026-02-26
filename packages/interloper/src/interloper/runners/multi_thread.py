@@ -81,16 +81,16 @@ class MultiThreadRunner(Runner[Future[Any]]):
         for h in handles:
             try:
                 h.cancel()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     def to_spec(self) -> RunnerSpec:
         """Convert to MultiThreadRunnerSpec spec."""
         return RunnerSpec(
             path=self.path,
-            init=dict(
-                max_workers=self._max_workers,
-                fail_fast=self._fail_fast,
-                reraise=self._reraise,
-            ),
+            init={
+                "max_workers": self._max_workers,
+                "fail_fast": self._fail_fast,
+                "reraise": self._reraise,
+            },
         )

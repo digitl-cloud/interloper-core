@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import datetime as dt
 import json
+import logging
 import os
 import queue
 import sys
@@ -14,10 +15,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from queue import Queue
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
+
+from typing_extensions import Self
 
 if TYPE_CHECKING:
     from interloper.assets.base import Asset
+
+logger = logging.getLogger(__name__)
 
 # Marker prefix for log-based event streaming
 INTERLOPER_EVENT_MARKER = "[INTERLOPER_EVENT]"
@@ -60,7 +65,7 @@ class Event:
         """Return a string representation of the event."""
         m = self.metadata
         fields = [
-            f"{str(self.timestamp):<26}",
+            f"{self.timestamp!s:<26}",
             f"{str(m.get('run_id')) if m.get('run_id') is not None else '-':<36}",
             f"{str(m.get('backfill_id')) if m.get('backfill_id') is not None else '-':<36}",
             f"{self.type.value.upper():<18}",
@@ -91,7 +96,7 @@ class Event:
             raise ValueError("Missing required field 'type' in Event")
         try:
             event_type = EventType(type_val)
-        except Exception:
+        except ValueError:
             raise ValueError(f"Invalid event type '{type_val}' in Event")
 
         # Check mandatory 'timestamp'
@@ -101,12 +106,12 @@ class Event:
         if isinstance(timestamp_val, str):
             try:
                 timestamp = dt.datetime.fromisoformat(timestamp_val)
-            except Exception:
+            except ValueError:
                 raise ValueError(f"Invalid timestamp format: {timestamp_val!r}")
         elif isinstance(timestamp_val, dt.datetime):
             timestamp = timestamp_val
         else:
-            raise ValueError(f"Invalid timestamp value for Event: {timestamp_val!r}")
+            raise TypeError(f"Invalid timestamp value for Event: {timestamp_val!r}")
 
         metadata = {k: v for k, v in data.items() if k not in ("type", "timestamp")}
 
@@ -135,7 +140,7 @@ class EventBus:
     _instance: EventBus | None = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> EventBus:
+    def __new__(cls) -> Self:
         """Thread-safe singleton pattern."""
         if cls._instance is None:
             with cls._lock:
@@ -143,7 +148,7 @@ class EventBus:
                     cls._instance = super().__new__(cls)
                     cls._instance._initialized = False
         assert cls._instance is not None
-        return cls._instance
+        return cast(Self, cls._instance)
 
     def __init__(self) -> None:
         """Initialize the event bus."""
@@ -209,11 +214,11 @@ class EventBus:
                 for handler in handlers_to_notify:
                     try:
                         handler(event)
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110
                         # Isolate handler errors - don't let one handler break others
                         pass
-            except Exception as e:
-                print(f"Error processing event: {e}")
+            except Exception:  # noqa: BLE001, S110
+                pass
             finally:
                 # Always mark task as done, even if processing failed
                 self._event_queue.task_done()
@@ -279,7 +284,7 @@ class EventBus:
             # queue.join() blocks until task_done() has been called for every item
             try:
                 self._event_queue.join()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 # If join fails, continue anyway to avoid hanging
                 pass
 
@@ -376,7 +381,7 @@ def disable_event_forwarding() -> bool:
     return True
 
 
-def forward_event(event: Event) -> None:  # noqa: D103
+def forward_event(event: Event) -> None:
     """Forward an event to the remote event bus.
 
     Args:
@@ -387,8 +392,8 @@ def forward_event(event: Event) -> None:  # noqa: D103
         try:
             sys.stderr.write(f"{INTERLOPER_EVENT_MARKER}{event.to_json()}\n")
             sys.stderr.flush()
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Error writing event to stderr: {e}")
 
     # HTTP-based event forwarding (legacy, for backwards compatibility)
     target = os.getenv("INTERLOPER_EVENTS_TARGET_URL")
@@ -402,9 +407,8 @@ def forward_event(event: Event) -> None:  # noqa: D103
                 method="POST",
             )
             urllib.request.urlopen(req, timeout=2)
-        except Exception as e:
-            print(f"Error propagating event to {target}: {e}")
-            pass
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Error forwarding event to {target}: {e}")
 
 
 def parse_event_from_log_line(line: str) -> Event | None:

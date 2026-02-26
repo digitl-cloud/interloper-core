@@ -5,4 +5,4 @@ from interloper.io.context import IOContext
 from interloper.io.file import FileIO
 from interloper.io.memory import MemoryIO
 
-__all__ = ["IO", "IOContext", "FileIO", "MemoryIO"]
+__all__ = ["IO", "FileIO", "IOContext", "MemoryIO"]

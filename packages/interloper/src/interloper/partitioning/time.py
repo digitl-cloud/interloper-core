@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass
 
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
@@ -73,7 +73,7 @@ class TimePartitionWindow(PartitionWindow):
     start: dt.date
     end: dt.date
 
-    def __iter__(self) -> Generator[TimePartition, None, None]:
+    def __iter__(self) -> Iterator[TimePartition]:
         """Iterate over the partitions in the window.
 
         Yields:

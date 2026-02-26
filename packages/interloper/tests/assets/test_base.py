@@ -433,6 +433,19 @@ class TestAsset:
         )
         assert value == [{"start": dt.date(2025, 1, 1), "end": dt.date(2025, 1, 7)}]
 
+    def test_run_with_partition_window_not_allowed_raises(self):
+        """Test Asset.run() rejects windows when allow_window=False."""
+
+        @il.asset(partitioning=il.TimePartitionConfig(column="date", allow_window=False))
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return [{"date": context.partition_date}]
+
+        asset_instance = my_asset()
+        with pytest.raises(ValueError, match="does not support windowed runs"):
+            asset_instance.run(
+                partition_or_window=il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 7))
+            )
+
     def test_materialize_without_partition(self, tmp_path):
         """Test Asset.materialize() without partition."""
 
@@ -623,7 +636,7 @@ class TestConfigInference:
             return "value"
 
         # Should fail when config can't be inferred and no override provided
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             asset_instance = my_asset()
             asset_instance.run()
 
@@ -690,6 +703,6 @@ class TestConfigInference:
             return "value"
 
         # Should fail due to missing required field
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             asset_instance = my_asset()
             asset_instance.run()

@@ -124,7 +124,7 @@ class SourceDefinition:
             if asset_def.config is not None:
                 try:
                     return asset_def.config()
-                except Exception as e:
+                except (TypeError, ValueError) as e:
                     raise ValueError(
                         f"Config {asset_def.config.__name__} is configured but cannot be resolved. "
                         f"Provide config explicitly or set environment variables. Error: {e}"
