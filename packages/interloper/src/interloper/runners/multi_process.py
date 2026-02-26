@@ -92,13 +92,15 @@ class MultiProcessRunner(Runner[Future[Any]]):
         future = next(iter(done))
         try:
             asset_key, success, error_msg = future.result()
-            if not success and self._fail_fast:
-                self._cancel_all([h for h in handles if h is not future])
+            if not success and (self._fail_fast or self._reraise):
+                if self._fail_fast:
+                    self._cancel_all([h for h in handles if h is not future])
                 raise RuntimeError(f"Asset {asset_key} failed: {error_msg}")
         except Exception:
             if self._fail_fast:
                 self._cancel_all([h for h in handles if h is not future])
-            raise
+            if self._fail_fast or self._reraise:
+                raise
         return future
 
     def _cancel_all(self, handles: list[Future]) -> None:

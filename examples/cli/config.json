@@ -17,7 +17,7 @@
     "assets": [
       {
         "type": "source",
-        "path": "interloper_assets.demo"
+        "path": "interloper_assets.DemoSource"
       }
     ]
   }

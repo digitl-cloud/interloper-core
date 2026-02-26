@@ -119,6 +119,20 @@ class TestMultiThreadRunner:
         assert "d" in result.completed_assets
         assert "f" in result.completed_assets
 
+    def test_fail_fast_false_continues_with_single_worker(self, dag):
+        """When fail_fast=False, scheduler continues after first failure."""
+        dag.asset_map["c"].func.side_effect = RuntimeError("boom")
+
+        # Single worker makes scheduling order deterministic:
+        # if the run loop exits on first failure, d/f will never run.
+        runner = il.MultiThreadRunner(max_workers=1, fail_fast=False, reraise=False)
+        result = runner.run(dag=dag)
+
+        assert result.status == il.ExecutionStatus.FAILED
+        assert "c" in result.failed_assets
+        assert "d" in result.completed_assets
+        assert "f" in result.completed_assets
+
     def test_runner_with_identical_asset_names(self, double_source_dag):
         """Test MultiThreadRunner with assets that have identical names but different keys."""
         runner = il.MultiThreadRunner(max_workers=4)

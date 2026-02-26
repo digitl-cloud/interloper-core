@@ -229,6 +229,9 @@ class Asset(Serializable[AssetSpec]):
         if self.partitioning is None and partition_or_window is not None:
             warnings.warn(f"Asset '{self.name}' is not partitioned, partition/partition_window will be ignored")
 
+        if self.partitioning is not None and partition_or_window is None:
+            raise ValueError(f"Asset '{self.name}' is partitioned, but no partition/partition_window provided")
+
         # Create context
         context = ExecutionContext(
             asset_key=self.instance_key,

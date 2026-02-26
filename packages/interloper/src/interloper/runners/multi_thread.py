@@ -66,14 +66,15 @@ class MultiThreadRunner(Runner[Future[Any]]):
     def _wait_any(self, handles: list[Future]) -> Future:
         done, _ = wait(handles, return_when=FIRST_COMPLETED)
         future = next(iter(done))
-        # Surface exceptions from the completed task so base can mark run failed
+        # Only fail the run loop immediately when configured to fail fast or re-raise.
+        # Otherwise, let the scheduler continue so independent branches can complete.
         try:
             future.result()
         except Exception:
-            # If fail-fast, attempt to cancel all others; base will catch and mark failed
             if self._fail_fast:
                 self._cancel_all([h for h in handles if h is not future])
-            raise
+            if self._fail_fast or self._reraise:
+                raise
         return future
 
     def _cancel_all(self, handles: list[Future]) -> None:
