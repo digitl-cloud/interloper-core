@@ -5,7 +5,17 @@ import threading
 import time
 from unittest.mock import Mock
 
-from interloper.events.base import Event, EventBus, EventType, emit, subscribe, unsubscribe
+from interloper.events.base import (
+    Event,
+    EventBus,
+    EventType,
+    disable_event_forwarding,
+    emit,
+    enable_event_forwarding,
+    forward_event,
+    subscribe,
+    unsubscribe,
+)
 
 
 class TestEvent:
@@ -265,3 +275,26 @@ class TestIntegration:
         assert len(received_events) == 10
         assert set(received_events) == set(range(10))
 
+
+class TestDefaultForwarding:
+    """Tests for opt-in default event forwarding."""
+
+    def test_default_forwarding_is_opt_in_and_idempotent(self):
+        bus = EventBus.get_instance()
+
+        # Ensure clean state regardless of previous tests.
+        disable_event_forwarding()
+        assert forward_event not in bus._handlers
+
+        assert enable_event_forwarding() is True
+        assert forward_event in bus._handlers
+
+        # Second enable should be a no-op.
+        assert enable_event_forwarding() is False
+        assert forward_event in bus._handlers
+
+        assert disable_event_forwarding() is True
+        assert forward_event not in bus._handlers
+
+        # Second disable should be a no-op.
+        assert disable_event_forwarding() is False

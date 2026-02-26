@@ -7,7 +7,7 @@ import json
 from interloper import SerialBackfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
-from interloper.events.base import Event, subscribe
+from interloper.events.base import Event, enable_event_forwarding, subscribe
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.serial import SerialRunner
 from interloper.serialization.config import ConfigSpec
@@ -158,6 +158,9 @@ def main() -> None:
     from dotenv import load_dotenv
 
     load_dotenv()
+
+    # Explicitly opt in to default forwarding for CLI-driven execution.
+    enable_event_forwarding()
 
     def on_event(event: Event) -> None:
         print(event)

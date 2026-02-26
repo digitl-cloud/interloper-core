@@ -7,7 +7,16 @@ from interloper.backfillers import Backfiller
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.serial import SerialBackfiller
 from interloper.dag.base import DAG
-from interloper.events.base import Event, EventBus, EventType, emit, subscribe, unsubscribe
+from interloper.events.base import (
+    Event,
+    EventBus,
+    EventType,
+    disable_event_forwarding,
+    emit,
+    enable_event_forwarding,
+    subscribe,
+    unsubscribe,
+)
 from interloper.io import IO, FileIO, IOContext, MemoryIO
 from interloper.partitioning import (
     Partition,
@@ -45,6 +54,8 @@ __all__ = [
     "Event",
     "EventBus",
     "EventType",
+    "enable_event_forwarding",
+    "disable_event_forwarding",
     "ExecutionContext",
     "ExecutionStatus",
     "FileIO",

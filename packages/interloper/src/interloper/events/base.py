@@ -345,8 +345,43 @@ def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
     return metadata
 
 
-# Propagate all events to a remote event bus if configured (used by containerized runs)
-def on_event(event: Event) -> None:  # noqa: D103
+_event_forwarding_enabled = False
+
+
+def enable_event_forwarding() -> bool:
+    """Enable event forwarding hooks in an idempotent way.
+
+    Returns:
+        True if forwarding was enabled by this call, False if it was already enabled.
+    """
+    global _event_forwarding_enabled
+    if _event_forwarding_enabled:
+        return False
+    subscribe(forward_event)
+    _event_forwarding_enabled = True
+    return True
+
+
+def disable_event_forwarding() -> bool:
+    """Disable event forwarding hooks in an idempotent way.
+
+    Returns:
+        True if forwarding was disabled by this call, False if it was already disabled.
+    """
+    global _event_forwarding_enabled
+    if not _event_forwarding_enabled:
+        return False
+    unsubscribe(forward_event)
+    _event_forwarding_enabled = False
+    return True
+
+
+def forward_event(event: Event) -> None:  # noqa: D103
+    """Forward an event to the remote event bus.
+
+    Args:
+        event: The event to forward.
+    """
     # Log-based event streaming (for Docker/K8s log collection)
     if os.getenv("INTERLOPER_EVENTS_TO_STDERR"):
         try:
@@ -391,11 +426,3 @@ def parse_event_from_log_line(line: str) -> Event | None:
         return Event.from_json(json_str)
     except (ValueError, json.JSONDecodeError, KeyError):
         return None
-
-
-# Eagerly initialize the event bus so HTTP emission is available even if callers
-# only use the module-level helpers and never explicitly touch the singleton.
-EventBus.get_instance()
-
-
-subscribe(on_event)
