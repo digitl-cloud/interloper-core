@@ -215,20 +215,24 @@ class RunState:
 
         self._update_dependent_assets(asset.instance_key)
 
-    def mark_asset_failed(self, asset: Asset, error: str) -> None:
+    def mark_asset_failed(self, asset: Asset, error: str, tb: str | None = None) -> None:
         """Mark an asset as failed and emit ASSET_FAILED event.
 
         Args:
             asset: The asset to mark as failed
             error: Error message describing the failure
+            tb: Optional formatted traceback string
         """
         self.asset_executions[asset.instance_key].mark_failed(error)
 
-        metadata = {
+        metadata: dict[str, Any] = {
             **self.metadata,
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            "error": error,
         }
+        if tb:
+            metadata["traceback"] = tb
         emit(EventType.ASSET_FAILED, metadata=metadata)
 
         self._propagate_failure(asset.instance_key)

@@ -9,9 +9,11 @@ from pathlib import Path
 
 from interloper import SerialBackfiller
 from interloper.cli.config import Config
+from interloper.cli.display import RichView
 from interloper.dag.base import DAG
-from interloper.events.base import Event, enable_event_forwarding, subscribe
+from interloper.events.base import enable_event_forwarding, flush, subscribe
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
+from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.serial import SerialRunner
 from interloper.serialization.config import ConfigSpec
 from interloper.utils.imports import require_import
@@ -113,7 +115,7 @@ def _backfill(
     backfill_id: str | None = None,
 ) -> None:
     backfiller = config.backfiller or SerialBackfiller()
-    runner = config.runner or SerialRunner()
+    runner = config.runner or MultiThreadRunner()
     dag = config.dag
 
     backfiller.runner = runner
@@ -180,11 +182,6 @@ def main() -> None:
     # Explicitly opt in to default forwarding for CLI-driven execution.
     enable_event_forwarding()
 
-    def on_event(event: Event) -> None:
-        print(event)
-
-    subscribe(on_event)
-
     parser = argparse.ArgumentParser(description="Interloper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -206,13 +203,22 @@ def main() -> None:
     config = _config_from_args(args)
     partition_or_window = _partition_or_window_from_args(args)
 
-    if args.command == "backfill":
-        if args.windowed and args.date is not None:
-            parser.error("Cannot use --windowed together with --date")
-        _backfill(config, partition_or_window, windowed=args.windowed, backfill_id=args.backfill_id)
+    # Rich terminal visualization
+    view = RichView(dag=config.dag, partition_or_window=partition_or_window)
+    subscribe(view.handle_event)
+    view.start()
 
-    elif args.command == "run":
-        _run(config, partition_or_window, run_id=args.run_id, backfill_id=args.backfill_id)
+    try:
+        if args.command == "backfill":
+            if args.windowed and args.date is not None:
+                parser.error("Cannot use --windowed together with --date")
+            _backfill(config, partition_or_window, windowed=args.windowed, backfill_id=args.backfill_id)
+
+        elif args.command == "run":
+            _run(config, partition_or_window, run_id=args.run_id, backfill_id=args.backfill_id)
+    finally:
+        flush(timeout=5.0)
+        view.stop()
 
 
 if __name__ == "__main__":

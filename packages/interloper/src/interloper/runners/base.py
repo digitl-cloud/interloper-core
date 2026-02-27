@@ -163,7 +163,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
 
             self.state.mark_asset_completed(asset)
         except Exception as e:
-            self.state.mark_asset_failed(asset, str(e))
+            self.state.mark_asset_failed(asset, str(e), tb=traceback.format_exc())
 
             # If reraise is True, always re-raise. Otherwise, re-raise only if fail_fast is True.
             if self._reraise or self._fail_fast:

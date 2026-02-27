@@ -23,7 +23,6 @@ from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.serialization.backfiller import BackfillerSpec
 from interloper.serialization.base import Serializable
 
-# TODO: fail fast? reraise?
 HandleT = TypeVar("HandleT")
 
 
@@ -37,10 +36,19 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
     def __init__(
         self,
         runner: Runner | None = None,
+        fail_fast: bool = False,
         on_event: Callable[[Event], None] | None = None,
     ) -> None:
-        """Initialize the backfiller."""
+        """Initialize the backfiller.
+
+        Args:
+            runner: The runner to use for each partition run.
+            fail_fast: If True, stop the backfill on the first partition failure.
+                If False (default), continue executing remaining partitions.
+            on_event: Optional event handler filtered by backfill_id.
+        """
         self.runner = runner or MultiThreadRunner()
+        self._fail_fast = fail_fast
         self._state: BackfillState | None = None
 
         # Event handling
@@ -129,13 +137,26 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> RunResult:
+        """Execute a single partition run.
+
+        When ``fail_fast`` is False, exceptions are caught and the run is
+        marked as failed so the backfill loop can continue to the next
+        partition.  When ``fail_fast`` is True, the exception propagates
+        and terminates the backfill.
+        """
         try:
             self.state.mark_run_running(partition_or_window)
             result = self.runner.run(dag, partition_or_window, metadata={"backfill_id": self.state.backfill_id})
             self.state.mark_run_completed(partition_or_window, result)
         except Exception as e:
             self.state.mark_run_failed(partition_or_window, str(e))
-            raise
+            if self._fail_fast:
+                raise
+            return RunResult(
+                partition_or_window=partition_or_window,
+                status=ExecutionStatus.FAILED,
+                execution_time=0,
+            )
         return result
 
     @abstractmethod

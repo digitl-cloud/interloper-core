@@ -34,7 +34,9 @@ class DemoSource:
         import random
         import time
 
-        time.sleep(random.uniform(1, 3))
+        time.sleep(random.uniform(0.5, 1.5))
+        if random.random() < 0.15:
+            raise RuntimeError("Random failure in demo source")
 
     @il.asset(
         schema=DemoSchema,
