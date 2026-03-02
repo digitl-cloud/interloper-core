@@ -128,7 +128,6 @@ _PHASE_STYLE: dict[str, str] = {
 }
 
 _EVENT_TYPE_WIDTH = 22
-_EVENT_ASSET_KEY_WIDTH = 48
 
 
 def _status_text(asset: AssetState) -> Text:
@@ -309,12 +308,11 @@ class RichView:
         self._asset_order: list[tuple[str | None, AssetInstanceKey, str]] = []
         for asset in dag.assets:
             if asset.materializable:
-                self._asset_order.append(
-                    (asset.source.name if asset.source else None, asset.instance_key, asset.name)
-                )
+                self._asset_order.append((asset.source.name if asset.source else None, asset.instance_key, asset.name))
         self._asset_order.sort(key=lambda t: (t[0] or "", t[1]))
 
         self._max_name_len = max((len(n) for _, _, n in self._asset_order), default=0)
+        self._event_asset_key_width = max((len(str(key)) for _, key, _ in self._asset_order), default=1)
 
         # Mode detection
         self._mode: str | None = None
@@ -483,7 +481,7 @@ class RichView:
     def _emit_log(self, ts: str, event_type: str, asset_key: str, message: str) -> None:
         """Print a timestamped log line above the live panel."""
         type_col = _fit_column(event_type, _EVENT_TYPE_WIDTH)
-        asset_col = _fit_column(asset_key, _EVENT_ASSET_KEY_WIDTH)
+        asset_col = _fit_column(asset_key, self._event_asset_key_width)
         type_style = _event_type_style(event_type)
         suffix = f"  {message}" if message else ""
         self._console.print(
@@ -800,9 +798,7 @@ class RichView:
                 title.append(f"  {first}", style="dim")
 
         if self._backfill_start:
-            elapsed = (
-                (self._backfill_end or dt.datetime.now(dt.timezone.utc)) - self._backfill_start
-            ).total_seconds()
+            elapsed = ((self._backfill_end or dt.datetime.now(dt.timezone.utc)) - self._backfill_start).total_seconds()
             title.append(f"  {_fmt_time(elapsed)}", style="dim")
 
         return title
@@ -926,13 +922,15 @@ class RichView:
         if run.elapsed is not None:
             subtitle.append(f"  {_fmt_time(run.elapsed)}", style="dim")
 
-        c.print(Panel(
-            Group(*content),
-            title=self._run_title(run),
-            subtitle=subtitle,
-            border_style=border,
-            padding=(0, 1),
-        ))
+        c.print(
+            Panel(
+                Group(*content),
+                title=self._run_title(run),
+                subtitle=subtitle,
+                border_style=border,
+                padding=(0, 1),
+            )
+        )
 
     def _print_backfill_summary(self, c: Console) -> None:
         """Print the final backfill summary as a single panel."""
@@ -954,11 +952,12 @@ class RichView:
             elapsed = (self._backfill_end - self._backfill_start).total_seconds()
             subtitle.append(f"  {_fmt_time(elapsed)}", style="dim")
 
-        c.print(Panel(
-            Group(*content),
-            title=self._backfill_title(),
-            subtitle=subtitle,
-            border_style=border,
-            padding=(0, 1),
-        ))
-
+        c.print(
+            Panel(
+                Group(*content),
+                title=self._backfill_title(),
+                subtitle=subtitle,
+                border_style=border,
+                padding=(0, 1),
+            )
+        )
