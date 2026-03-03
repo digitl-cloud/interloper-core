@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import functools
 import inspect
+import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -77,13 +78,20 @@ class SourceDefinition:
         """Instantiate the source with optional runtime parameter override."""
 
         def instantiate_class(config: Config | None) -> Any:
-            """Instantiate the source class, bind config, and call setup if defined."""
-            instance = self.cls()
+            """Instantiate the source class, passing config to __init__ if accepted."""
+            sig = inspect.signature(self.cls.__init__)
+            if "config" in sig.parameters:
+                if config is None:
+                    raise ValueError(
+                        f"Source class '{self.cls.__name__}' accepts a 'config' parameter in __init__, "
+                        f"but no config is configured for source '{self.name}'. "
+                        f"Define a config type on the @source decorator or provide one at instantiation time."
+                    )
+                instance = self.cls(config=config)
+            else:
+                instance = self.cls()
             if config is not None:
                 instance.config = config
-            setup = getattr(instance, "setup", None)
-            if setup is not None:
-                setup(config)
             return instance
 
         def resolve_source_config() -> Config | None:
@@ -93,6 +101,15 @@ class SourceDefinition:
                     f"Config provided to source '{self.name}' must be of type {self.config.__name__}, "
                     f"got {type(config).__name__}."
                 )
+
+            if config is not None and self.config is None:
+                warnings.warn(
+                    f"Config provided to source '{self.name}' but no config type is configured "
+                    f"on the @source decorator. The config will be used but cannot be type-checked.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                return config
 
             if config is not None or self.config is None:
                 return config

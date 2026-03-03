@@ -6,7 +6,7 @@ import interloper as il
 import pandas as pd
 from pydantic_settings import SettingsConfigDict
 
-from interloper_assets.adservice.schemas.campaigns import Campaigns
+from interloper_assets.adservice import schemas
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class AdserviceConfig(il.Config):
 class Adservice:
     """Adservice advertising platform integration."""
 
-    def setup(self, config: AdserviceConfig) -> None:
+    def __init__(self, config: AdserviceConfig) -> None:
         base_url = "https://api.adservice.com/v2/client"
         auth = httpx.BasicAuth(username="api", password=config.api_key)
         self.client = il.RESTClient(base_url, auth)
@@ -53,7 +53,7 @@ class Adservice:
         return response.json()
 
     @il.asset(
-        schema=Campaigns,
+        schema=schemas.Campaigns,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -71,6 +71,7 @@ class Adservice:
         return pd.DataFrame(data)
 
     @il.asset(
+        schema=schemas.ConversionsReport,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def conversions(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -84,6 +85,7 @@ class Adservice:
         return pd.DataFrame(data)
 
     @il.asset(
+        schema=schemas.ConversionsByTimeOfDay,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def conversions_time_of_day(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -98,6 +100,7 @@ class Adservice:
         return pd.DataFrame(data)
 
     @il.asset(
+        schema=schemas.CampaignsByCity,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def campaigns_by_city(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -113,6 +116,7 @@ class Adservice:
         return pd.DataFrame(data)
 
     @il.asset(
+        schema=schemas.CampaignsByBrowser,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def campaigns_by_browser(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -128,6 +132,7 @@ class Adservice:
         return pd.DataFrame(data)
 
     @il.asset(
+        schema=schemas.CampaignsByDeviceType,
         partitioning=il.TimePartitionConfig(column="date"),
     )
     def campaigns_by_device_type(self, context: il.ExecutionContext) -> pd.DataFrame:

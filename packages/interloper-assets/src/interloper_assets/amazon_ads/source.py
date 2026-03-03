@@ -1,9 +1,74 @@
+from enum import Enum
+
 import interloper as il
 import pandas as pd
+from pydantic_settings import SettingsConfigDict
+
+from interloper_assets.amazon_ads import schemas
 
 
-@il.source(tags=["Advertising"])
+class AmazonAdsAPILocation(Enum):
+    NORTH_AMERIC = "NA"
+    EUROPE = "EU"
+    FAR_EAST = "FE"
+
+    @property
+    def api_url(self) -> str:
+        return {
+            AmazonAdsAPILocation.EUROPE: "https://advertising-api-eu.amazon.com",
+            AmazonAdsAPILocation.FAR_EAST: "https://advertising-api-fe.amazon.com",
+            AmazonAdsAPILocation.NORTH_AMERIC: "https://advertising-api.amazon.com",
+        }[self]
+
+    @property
+    def auth_url(self) -> str:
+        return {
+            AmazonAdsAPILocation.EUROPE: "https://api.amazon.co.uk",
+            AmazonAdsAPILocation.FAR_EAST: "https://api.amazon.co.jp",
+            AmazonAdsAPILocation.NORTH_AMERIC: "https://api.amazon.com",
+        }[self]
+
+
+class AmazonAdsConfig(il.Config):
+    location: str
+    client_id: str
+    client_secret: str
+    refresh_token: str
+
+    model_config = SettingsConfigDict(env_prefix="amazon_ads_")
+
+
+@il.source(
+    config=AmazonAdsConfig,
+    tags=["Advertising"],
+)
 class AmazonAds:
+    location: AmazonAdsAPILocation
+    client: il.RESTClient
+
+    def __init__(self, config: AmazonAdsConfig) -> None:
+        self.location = AmazonAdsAPILocation(config.location)
+        self.client = il.RESTClient(
+            self.location.api_url,
+            auth=il.OAuth2RefreshTokenAuth(
+                base_url=self.location.auth_url,
+                token_endpoint="/auth/o2/token",
+                client_id=config.client_id,
+                client_secret=config.client_secret,
+                refresh_token=config.refresh_token,
+            ),
+        )
+        self.client.headers.update({"Amazon-Advertising-API-ClientId": config.client_id})
+
+    @il.asset(
+        schema=schemas.Profiles,
+        tags=["Entity"],
+    )
+    def profiles(self) -> pd.DataFrame:
+        response = self.client.get(f"{self.location.api_url}/v2/profiles")
+        response.raise_for_status()
+        return pd.DataFrame(response.json())
+
     @il.asset(tags=["Report"])
     def products_campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Campaign performance for advertised products including clicks, impressions, sales, purchases, and attributed

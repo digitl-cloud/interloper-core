@@ -135,7 +135,7 @@ class TestDAGInitialization:
 
         @il.source(config=TestConfig)
         class ConfigSource:
-            def setup(self, config: TestConfig) -> None:
+            def __init__(self, config: TestConfig) -> None:
                 self.cfg = config
 
             @il.asset

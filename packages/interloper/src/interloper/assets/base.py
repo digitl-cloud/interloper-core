@@ -101,6 +101,14 @@ class AssetDefinition:
                 f"got {type(config).__name__}."
             )
 
+        if config is not None and self.config is None and not self.source_definition:
+            warnings.warn(
+                f"Config provided to asset '{self.name}' but no config type is configured "
+                f"on the @asset decorator. The config will be used but cannot be type-checked.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Resolve config
         resolved_config = config
         if resolved_config is None and self.config is not None:

@@ -53,10 +53,8 @@ class MySQLIO(SqlIO):
         self.driver = driver
 
         drivername = f"mysql+{driver}" if driver else "mysql"
-        url = URL.create(
-            drivername=drivername, username=user, password=password, host=host, port=port, database=database,
-        )
-        super().__init__(url=url, write_disposition=write_disposition, chunk_size=chunk_size, adapter=adapter)
+        url = URL.create(drivername, user, password, host, port, database)
+        super().__init__(url, write_disposition, chunk_size, adapter)
 
     def to_spec(self) -> IOSpec:
         """Convert to serializable spec."""

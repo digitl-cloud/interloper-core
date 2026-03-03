@@ -4,8 +4,7 @@ import interloper as il
 import pandas as pd
 from pydantic_settings import SettingsConfigDict
 
-from interloper_assets.adup import constants
-from interloper_assets.adup.schemas.ads import Ads
+from interloper_assets.adup import constants, schemas
 
 
 class AdupConfig(il.Config):
@@ -22,7 +21,7 @@ class AdupConfig(il.Config):
 class Adup:
     """Adup advertising platform integration."""
 
-    def setup(self, config: AdupConfig) -> None:
+    def __init__(self, config: AdupConfig) -> None:
         auth = il.OAuth2ClientCredentialsAuth(constants.BASE_URL, config.client_id, config.client_secret)
         self.client = il.RESTClient(constants.BASE_URL, auth)
 
@@ -47,7 +46,8 @@ class Adup:
         return response.json()
 
     @il.asset(
-        partitioning=il.TimePartitionConfig(column="date"),
+        schema=schemas.Account,
+        tags=["Entity"],
     )
     def account(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Advertiser account information."""
@@ -58,8 +58,9 @@ class Adup:
         return pd.DataFrame([data])
 
     @il.asset(
-        schema=Ads,
+        schema=schemas.Ads,
         partitioning=il.TimePartitionConfig(column="Date", allow_window=True),
+        tags=["Report"],
     )
     def ads(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Ad performance insights with metrics like impressions, clicks, conversions, and cost."""
