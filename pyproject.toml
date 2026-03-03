@@ -15,7 +15,9 @@ dependencies = [
     "interloper-assets",
     "interloper-dbos",
     "interloper-docker",
+    "interloper-google-cloud",
     "interloper-k8s",
+    "interloper-sql",
 ]
 
 [dependency-groups]
@@ -40,7 +42,9 @@ interloper-argo = { workspace = true }
 interloper-assets = { workspace = true }
 interloper-dbos = { workspace = true }
 interloper-docker = { workspace = true }
+interloper-google-cloud = { workspace = true }
 interloper-k8s = { workspace = true }
+interloper-sql = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -61,7 +65,9 @@ include = [
     "packages/interloper-assets/src",
     "packages/interloper-dbos/src",
     "packages/interloper-docker/src",
+    "packages/interloper-google-cloud/src",
     "packages/interloper-k8s/src",
+    "packages/interloper-sql/src",
 ]
 typeCheckingMode = "basic"
 reportMissingParameterType = true

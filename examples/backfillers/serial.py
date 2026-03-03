@@ -51,10 +51,7 @@ dag = il.DAG(a, b, c, d, e)
 
 if __name__ == "__main__":
 
-    def on_event(event: il.Event) -> None:
-        print(event)
-
-    il.subscribe(on_event)
+    il.subscribe(print)
 
     backfiller = il.SerialBackfiller()
     backfiller.backfill(dag, partition_window)

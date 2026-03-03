@@ -1,7 +1,7 @@
 import interloper as il
 import pandas as pd
 
-from interloper_assets.facebook_ads.source import FacebookAds
+from interloper_assets.amazon_ads.source import AmazonAds
 
 
 @il.source(tags=["Analytics"])
@@ -11,14 +11,13 @@ class CampaignPerformanceAnalysis:
     @il.asset(
         tags=["Transform"],
         requires={
-            "facebook_ads_campaigns": FacebookAds.campaigns.definition_key,
+            "amazon_ads_campaigns": AmazonAds.products_campaigns.definition_key,
         },
     )
     def matcher(
         self,
         context: il.ExecutionContext,
-        facebook_ads_campaigns: pd.DataFrame,
-        google_ads_campaigns: pd.DataFrame,
+        amazon_ads_campaigns: pd.DataFrame,
     ) -> pd.DataFrame:
         """Matches campaigns from different advertising sources under the same bucket."""
 

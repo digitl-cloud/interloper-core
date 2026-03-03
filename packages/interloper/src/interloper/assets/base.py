@@ -41,6 +41,7 @@ class AssetDefinition:
     label: str = ""
     schema: type[BaseModel] | None = None
     config: type[Config] | None = None
+    io: IO | None = None
     tags: tuple[str, ...] = ()
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
@@ -117,7 +118,7 @@ class AssetDefinition:
             name=name or self.name,
             schema=self.schema,
             config=resolved_config,
-            io=io,
+            io=io or self.io,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
             default_io_key=default_io_key,
@@ -264,9 +265,14 @@ class Asset(Serializable[AssetSpec]):
             result = self.func(**kwargs)
             emit(EventType.ASSET_EXEC_COMPLETED, metadata=exec_metadata)
         except Exception as e:
-            emit(EventType.ASSET_EXEC_FAILED, metadata={
-                **exec_metadata, "error": str(e), "traceback": traceback.format_exc(),
-            })
+            emit(
+                EventType.ASSET_EXEC_FAILED,
+                metadata={
+                    **exec_metadata,
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                },
+            )
             raise
 
         # Validate schema if provided
@@ -343,9 +349,14 @@ class Asset(Serializable[AssetSpec]):
                 io.write(io_context, result)
                 emit(EventType.IO_WRITE_COMPLETED, metadata=io_metadata)
             except Exception as e:
-                emit(EventType.IO_WRITE_FAILED, metadata={
-                    **io_metadata, "error": str(e), "traceback": traceback.format_exc(),
-                })
+                emit(
+                    EventType.IO_WRITE_FAILED,
+                    metadata={
+                        **io_metadata,
+                        "error": str(e),
+                        "traceback": traceback.format_exc(),
+                    },
+                )
                 raise
 
     def _build_kwargs(
@@ -433,9 +444,14 @@ class Asset(Serializable[AssetSpec]):
                     kwargs[param_name] = read_io.read(io_context)
                     emit(EventType.IO_READ_COMPLETED, metadata=io_metadata)
                 except Exception as e:
-                    emit(EventType.IO_READ_FAILED, metadata={
-                        **io_metadata, "error": str(e), "traceback": traceback.format_exc(),
-                    })
+                    emit(
+                        EventType.IO_READ_FAILED,
+                        metadata={
+                            **io_metadata,
+                            "error": str(e),
+                            "traceback": traceback.format_exc(),
+                        },
+                    )
                     raise ValueError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
 
         return kwargs

@@ -56,27 +56,20 @@ class Event:
     """Event data structure."""
 
     type: EventType
-    timestamp: dt.datetime | None = None
+    timestamp: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        """Set timestamp if not provided."""
-        if self.timestamp is None:
-            self.timestamp = dt.datetime.now(dt.timezone.utc)
 
     def __str__(self) -> str:
         """Return a string representation of the event."""
         m = self.metadata
         fields = [
-            f"{self.timestamp!s:<26}",
-            f"{str(m.get('run_id')) if m.get('run_id') is not None else '-':<36}",
-            f"{str(m.get('backfill_id')) if m.get('backfill_id') is not None else '-':<36}",
-            f"{self.type.value.upper():<18}",
-            f"{str(m.get('asset_key')) if m.get('asset_key') is not None else '-':<50}",
-            f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
-            f"{str(m.get('error')) if m.get('error') is not None else '-'}",
+            f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]}",
+            f"{self.type.value.upper():<20}",
+            f"{str(m.get('asset_key')) if m.get('asset_key') is not None else '-'}",
+            # f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
+            # f"{str(m.get('error')) if m.get('error') is not None else '-'}",
         ]
-        return "  |  ".join(fields)
+        return " ".join(fields)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the event to a dictionary."""

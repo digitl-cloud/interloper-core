@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from interloper.assets.base import AssetDefinition
 from interloper.assets.keys import AssetDefinitionKey
+from interloper.io.base import IO
 from interloper.partitioning.base import PartitionConfig
 from interloper.source.config import Config
 
@@ -23,10 +24,11 @@ def asset(
     name: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    tags: Sequence[str] | None = None,
+    io: IO | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
+    tags: Sequence[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> Callable[[Callable[..., Any]], AssetDefinition]: ...
 
@@ -37,10 +39,11 @@ def asset(
     name: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    tags: Sequence[str] | None = None,
+    io: IO | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
+    tags: Sequence[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> AssetDefinition | Callable[[Callable[..., Any]], AssetDefinition]:
     """Decorator to define an asset.
@@ -59,10 +62,11 @@ def asset(
             name=name or "",
             schema=schema,
             config=config,
-            tags=tuple(tags) if tags else (),
+            io=io,
             partitioning=partitioning,
             dataset=dataset,
             requires=requires or {},
+            tags=tuple(tags) if tags else (),
             metadata=dict(metadata) if metadata else {},
         )
 
