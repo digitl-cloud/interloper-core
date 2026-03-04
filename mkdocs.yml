@@ -48,13 +48,17 @@ nav:
   - Getting started: getting-started.md
   - Tutorial: tutorial.md
   - Features:
-      - Basic: features/basic.md
+      - Assets & Sources: features/basic.md
       - IO: features/io.md
-      - Schema: features/schema.md
-      - Upstream assets: features/upstream-assets.md
+      - Runners: features/runners.md
+      - Schema & Normalizer: features/schema.md
+      - Upstream Assets: features/upstream-assets.md
       - Data Validation: features/data-validation.md
       - Partitioning: features/partitioning.md
       - Backfilling: features/backfilling.md
+      - Configuration: features/config.md
+      - Events: features/events.md
+      - CLI: features/cli.md
   - FAQ: faq.md
 
 markdown_extensions:
