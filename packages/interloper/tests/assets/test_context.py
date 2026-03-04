@@ -1,6 +1,8 @@
 """Tests for ExecutionContext."""
 
 import datetime as dt
+import time
+from unittest.mock import Mock
 
 import pytest
 
@@ -125,3 +127,96 @@ class TestExecutionContext:
         partition = il.TimePartition(dt.date(2025, 1, 1))
         context = il.ExecutionContext(asset_key="my_asset", partition_or_window=partition, partitioning=partitioning)
         assert context.partition_date_window == (dt.date(2025, 1, 1), dt.date(2025, 1, 1))
+
+    def test_logger_info_emits_event(self):
+        """Test that context.logger.info() emits a LOG event on the event bus."""
+        handler = Mock()
+        il.subscribe(handler, [il.EventType.LOG])
+
+        try:
+            context = il.ExecutionContext(asset_key="my_asset")
+            context.logger.info("Fetched 142 records")
+
+            time.sleep(0.1)
+
+            handler.assert_called_once()
+            event = handler.call_args[0][0]
+            assert event.type == il.EventType.LOG
+            assert event.metadata["asset_key"] == "my_asset"
+            assert event.metadata["message"] == "Fetched 142 records"
+            assert event.metadata["level"] == "info"
+        finally:
+            il.unsubscribe(handler)
+
+    def test_logger_warning(self):
+        """Test that context.logger.warning() sets level to 'warning'."""
+        handler = Mock()
+        il.subscribe(handler, [il.EventType.LOG])
+
+        try:
+            context = il.ExecutionContext(asset_key="my_asset")
+            context.logger.warning("Rate limited")
+
+            time.sleep(0.1)
+
+            event = handler.call_args[0][0]
+            assert event.metadata["level"] == "warning"
+            assert event.metadata["message"] == "Rate limited"
+        finally:
+            il.unsubscribe(handler)
+
+    def test_logger_error(self):
+        """Test that context.logger.error() sets level to 'error'."""
+        handler = Mock()
+        il.subscribe(handler, [il.EventType.LOG])
+
+        try:
+            context = il.ExecutionContext(asset_key="my_asset")
+            context.logger.error("Connection refused")
+
+            time.sleep(0.1)
+
+            event = handler.call_args[0][0]
+            assert event.metadata["level"] == "error"
+        finally:
+            il.unsubscribe(handler)
+
+    def test_logger_debug(self):
+        """Test that context.logger.debug() sets level to 'debug'."""
+        handler = Mock()
+        il.subscribe(handler, [il.EventType.LOG])
+
+        try:
+            context = il.ExecutionContext(asset_key="my_asset")
+            context.logger.debug("Response payload")
+
+            time.sleep(0.1)
+
+            event = handler.call_args[0][0]
+            assert event.metadata["level"] == "debug"
+        finally:
+            il.unsubscribe(handler)
+
+    def test_logger_includes_run_metadata(self):
+        """Test that logger events include run metadata (e.g. run_id)."""
+        handler = Mock()
+        il.subscribe(handler, [il.EventType.LOG])
+
+        try:
+            context = il.ExecutionContext(
+                asset_key="my_asset",
+                metadata={"run_id": "abc-123"},
+            )
+            context.logger.info("test message")
+
+            time.sleep(0.1)
+
+            event = handler.call_args[0][0]
+            assert event.metadata["run_id"] == "abc-123"
+        finally:
+            il.unsubscribe(handler)
+
+    def test_logger_is_cached(self):
+        """Test that context.logger returns the same EventLogger instance."""
+        context = il.ExecutionContext(asset_key="my_asset")
+        assert context.logger is context.logger

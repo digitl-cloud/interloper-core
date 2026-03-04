@@ -1,11 +1,62 @@
 """Runtime context for asset execution."""
 
+from __future__ import annotations
+
 import datetime as dt
 from typing import Any
 
 from interloper.assets.keys import AssetInstanceKey
+from interloper.events.base import EventType, LogLevel, emit
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
 from interloper.partitioning.time import TimePartitionConfig
+
+
+class EventLogger:
+    """Logger that emits messages as LOG events on the event bus.
+
+    Provides a familiar logging interface (debug/info/warning/error) where
+    each call emits an ``EventType.LOG`` event visible to all event handlers.
+
+    Usage::
+
+        context.logger.info("Fetched 142 records")
+        context.logger.warning("Rate limited, retrying...")
+    """
+
+    def __init__(self, asset_key: AssetInstanceKey, metadata: dict[str, Any]) -> None:
+        """Initialize the logger.
+
+        Args:
+            asset_key: The key of the asset that owns this logger.
+            metadata: Run metadata to include in every LOG event.
+        """
+        self._asset_key = asset_key
+        self._metadata = metadata
+
+    def _emit(self, level: LogLevel, message: str) -> None:
+        """Emit a LOG event with the given level and message."""
+        emit(EventType.LOG, metadata={
+            **self._metadata,
+            "asset_key": str(self._asset_key),
+            "message": message,
+            "level": level.value,
+        })
+
+    def debug(self, message: str) -> None:
+        """Emit a debug-level log event."""
+        self._emit(LogLevel.DEBUG, message)
+
+    def info(self, message: str) -> None:
+        """Emit an info-level log event."""
+        self._emit(LogLevel.INFO, message)
+
+    def warning(self, message: str) -> None:
+        """Emit a warning-level log event."""
+        self._emit(LogLevel.WARNING, message)
+
+    def error(self, message: str) -> None:
+        """Emit an error-level log event."""
+        self._emit(LogLevel.ERROR, message)
 
 
 class ExecutionContext:
@@ -30,6 +81,7 @@ class ExecutionContext:
         self._partitioning = partitioning
         self._partition_or_window = partition_or_window
         self._metadata = metadata or {}
+        self._logger: EventLogger | None = None
 
     @property
     def partition_date(self) -> dt.date:
@@ -98,3 +150,10 @@ class ExecutionContext:
     def metadata(self) -> dict[str, Any]:
         """Arbitrary metadata dict (e.g. run_id, backfill_id)."""
         return self._metadata
+
+    @property
+    def logger(self) -> EventLogger:
+        """Logger that emits messages as events on the event bus."""
+        if self._logger is None:
+            self._logger = EventLogger(self._asset_key, self._metadata)
+        return self._logger

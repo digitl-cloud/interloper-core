@@ -1,7 +1,7 @@
 """Interloper - A Python framework for building and executing data pipelines."""
 
 from interloper.assets import Asset, AssetDefinition, asset
-from interloper.assets.context import ExecutionContext
+from interloper.assets.context import EventLogger, ExecutionContext
 from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
 from interloper.backfillers import Backfiller
 from interloper.backfillers.results import BackfillResult
@@ -33,6 +33,7 @@ from interloper.events.base import (
     Event,
     EventBus,
     EventType,
+    LogLevel,
     disable_event_forwarding,
     emit,
     enable_event_forwarding,
@@ -86,6 +87,7 @@ __all__ = [
     "Event",
     "EventBus",
     "EventError",
+    "EventLogger",
     "EventType",
     "ExecutionContext",
     "ExecutionStatus",
@@ -95,6 +97,7 @@ __all__ = [
     "IOSpec",
     "InterloperError",
     "InterloperIOError",
+    "LogLevel",
     "MaterializationStrategy",
     "MemoryIO",
     "MultiProcessRunner",

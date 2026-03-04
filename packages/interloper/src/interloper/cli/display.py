@@ -22,7 +22,7 @@ from rich.tree import Tree
 
 from interloper.assets.keys import AssetInstanceKey
 from interloper.dag.base import DAG
-from interloper.events.base import Event, EventType
+from interloper.events.base import Event, EventType, LogLevel
 from interloper.partitioning.base import Partition, PartitionWindow
 
 # ---------------------------------------------------------------------------
@@ -477,6 +477,18 @@ class RichView:
         elif etype == EventType.IO_WRITE_FAILED:
             self._emit_log(ts, event_label, asset_key, "")
             self._emit_error_detail(ts, error, tb, event_label, asset_key)
+
+        # --- User log ---
+        elif etype == EventType.LOG:
+            level = m.get("level", LogLevel.INFO.value)
+            message = m.get("message", "")
+            level_style = {
+                LogLevel.ERROR.value: "bold red",
+                LogLevel.WARNING.value: "yellow",
+                LogLevel.DEBUG.value: "dim",
+            }.get(level, "")
+            styled_msg = f"[{level_style}]{message}[/{level_style}]" if level_style else message
+            self._emit_log(ts, event_label, asset_key, styled_msg)
 
     def _emit_log(self, ts: str, event_type: str, asset_key: str, message: str) -> None:
         """Print a timestamped log line above the live panel."""

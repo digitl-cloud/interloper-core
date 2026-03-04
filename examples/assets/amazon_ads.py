@@ -8,11 +8,12 @@ load_dotenv()
 
 il.subscribe(print)
 
-partition = il.TimePartition(dt.date(2024, 1, 1))
+partition = il.TimePartition(dt.date(2026, 1, 1))
 
 config = AmazonAdsConfig(profile_id="2302801156455552")
-amazon_ads = AmazonAds(config=config, strategy=il.MaterializationStrategy.STRICT)
-data = amazon_ads.profiles.run()
+amazon_ads = AmazonAds(config=config, strategy=il.MaterializationStrategy.AUTO)
+# data = amazon_ads.profiles.run()
+data = amazon_ads.products_advertised_products.run(partition_or_window=partition)
 print(data)
 
 # dag = il.DAG(amazon_ads)

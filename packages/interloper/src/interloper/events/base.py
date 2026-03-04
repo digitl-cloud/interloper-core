@@ -51,6 +51,16 @@ class EventType(Enum):
     BACKFILL_STARTED = "backfill_started"
     BACKFILL_COMPLETED = "backfill_completed"
     BACKFILL_FAILED = "backfill_failed"
+    LOG = "log"
+
+
+class LogLevel(Enum):
+    """Log levels for user-emitted LOG events."""
+
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 @dataclass
@@ -70,6 +80,7 @@ class Event:
             f"{str(m.get('asset_key')) if m.get('asset_key') is not None else '-'}",
             # f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
             # f"{str(m.get('error')) if m.get('error') is not None else '-'}",
+            f"{str(m.get('message')) if m.get('message') is not None else '-'}",
         ]
         return "  ".join(fields)
 

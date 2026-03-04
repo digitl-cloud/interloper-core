@@ -45,6 +45,32 @@ class TestEvent:
         assert event.metadata["partition_or_window"] == "2025-01-01 to 2025-01-07"
         assert isinstance(event.timestamp, dt.datetime)
 
+    def test_log_event_creation(self):
+        """Test creating a LOG event."""
+        event = Event(
+            type=EventType.LOG,
+            metadata={"asset_key": "my_asset", "message": "hello world", "level": "info"},
+        )
+
+        assert event.type == EventType.LOG
+        assert event.metadata["message"] == "hello world"
+        assert event.metadata["level"] == "info"
+
+    def test_log_event_round_trip(self):
+        """Test LOG event serialization/deserialization round-trip."""
+        event = Event(
+            type=EventType.LOG,
+            metadata={"asset_key": "my_asset", "message": "test message", "level": "warning"},
+        )
+
+        json_str = event.to_json()
+        restored = Event.from_json(json_str)
+
+        assert restored.type == EventType.LOG
+        assert restored.metadata["message"] == "test message"
+        assert restored.metadata["level"] == "warning"
+        assert restored.metadata["asset_key"] == "my_asset"
+
 
 class TestEventBus:
     """Test EventBus singleton."""
