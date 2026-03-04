@@ -1,0 +1,36 @@
+on:
+  workflow_call:
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    permissions:
+      contents: "read"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: UV setup
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+          python-version: ${{ matrix.python-version }}
+          cache-suffix: "py${{ matrix.python-version }}"
+
+      - name: UV sync
+        run: uv sync --all-packages --all-extras
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Pyright
+        run: uv run pyright
+
+      - name: Pytest
+        run: uv run pytest

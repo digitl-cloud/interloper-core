@@ -128,6 +128,14 @@ build_command = "uv build --all-packages"
 version_toml = [
     "pyproject.toml:project.version",
     "packages/interloper/pyproject.toml:project.version",
+    "packages/interloper-argo/pyproject.toml:project.version",
+    "packages/interloper-assets/pyproject.toml:project.version",
+    "packages/interloper-dbos/pyproject.toml:project.version",
+    "packages/interloper-docker/pyproject.toml:project.version",
+    "packages/interloper-google-cloud/pyproject.toml:project.version",
+    "packages/interloper-k8s/pyproject.toml:project.version",
+    "packages/interloper-pandas/pyproject.toml:project.version",
+    "packages/interloper-sql/pyproject.toml:project.version",
 ]
 
 [tool.semantic_release.branches.main]
@@ -139,12 +147,12 @@ match = "rc"
 prerelease = true
 prerelease_token = "rc"
 
-[tool.semantic_release.branches.alpha]
-match = "alpha"
+[tool.semantic_release.branches.dev]
+match = "dev"
 prerelease = true
-prerelease_token = "alpha"
+prerelease_token = "dev"
 
 [tool.semantic_release.branches.feat]
 match = "feat/.*$"
 prerelease = true
-prerelease_token = "dev"
+prerelease_token = "feat"
