@@ -303,6 +303,9 @@ class Source(Serializable[SourceSpec]):
 
     def __getattr__(self, name: str) -> Asset:
         """Access assets by name as attributes."""
+        # Let Python handle dunder lookups normally (required for copy, pickle, etc.)
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         # Use object.__getattribute__ to avoid recursion when accessing self.assets
         try:
             assets = object.__getattribute__(self, "assets")
