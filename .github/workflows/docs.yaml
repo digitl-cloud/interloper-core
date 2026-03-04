@@ -7,35 +7,42 @@ on:
       - main
     paths:
       - "docs/**"
+      - "zensical.toml"
+      - "mkdocs.yml"
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure Git Credentials
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email github-actions[bot]@users.noreply.github.com
-
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.x"
 
-      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - name: Install Zensical
+        run: pip install zensical
 
-      - uses: actions/cache@v4
+      - name: Build docs
+        run: zensical build --clean
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          key: mkdocs-material-${{ env.cache_id }}
-          path: .cache
-          restore-keys: |
-            mkdocs-material-
+          path: site
 
-      - run: pip install mkdocs-material
-
-      - run: mkdocs gh-deploy --force
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

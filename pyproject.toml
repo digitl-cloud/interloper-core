@@ -23,7 +23,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mkdocs-material>=9.6.7",
     "pre-commit>=4.2.0",
     "pyarrow>=10.0.0",
     "pytest>=8.3.5",
@@ -32,6 +31,7 @@ dev = [
     "python-semantic-release>=10.0.0",
     "ruff>=0.9.4",
     "pyright>=1.1.400",
+    "zensical>=0.0.24",
 ]
 
 # ###############
