@@ -7,6 +7,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wai
 from typing import Any
 
 from interloper.assets.base import Asset
+from interloper.errors import RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
@@ -61,7 +62,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
         partition_or_window: Partition | PartitionWindow | None,
     ) -> Future:
         if self._pool is None:
-            raise RuntimeError("Pool not initialized")
+            raise RunnerError("Pool not initialized")
 
         future = self._pool.submit(
             execute_in_process,
@@ -95,7 +96,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
             if not success and (self._fail_fast or self._reraise):
                 if self._fail_fast:
                     self._cancel_all([h for h in handles if h is not future])
-                raise RuntimeError(f"Asset {asset_key} failed: {error_msg}")
+                raise RunnerError(f"Asset {asset_key} failed: {error_msg}")
         except Exception:
             if self._fail_fast:
                 self._cancel_all([h for h in handles if h is not future])

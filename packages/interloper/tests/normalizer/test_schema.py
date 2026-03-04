@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from interloper.errors import SchemaError
 from interloper.normalizer.schema import _resolve_field_type, infer_schema, validate_schema
 
 # ---------------------------------------------------------------------------
@@ -50,7 +51,7 @@ class TestInferSchema:
         assert fields["x"].annotation == Any | None
 
     def test_empty_raises(self):
-        with pytest.raises(ValueError, match="empty"):
+        with pytest.raises(SchemaError, match="empty"):
             infer_schema([])
 
     def test_custom_name(self):
@@ -84,7 +85,7 @@ class TestValidateSchema:
         class Schema(BaseModel):
             name: str
 
-        with pytest.raises(ValueError, match="row 1"):
+        with pytest.raises(SchemaError, match="row 1"):
             validate_schema([{"name": "alice"}, {"name": 123}], Schema)
 
     def test_type_coercion(self):

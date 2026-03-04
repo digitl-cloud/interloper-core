@@ -3,6 +3,7 @@
 import pytest
 
 import interloper as il
+from interloper.errors import ConfigError
 
 
 class SampleConfig(il.Config):
@@ -143,7 +144,7 @@ class TestSourceDefinition:
             api_key: str = "wrong"
 
         with pytest.raises(
-            TypeError, match=r"Config provided to source 'MySource' must be of type SampleConfig, got WrongConfig."
+            ConfigError, match=r"Config provided to source 'MySource' must be of type SampleConfig, got WrongConfig."
         ):
             MySource(config=WrongConfig())
 
@@ -633,7 +634,7 @@ class TestSourceConfigInference:
                 return "value"
 
         # Should fail when config can't be inferred and no override provided
-        with pytest.raises(ValueError):
+        with pytest.raises(ConfigError):
             MySource()
 
     def test_config_not_mandatory_when_not_configured(self):

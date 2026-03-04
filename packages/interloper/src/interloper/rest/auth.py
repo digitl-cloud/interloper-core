@@ -7,6 +7,8 @@ from collections.abc import Generator
 
 import httpx
 
+from interloper.errors import AuthenticationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -93,10 +95,10 @@ class OAuth2Auth(httpx.Auth):
         """The access token.
 
         Raises:
-            ValueError: If no access token is available.
+            AuthenticationError: If no access token is available.
         """
         if self._access_token is None:
-            raise ValueError("No access token available. Authentication required.")
+            raise AuthenticationError("No access token available. Authentication required.")
         return self._access_token
 
     @property
@@ -136,10 +138,10 @@ class OAuth2Auth(httpx.Auth):
         """Refresh the access token using the refresh token.
 
         Raises:
-            ValueError: If no refresh token is available.
+            AuthenticationError: If no refresh token is available.
         """
         if self._refresh_token is None:
-            raise ValueError("Cannot refresh token: no refresh token available")
+            raise AuthenticationError("Cannot refresh token: no refresh token available")
 
         logger.info("Refreshing OAuth2 access token...")
 
@@ -198,7 +200,7 @@ class OAuth2Auth(httpx.Auth):
                 self._refresh_access_token()
                 request.headers["Authorization"] = f"Bearer {self._access_token}"
                 yield request
-            except ValueError:
+            except AuthenticationError:
                 # No refresh token available, try to acquire a new token
                 self._acquire_token()
                 request.headers["Authorization"] = f"Bearer {self._access_token}"
@@ -258,7 +260,7 @@ class OAuth2RefreshTokenAuth(OAuth2Auth):
     def auth_data(self) -> dict[str, str]:
         """The authentication data."""
         if self._refresh_token is None:
-            raise ValueError("Refresh token is required")
+            raise AuthenticationError("Refresh token is required")
         auth_data = super().auth_data.copy()
         auth_data["refresh_token"] = self._refresh_token
         return auth_data

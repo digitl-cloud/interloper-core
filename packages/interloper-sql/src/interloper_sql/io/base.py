@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
+from interloper.errors import TableNotFoundError
 from interloper.io.database import DatabaseIO, WriteDisposition
 from sqlalchemy import Column, MetaData, Table, create_engine
 from sqlalchemy import inspect as sa_inspect
@@ -97,7 +98,7 @@ class SqlIO(DatabaseIO):
         sa_table = self._resolve_table(table, schema)
         if sa_table is None:
             qualified = f"{schema}.{table}" if schema else table
-            raise ValueError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
+            raise TableNotFoundError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
         return sa_table
 
     def _create_table(self, table: str, schema: str | None, rows: list[dict[str, Any]]) -> Table:

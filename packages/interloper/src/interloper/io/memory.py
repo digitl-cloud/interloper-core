@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+from interloper.errors import DataNotFoundError
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
@@ -61,13 +62,13 @@ class MemoryIO(IO):
             The read data (or list of data if reading from a window)
 
         Raises:
-            KeyError: If no data found for the given context
+            DataNotFoundError: If no data found for the given context
         """
         # No partitioning - read directly
         if context.partition_or_window is None:
             key = self._build_key(context.asset.name, context.asset.dataset, context.asset.partitioning, None)
             if key not in self._storage:
-                raise KeyError(f"No data found in memory for: {key}")
+                raise DataNotFoundError(f"No data found in memory for: {key}")
             return self._storage[key]
 
         # Partition window - read for each partition
@@ -76,7 +77,7 @@ class MemoryIO(IO):
             for partition in context.partition_or_window:
                 key = self._build_key(context.asset.name, context.asset.dataset, context.asset.partitioning, partition)
                 if key not in self._storage:
-                    raise KeyError(f"No data found in memory for: {key}")
+                    raise DataNotFoundError(f"No data found in memory for: {key}")
                 results.append(self._storage[key])
             return results
 
@@ -87,7 +88,7 @@ class MemoryIO(IO):
                 context.asset.name, context.asset.dataset, context.asset.partitioning, context.partition_or_window
             )
             if key not in self._storage:
-                raise KeyError(f"No data found in memory for: {key}")
+                raise DataNotFoundError(f"No data found in memory for: {key}")
             return self._storage[key]
 
     def _build_key(

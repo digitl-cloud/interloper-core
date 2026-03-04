@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from interloper.errors import ConfigError
 from interloper.rest.paginator import Paginator
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,9 @@ class RESTClient(httpx.Client):
             The items in the resource.
 
         Raises:
-            ValueError: If no paginator is configured.
+            ConfigError: If no paginator is configured.
         """
         if self._paginator is None:
-            raise ValueError("RESTClient has no paginator configured")
+            raise ConfigError("RESTClient has no paginator configured")
 
         yield from self._paginator.paginate(self, path)

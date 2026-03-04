@@ -16,6 +16,7 @@ from typing import Any, cast
 from interloper.assets.base import Asset
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
+from interloper.errors import PartitionError, RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
@@ -133,7 +134,7 @@ class KubernetesRunner(Runner[str]):
                 ]
             )
         else:
-            raise ValueError("Unsupported partition or window type")
+            raise PartitionError("Unsupported partition or window type")
         return cmd
 
     def _build_env(self) -> list[client.V1EnvVar]:
@@ -290,7 +291,7 @@ class KubernetesRunner(Runner[str]):
                     assert updated_job.metadata is not None and updated_job.metadata.annotations is not None
                     asset_key = updated_job.metadata.annotations.get("interloper.asset_key")
                     if asset_key is None or asset_key not in self.state.dag.asset_map:
-                        raise RuntimeError("Failed to map job to asset")
+                        raise RunnerError("Failed to map job to asset")
                     asset = self.state.dag.asset_map[asset_key]
 
                     if is_complete:
@@ -320,7 +321,7 @@ class KubernetesRunner(Runner[str]):
                         self.state.mark_asset_failed(asset, error_msg)
 
                         if self._reraise or self._fail_fast:
-                            raise RuntimeError(error_msg)
+                            raise RunnerError(error_msg)
 
                     return job_name
 

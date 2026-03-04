@@ -15,6 +15,13 @@ import datetime as dt
 import pytest
 
 import interloper as il
+from interloper.errors import (
+    AssetNotFoundError,
+    CircularDependencyError,
+    DAGError,
+    DependencyNotFoundError,
+    PartitionError,
+)
 
 
 class TestDAGInitialization:
@@ -147,9 +154,9 @@ class TestDAGInitialization:
         assert any(a.name == "source_asset" for a in dag.assets)
 
     def test_rejects_invalid_type(self):
-        with pytest.raises(TypeError, match="Expected Asset or Source"):
+        with pytest.raises(DAGError, match="Expected Asset or Source"):
             il.DAG("invalid")  # type: ignore[arg-type]
-        with pytest.raises(TypeError, match="Expected Asset or Source"):
+        with pytest.raises(DAGError, match="Expected Asset or Source"):
             il.DAG(123)  # type: ignore[arg-type]
 
 
@@ -222,7 +229,7 @@ class TestDAGKeys:
         def other_asset(context: il.ExecutionContext) -> str:
             return "b"
 
-        with pytest.raises(ValueError, match="Duplicate key found"):
+        with pytest.raises(DAGError, match="Duplicate key found"):
             il.DAG(asset1(), other_asset())
 
 
@@ -279,7 +286,7 @@ class TestDAGDependencyResolution:
         def my_asset(context: il.ExecutionContext, missing: str) -> str:
             return missing
 
-        with pytest.raises(ValueError, match="depends on 'nonexistent.asset' which is not in the DAG"):
+        with pytest.raises(DependencyNotFoundError, match="depends on 'nonexistent.asset' which is not in the DAG"):
             il.DAG(my_asset(deps={"missing": "nonexistent.asset"}))
 
 
@@ -340,7 +347,7 @@ class TestDAGStructure:
         def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a
 
-        with pytest.raises(ValueError, match="Circular dependency"):
+        with pytest.raises(CircularDependencyError, match="Circular dependency"):
             il.DAG(asset_a(io=il.FileIO(tmp_path)), asset_b(io=il.FileIO(tmp_path)))
 
     def test_missing_upstream_param_raises(self, tmp_path):
@@ -348,7 +355,7 @@ class TestDAGStructure:
         def my_asset(context: il.ExecutionContext, missing_asset: str) -> str:
             return missing_asset
 
-        with pytest.raises(ValueError):
+        with pytest.raises(DependencyNotFoundError):
             il.DAG(my_asset(io=il.FileIO(tmp_path)))
 
 
@@ -380,7 +387,7 @@ class TestDAGPartitioning:
         def summary_asset(context: il.ExecutionContext, daily_asset: str) -> str:
             return daily_asset
 
-        with pytest.raises(ValueError):
+        with pytest.raises(DAGError):
             il.DAG(daily_asset(io=il.FileIO(tmp_path)), summary_asset(io=il.FileIO(tmp_path)))
 
 
@@ -429,7 +436,7 @@ class TestDAGMaterialize:
             return [{"date": context.partition_date}]
 
         dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
-        with pytest.raises(ValueError, match="Windowed runs require all partitioned assets"):
+        with pytest.raises(PartitionError, match="Windowed runs require all partitioned assets"):
             dag.materialize(
                 partition_or_window=il.TimePartitionWindow(
                     start=dt.date(2025, 1, 1),
@@ -462,7 +469,7 @@ class TestDAGMaterialize:
         def downstream(context: il.ExecutionContext, upstream: int) -> str:
             return "b"
 
-        with pytest.raises(ValueError):
+        with pytest.raises(DAGError):
             il.DAG(upstream(io=il.FileIO(tmp_path)), downstream(io=il.FileIO(tmp_path)))
 
 
@@ -551,7 +558,7 @@ class TestDAGGraphTraversal:
             return "value"
 
         dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
-        with pytest.raises(KeyError, match="Asset 'invalid_key' not found in DAG"):
+        with pytest.raises(AssetNotFoundError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_predecessors("invalid_key")
 
     def test_get_successors_invalid_key_raises(self, tmp_path):
@@ -560,7 +567,7 @@ class TestDAGGraphTraversal:
             return "value"
 
         dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
-        with pytest.raises(KeyError, match="Asset 'invalid_key' not found in DAG"):
+        with pytest.raises(AssetNotFoundError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_successors("invalid_key")
 
     def test_diamond_dag_traversal(self, tmp_path):
@@ -641,7 +648,7 @@ class TestDAGRequiresValidation:
             return upstream
 
         with pytest.raises(
-            ValueError,
+            DAGError,
             match=r"requires parameter 'upstream' to come from definition 'other_source:upstream'",
         ):
             il.DAG(upstream(), downstream())
@@ -727,7 +734,7 @@ class TestDAGRequiresValidation:
         def consumer(context: il.ExecutionContext, wrong_data: str) -> str:
             return wrong_data
 
-        with pytest.raises(ValueError, match="requires parameter 'wrong_data' to come from definition"):
+        with pytest.raises(DAGError, match="requires parameter 'wrong_data' to come from definition"):
             il.DAG(
                 SourceA(),
                 SourceB(),

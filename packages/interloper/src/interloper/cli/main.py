@@ -11,6 +11,7 @@ from interloper import SerialBackfiller
 from interloper.cli.config import Config
 from interloper.cli.display import RichView
 from interloper.dag.base import DAG
+from interloper.errors import ScriptLoadError
 from interloper.events.base import enable_event_forwarding, flush, subscribe
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.multi_thread import MultiThreadRunner
@@ -22,14 +23,14 @@ from interloper.utils.imports import require_import
 def _load_script(path: str) -> DAG:
     script_path = Path(path).expanduser().resolve()
     if not script_path.exists():
-        raise FileNotFoundError(f"Script file not found: {script_path}")
+        raise ScriptLoadError(f"Script file not found: {script_path}")
     if not script_path.is_file():
-        raise ValueError(f"Script path is not a file: {script_path}")
+        raise ScriptLoadError(f"Script path is not a file: {script_path}")
 
     module_name = f"interloper_user_script_{abs(hash(str(script_path)))}"
     spec = importlib.util.spec_from_file_location(module_name, script_path)
     if spec is None or spec.loader is None:
-        raise ValueError(f"Unable to load script module from path: {script_path}")
+        raise ScriptLoadError(f"Unable to load script module from path: {script_path}")
 
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
@@ -41,9 +42,9 @@ def _load_script(path: str) -> DAG:
 
     dags = [obj for obj in vars(module).values() if isinstance(obj, DAG)]
     if not dags:
-        raise ValueError(f"No DAG objects found in script {script_path}")
+        raise ScriptLoadError(f"No DAG objects found in script {script_path}")
     if len(dags) > 1:
-        raise ValueError(f"Multiple DAG objects found in script {script_path}")
+        raise ScriptLoadError(f"Multiple DAG objects found in script {script_path}")
 
     return dags[0]
 
@@ -97,7 +98,7 @@ def _config_from_args(args: argparse.Namespace) -> Config:
     elif args.format == "json":
         return _config_from_json(args.file)
     else:
-        raise ValueError(f"Invalid format: {args.format}")
+        raise ScriptLoadError(f"Invalid format: {args.format}")
 
 
 def _partition_or_window_from_args(args: argparse.Namespace) -> TimePartition | TimePartitionWindow | None:

@@ -15,6 +15,7 @@ from typing_extensions import Self
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.state import BackfillState
 from interloper.dag.base import DAG
+from interloper.errors import BackfillError, InterloperError, PartitionError
 from interloper.events.base import Event, flush, subscribe, unsubscribe
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
@@ -106,7 +107,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
     def state(self) -> BackfillState:
         """Get the current state of the backfiller."""
         if self._state is None:
-            raise RuntimeError("State not initialized")
+            raise BackfillError("State not initialized")
         return self._state
 
     @property
@@ -178,7 +179,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
     ) -> BackfillResult:
         """Execute a backfill."""
         if windowed and not isinstance(partition_or_window, PartitionWindow):
-            raise ValueError("Windowed mode is only supported for windowed partitioning")
+            raise PartitionError("Windowed mode is only supported for windowed partitioning")
 
         inflight: dict[HandleT, Partition | PartitionWindow | None] = {}
         queued: list[Partition | PartitionWindow | None] = []
@@ -206,7 +207,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
                     inflight[handle] = partition
 
                 if not inflight:
-                    raise RuntimeError("Unexpected backfill state: no runs ready but execution not complete")
+                    raise BackfillError("Unexpected backfill state: no runs ready but execution not complete")
 
                 # Wait for any handle to complete
                 completed_handle = self._wait_any(list(inflight.keys()))
@@ -221,7 +222,7 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
                 execution_time=self.state.elapsed_time or 0,
             )
 
-        except (RuntimeError, ValueError, TypeError) as e:
+        except InterloperError as e:
             import traceback
 
             error_msg = str(e) if e else f"{type(e).__name__} with no message"

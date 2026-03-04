@@ -7,6 +7,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Any
 
 from interloper.assets.base import Asset
+from interloper.errors import RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
@@ -59,7 +60,7 @@ class MultiThreadRunner(Runner[Future[Any]]):
         partition_or_window: Partition | PartitionWindow | None,
     ) -> Future:
         if self._pool is None:
-            raise RuntimeError("Pool not initialized")
+            raise RunnerError("Pool not initialized")
 
         return self._pool.submit(self._execute_asset, asset, partition_or_window)
 

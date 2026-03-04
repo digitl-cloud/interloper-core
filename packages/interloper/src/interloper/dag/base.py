@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from interloper.assets.base import Asset, AssetDefinition
 from interloper.assets.keys import AssetInstanceKey
+from interloper.errors import AssetNotFoundError, CircularDependencyError, DAGError, DependencyNotFoundError
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.serialization.base import Serializable
@@ -44,7 +45,7 @@ class DAG(Serializable):
         with best-effort config inference (env-based) when available.
         """
         if not assets_or_sources:
-            raise ValueError("DAG must contain at least one asset or source")
+            raise DAGError("DAG must contain at least one asset or source")
 
         # Collect all assets
         for item in assets_or_sources:
@@ -59,7 +60,7 @@ class DAG(Serializable):
             elif isinstance(item, Asset):
                 self.assets.append(item)
             else:
-                raise TypeError(f"Expected Asset or Source, got {type(item)}")
+                raise DAGError(f"Expected Asset or Source, got {type(item)}")
 
         # Build asset map using key
         self.asset_map = {asset.instance_key: asset for asset in self.assets}
@@ -72,7 +73,7 @@ class DAG(Serializable):
                 if asset.instance_key in seen_keys:
                     duplicates.append(asset.instance_key)
                 seen_keys.add(asset.instance_key)
-            raise ValueError(f"Duplicate key found: {duplicates}")
+            raise DAGError(f"Duplicate key found: {duplicates}")
 
         # Initialize successors dict with empty lists
         for asset in self.assets:
@@ -104,7 +105,7 @@ class DAG(Serializable):
                     self._dependency_params[asset.instance_key][upstream_key] = param_name
                 else:
                     # Dependency not found in DAG
-                    raise ValueError(
+                    raise DependencyNotFoundError(
                         f"Asset '{asset.instance_key}' depends on '{upstream_key}' which is not in the DAG. "
                         f"Available assets: {list(self.asset_map.keys())}"
                     )
@@ -122,7 +123,7 @@ class DAG(Serializable):
         if not matches:
             return None
         if len(matches) > 1:
-            raise ValueError(
+            raise DependencyNotFoundError(
                 f"Ambiguous dependency '{param_name}' in source '{source_name}'. "
                 f"Multiple renamed assets match: {sorted(matches)}."
             )
@@ -174,7 +175,7 @@ class DAG(Serializable):
             for pred_key in preds:
                 upstream_asset = self.asset_map[pred_key]
                 if upstream_asset.partitioning is not None and asset.partitioning is None:
-                    raise ValueError(
+                    raise DAGError(
                         f"Invalid dependency: partitioned asset '{upstream_asset.instance_key}' "
                         f"cannot be a dependency of non-partitioned asset '{asset.instance_key}'"
                     )
@@ -193,7 +194,7 @@ class DAG(Serializable):
                     expected_def_key = requires[param_name]
                     actual_def_key = upstream_asset.definition.definition_key
                     if actual_def_key != expected_def_key:
-                        raise ValueError(
+                        raise DAGError(
                             f"Asset '{asset.instance_key}' requires parameter '{param_name}' "
                             f"to come from definition '{expected_def_key}', "
                             f"but resolved to '{actual_def_key}'"
@@ -220,7 +221,7 @@ class DAG(Serializable):
 
         for asset_key in self.predecessors:
             if asset_key not in visited and has_cycle(asset_key):
-                raise ValueError(f"Circular dependency detected involving asset '{asset_key}'")
+                raise CircularDependencyError(f"Circular dependency detected involving asset '{asset_key}'")
 
     def topological_generations(self) -> list[list[Asset]]:
         """Return assets grouped by parallelizable generations.
@@ -255,7 +256,7 @@ class DAG(Serializable):
             current_level = sorted(next_level)
 
         if processed_count != len(self.assets):
-            raise ValueError("Circular dependency detected in DAG")
+            raise CircularDependencyError("Circular dependency detected in DAG")
 
         return levels
 
@@ -288,10 +289,10 @@ class DAG(Serializable):
             List of asset keys that the given asset depends on
 
         Raises:
-            KeyError: If the asset_key is not found in the DAG
+            AssetNotFoundError: If the asset_key is not found in the DAG
         """
         if asset_key not in self.asset_map:
-            raise KeyError(f"Asset '{asset_key}' not found in DAG")
+            raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
         return self.predecessors.get(asset_key, [])
 
     def get_successors(self, asset_key: AssetInstanceKey) -> list[AssetInstanceKey]:
@@ -304,10 +305,10 @@ class DAG(Serializable):
             List of asset keys that depend on the given asset
 
         Raises:
-            KeyError: If the asset_key is not found in the DAG
+            AssetNotFoundError: If the asset_key is not found in the DAG
         """
         if asset_key not in self.asset_map:
-            raise KeyError(f"Asset '{asset_key}' not found in DAG")
+            raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
         return self.successors.get(asset_key, [])
 
     def mini_dag(self, asset_key: AssetInstanceKey) -> "DAG":
@@ -322,7 +323,7 @@ class DAG(Serializable):
             A mini-DAG with the target and its immediate parents only
         """
         if asset_key not in self.asset_map:
-            raise KeyError(f"Asset '{asset_key}' not found in DAG")
+            raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
 
         target = self.asset_map[asset_key].copy()
 

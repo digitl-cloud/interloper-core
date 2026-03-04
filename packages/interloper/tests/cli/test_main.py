@@ -8,6 +8,7 @@ import pytest
 
 from interloper.cli.main import _load_script
 from interloper.dag.base import DAG
+from interloper.errors import ScriptLoadError
 
 
 def test_load_script_returns_single_dag(tmp_path) -> None:
@@ -37,7 +38,7 @@ def test_load_script_raises_when_no_dag(tmp_path) -> None:
     script = tmp_path / "no_dag.py"
     script.write_text("x = 1\n")
 
-    with pytest.raises(ValueError, match="No DAG objects found"):
+    with pytest.raises(ScriptLoadError, match="No DAG objects found"):
         _load_script(str(script))
 
 
@@ -64,5 +65,5 @@ def test_load_script_raises_when_multiple_dags(tmp_path) -> None:
         + "\n"
     )
 
-    with pytest.raises(ValueError, match="Multiple DAG objects found"):
+    with pytest.raises(ScriptLoadError, match="Multiple DAG objects found"):
         _load_script(str(script))

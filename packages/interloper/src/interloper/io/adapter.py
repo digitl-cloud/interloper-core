@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
+from interloper.errors import AdapterError
 from interloper.utils.imports import get_object_path
 
 T = TypeVar("T")
@@ -85,10 +86,10 @@ class RowAdapter(DataAdapter[list[dict[str, Any]]]):
             The same list of dicts
 
         Raises:
-            TypeError: If *data* is not a list
+            AdapterError: If *data* is not a list
         """
         if not isinstance(data, list):
-            raise TypeError(
+            raise AdapterError(
                 f"RowAdapter expects list[dict], got {type(data).__name__}."
             )
         return data

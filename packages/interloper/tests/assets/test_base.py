@@ -6,6 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 import interloper as il
+from interloper.errors import AssetError, ConfigError, PartitionError
 
 
 class SampleSchema(BaseModel):
@@ -441,7 +442,7 @@ class TestAsset:
             return [{"date": context.partition_date}]
 
         asset_instance = my_asset()
-        with pytest.raises(ValueError, match="does not support windowed runs"):
+        with pytest.raises(PartitionError, match="does not support windowed runs"):
             asset_instance.run(
                 partition_or_window=il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 7))
             )
@@ -513,7 +514,7 @@ class TestAsset:
         # Dependencies cannot be resolved without a DAG
         # This should fail because upstream data needs to be loaded from IO
         downstream_instance = downstream(io=io)
-        with pytest.raises(ValueError, match="Pass a DAG to run\\(\\) or materialize\\(\\) for dependency resolution"):
+        with pytest.raises(AssetError, match="Pass a DAG to run\\(\\) or materialize\\(\\) for dependency resolution"):
             # Will fail: cannot resolve 'upstream' parameter
             value = downstream_instance.run()
             assert value == "ab"
@@ -636,7 +637,7 @@ class TestConfigInference:
             return "value"
 
         # Should fail when config can't be inferred and no override provided
-        with pytest.raises(ValueError):
+        with pytest.raises(ConfigError):
             asset_instance = my_asset()
             asset_instance.run()
 
@@ -703,6 +704,6 @@ class TestConfigInference:
             return "value"
 
         # Should fail due to missing required field
-        with pytest.raises(ValueError):
+        with pytest.raises(ConfigError):
             asset_instance = my_asset()
             asset_instance.run()

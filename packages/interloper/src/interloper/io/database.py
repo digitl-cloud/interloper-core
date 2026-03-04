@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from interloper.errors import AdapterError
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionWindow
@@ -196,13 +197,13 @@ class DatabaseIO(IO):
             Data as list of dicts
 
         Raises:
-            TypeError: If the data type is not supported
+            AdapterError: If the data type is not supported
         """
         if self.adapter is not None:
             return self.adapter.to_rows(data)
         if isinstance(data, list):
             return data
-        raise TypeError(
+        raise AdapterError(
             f"No adapter configured on {type(self).__name__} and data is not list[dict] "
             f"(got {type(data).__name__}). Either pass list[dict] or configure a DataAdapter."
         )

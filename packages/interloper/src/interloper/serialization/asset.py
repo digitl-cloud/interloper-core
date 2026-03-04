@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
+from interloper.errors import AssetError
 from interloper.serialization.base import Spec
 from interloper.serialization.io import IOSpec
 from interloper.utils.imports import import_from_path
@@ -71,7 +72,7 @@ class AssetSpec(Spec):
         try:
             asset: Asset = getattr(source, asset_name)
         except AttributeError:
-            raise ValueError(f"Asset '{asset_name}' not found in source '{source_path}'") from None
+            raise AssetError(f"Asset '{asset_name}' not found in source '{source_path}'") from None
 
         copy = asset.copy(materializable=self.materializable)
         if io is not None:

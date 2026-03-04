@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from interloper.assets.base import Asset, AssetDefinition
+from interloper.errors import ConfigError, SourceError
 from interloper.io.base import IO
 from interloper.serialization.base import Serializable
 from interloper.serialization.source import SourceSpec
@@ -89,7 +90,7 @@ class SourceDefinition:
             sig = inspect.signature(self.cls.__init__)
             if "config" in sig.parameters:
                 if config is None:
-                    raise ValueError(
+                    raise ConfigError(
                         f"Source class '{self.cls.__name__}' accepts a 'config' parameter in __init__, "
                         f"but no config is configured for source '{self.name}'. "
                         f"Define a config type on the @source decorator or provide one at instantiation time."
@@ -104,7 +105,7 @@ class SourceDefinition:
         def resolve_source_config() -> Config | None:
             """Resolve the config for the source."""
             if config is not None and self.config is not None and not issubclass(type(config), self.config):
-                raise TypeError(
+                raise ConfigError(
                     f"Config provided to source '{self.name}' must be of type {self.config.__name__}, "
                     f"got {type(config).__name__}."
                 )
@@ -124,7 +125,7 @@ class SourceDefinition:
             try:
                 return self.config()
             except Exception as e:
-                raise ValueError(
+                raise ConfigError(
                     f"Config {self.config.__name__} is configured but cannot be resolved. "
                     f"Provide config explicitly or set environment variables. Error: {e}"
                 ) from e
@@ -149,7 +150,7 @@ class SourceDefinition:
                 try:
                     return asset_def.config()
                 except (TypeError, ValueError) as e:
-                    raise ValueError(
+                    raise ConfigError(
                         f"Config {asset_def.config.__name__} is configured but cannot be resolved. "
                         f"Provide config explicitly or set environment variables. Error: {e}"
                     )
@@ -177,10 +178,12 @@ class SourceDefinition:
             names = {d.name for d in defs}
             invalid = set(selected) - names
             if invalid:
-                raise ValueError(f"Invalid asset names: {sorted(invalid)}. Valid asset names are: {sorted(names)}.")
+                raise SourceError(f"Invalid asset names: {sorted(invalid)}. Valid asset names are: {sorted(names)}.")
             renamed = [rename_map.get(n, n) for n in selected]
             if len(set(renamed)) != len(renamed):
-                raise ValueError(f"Renamed asset names must be unique. Got duplicates after rename: {sorted(renamed)}.")
+                raise SourceError(
+                    f"Renamed asset names must be unique. Got duplicates after rename: {sorted(renamed)}."
+                )
 
             return [d for d in defs if d.name in selected], rename_map
 
@@ -249,7 +252,7 @@ class SourceDefinition:
         try:
             return self.asset_defs[name]
         except KeyError:
-            raise AttributeError(f"Source {self.name} has no asset definition named '{name}'")
+            raise SourceError(f"Source {self.name} has no asset definition named '{name}'")
 
 
 @dataclass
@@ -305,7 +308,7 @@ class Source(Serializable[SourceSpec]):
             assets = object.__getattribute__(self, "assets")
             return assets[name]
         except KeyError:
-            raise AttributeError(f"Source has no asset named '{name}'")
+            raise SourceError(f"Source has no asset named '{name}'")
 
     def to_spec(self) -> SourceSpec:
         """Convert to serializable spec."""

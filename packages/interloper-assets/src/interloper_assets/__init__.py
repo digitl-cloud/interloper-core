@@ -1,4 +1,5 @@
 import interloper as il
+from interloper.errors import SourceError
 
 from interloper_assets.adservice.source import Adservice, AdserviceConfig
 from interloper_assets.adup.source import Adup, AdupConfig
@@ -64,7 +65,7 @@ def get_source_and_config(id: str) -> tuple[il.SourceDefinition, type[il.Config]
         ValueError: If the source ID is not found in the registry
     """
     if id not in SOURCE_REGISTRY:
-        raise ValueError(f"Unknown source ID: {id}")
+        raise SourceError(f"Unknown source ID: {id}")
     return SOURCE_REGISTRY[id]
 
 

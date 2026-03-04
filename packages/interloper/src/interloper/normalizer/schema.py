@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError, create_model
 
+from interloper.errors import SchemaError
+
 
 def infer_schema(
     rows: list[dict[str, Any]],
@@ -25,10 +27,10 @@ def infer_schema(
         A dynamically created Pydantic BaseModel subclass.
 
     Raises:
-        ValueError: If *rows* is empty.
+        SchemaError: If *rows* is empty.
     """
     if not rows:
-        raise ValueError("Cannot infer schema from empty data.")
+        raise SchemaError("Cannot infer schema from empty data.")
 
     # Collect all non-None types seen for each key
     key_types: dict[str, set[type]] = {}
@@ -65,25 +67,25 @@ def validate_schema(
             in the schema and rows that are missing required schema fields.
 
     Raises:
-        ValueError: If any row fails validation.
+        SchemaError: If any row fails validation.
     """
     schema_fields = set(schema.model_fields.keys()) if strict else None
     for i, row in enumerate(rows):
         if schema_fields is not None:
             extra = set(row.keys()) - schema_fields
             if extra:
-                raise ValueError(f"Schema validation failed on row {i}: extra fields not in schema: {sorted(extra)}")
+                raise SchemaError(f"Schema validation failed on row {i}: extra fields not in schema: {sorted(extra)}")
             missing = schema_fields - set(row.keys())
             # Only flag missing keys that are required (no default)
             required_missing = {k for k in missing if schema.model_fields[k].is_required()}
             if required_missing:
-                raise ValueError(
+                raise SchemaError(
                     f"Schema validation failed on row {i}: missing required fields: {sorted(required_missing)}"
                 )
         try:
             schema.model_validate(row)
         except ValidationError as e:
-            raise ValueError(f"Schema validation failed on row {i}: {e}") from e
+            raise SchemaError(f"Schema validation failed on row {i}: {e}") from e
 
 
 def reconcile_schema(
@@ -111,7 +113,7 @@ def reconcile_schema(
         A new list of row dicts with columns aligned and types coerced.
 
     Raises:
-        ValueError: If any row cannot be coerced (e.g. ``"abc"`` → ``int``)
+        SchemaError: If any row cannot be coerced (e.g. ``"abc"`` → ``int``)
             or a required non-nullable field is missing.
     """
     if not rows:
@@ -131,7 +133,7 @@ def reconcile_schema(
         try:
             instance = schema.model_validate(filtered)
         except ValidationError as e:
-            raise ValueError(f"Reconciliation failed on row {i}: {e}") from e
+            raise SchemaError(f"Reconciliation failed on row {i}: {e}") from e
         result.append(instance.model_dump())
     return result
 

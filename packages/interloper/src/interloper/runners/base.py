@@ -11,6 +11,7 @@ from typing_extensions import Self
 
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
+from interloper.errors import PartitionError, RunnerError
 from interloper.events.base import Event, flush, subscribe, unsubscribe
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
@@ -102,7 +103,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
     def state(self) -> RunState:
         """Get the current state of the runner."""
         if self._state is None:
-            raise RuntimeError("State not initialized")
+            raise RunnerError("State not initialized")
         return self._state
 
     @property
@@ -200,7 +201,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             if asset.materializable and asset.partitioning is not None and not asset.partitioning.allow_window
         ]
         if unsupported_assets:
-            raise ValueError(
+            raise PartitionError(
                 "Windowed runs require all partitioned assets to set allow_window=True. "
                 "Unsupported assets: "
                 f"{sorted(unsupported_assets)}. "
@@ -253,7 +254,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
 
                 if not inflight:
                     # No work in-flight and not complete → invalid DAG or deadlock
-                    raise RuntimeError(
+                    raise RunnerError(
                         "No assets ready but execution not complete. "
                         "This indicates a circular dependency or invalid DAG state."
                     )

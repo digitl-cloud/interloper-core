@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from interloper.assets.context import ExecutionContext
 from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
+from interloper.errors import AssetError, ConfigError, DependencyNotFoundError, PartitionError
 from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
 from interloper.io.base import IO
@@ -102,7 +103,7 @@ class AssetDefinition:
 
         # If config is provided, check it's the correct type (if self.config is set)
         if config is not None and self.config is not None and not issubclass(type(config), self.config):
-            raise TypeError(
+            raise ConfigError(
                 f"Config provided to asset '{self.name}' must be of type {self.config.__name__}, "
                 f"got {type(config).__name__}."
             )
@@ -122,7 +123,7 @@ class AssetDefinition:
             try:
                 resolved_config = self.config()
             except Exception as e:
-                raise ValueError(
+                raise ConfigError(
                     f"Config {self.config.__name__} is configured but cannot be resolved. "
                     f"Provide config explicitly or set environment variables. Error: {e}"
                 ) from e
@@ -249,14 +250,14 @@ class Asset(Serializable[AssetSpec]):
             warnings.warn(f"Asset '{self.name}' is not partitioned, partition/partition_window will be ignored")
 
         if self.partitioning is not None and partition_or_window is None:
-            raise ValueError(f"Asset '{self.name}' is partitioned, but no partition/partition_window provided")
+            raise PartitionError(f"Asset '{self.name}' is partitioned, but no partition/partition_window provided")
 
         if (
             self.partitioning is not None
             and isinstance(partition_or_window, PartitionWindow)
             and not self.partitioning.allow_window
         ):
-            raise ValueError(
+            raise PartitionError(
                 f"Asset '{self.instance_key}' does not support windowed runs (allow_window=False). "
                 "Use a partition window with backfill(windowed=False) to run one partition per run."
             )
@@ -302,12 +303,12 @@ class Asset(Serializable[AssetSpec]):
 
             if strategy == MaterializationStrategy.RECONCILE:
                 if self.schema is None:
-                    raise ValueError(f"Asset '{self.name}': strategy='reconcile' requires a schema.")
+                    raise AssetError(f"Asset '{self.name}': strategy='reconcile' requires a schema.")
                 result = self.normalizer.reconcile(result, self.schema)
 
             elif strategy == MaterializationStrategy.STRICT:
                 if self.schema is None:
-                    raise ValueError(f"Asset '{self.name}': strategy='strict' requires a schema.")
+                    raise AssetError(f"Asset '{self.name}': strategy='strict' requires a schema.")
                 self.normalizer.validate_schema(result, self.schema, strict=True)
 
             else:
@@ -420,7 +421,7 @@ class Asset(Serializable[AssetSpec]):
             Dictionary of kwargs for the function
 
         Raises:
-            ValueError: If dependencies cannot be resolved
+            AssetError: If dependencies cannot be resolved
         """
         kwargs: dict[str, Any] = {}
         sig = inspect.signature(self.func)
@@ -433,7 +434,7 @@ class Asset(Serializable[AssetSpec]):
             else:
                 # This is a dependency - load from IO via DAG
                 if dag is None:
-                    raise ValueError(
+                    raise AssetError(
                         f"Asset '{self.name}' has dependencies but no DAG provided. "
                         "Pass a DAG to run() or materialize() for dependency resolution."
                     )
@@ -441,7 +442,9 @@ class Asset(Serializable[AssetSpec]):
                 upstream_key = dag.resolve_dependency_key(self, param_name)
 
                 if upstream_key not in dag.asset_map:
-                    raise ValueError(f"Dependency '{upstream_key}' not found in DAG for asset '{self.name}'")
+                    raise DependencyNotFoundError(
+                        f"Dependency '{upstream_key}' not found in DAG for asset '{self.name}'"
+                    )
 
                 upstream_asset = dag.asset_map[upstream_key]
 
@@ -458,7 +461,7 @@ class Asset(Serializable[AssetSpec]):
                     read_io = upstream_asset.io
 
                 if read_io is None:
-                    raise ValueError(f"No IO found for upstream asset '{upstream_asset.name}'")
+                    raise AssetError(f"No IO found for upstream asset '{upstream_asset.name}'")
 
                 # Load data from IO using upstream's partitioning rules
                 if upstream_asset.partitioning is not None:
@@ -492,7 +495,7 @@ class Asset(Serializable[AssetSpec]):
                             "traceback": traceback.format_exc(),
                         },
                     )
-                    raise ValueError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
+                    raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
 
         return kwargs
 

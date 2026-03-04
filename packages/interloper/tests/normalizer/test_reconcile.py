@@ -3,6 +3,7 @@
 import pytest
 from pydantic import BaseModel
 
+from interloper.errors import SchemaError
 from interloper.normalizer.base import Normalizer
 from interloper.normalizer.schema import reconcile_schema
 
@@ -72,7 +73,7 @@ class TestReconcileSchema:
             age: int  # required, no default, not nullable
 
         rows = [{"name": "alice"}]
-        with pytest.raises(ValueError, match="Reconciliation failed"):
+        with pytest.raises(SchemaError, match="Reconciliation failed"):
             reconcile_schema(rows, StrictSchema)
 
     def test_preserves_matching_types(self):
@@ -82,12 +83,12 @@ class TestReconcileSchema:
 
     def test_fails_on_incompatible(self):
         rows = [{"v": "abc"}]
-        with pytest.raises(ValueError, match="Reconciliation failed"):
+        with pytest.raises(SchemaError, match="Reconciliation failed"):
             reconcile_schema(rows, IntSchema)
 
     def test_error_includes_row_index(self):
         rows = [{"v": "1"}, {"v": "abc"}]
-        with pytest.raises(ValueError, match="row 1"):
+        with pytest.raises(SchemaError, match="row 1"):
             reconcile_schema(rows, IntSchema)
 
     def test_empty_rows(self):

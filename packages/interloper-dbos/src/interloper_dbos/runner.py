@@ -10,6 +10,7 @@ from dbos._sys_db import StepInfo
 from interloper import Event, RunResult
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
+from interloper.errors import RunnerError
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus
@@ -99,7 +100,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
             The key of the asset as handle for the execution.
         """
         if DBOS.workflow_id is None:
-            raise RuntimeError("Workflow ID is not set")
+            raise RunnerError("Workflow ID is not set")
 
         self._queue.enqueue(self._execute_asset_workflow, DBOS.workflow_id, asset.to_spec(), partition_or_window)
 
@@ -111,10 +112,10 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         (status, asset_key, error) = DBOS.recv()
 
         if status == ExecutionStatus.FAILED.value:
-            raise RuntimeError(f"Asset {asset_key} failed: {error}")
+            raise RunnerError(f"Asset {asset_key} failed: {error}")
 
         if status == ExecutionStatus.COMPLETED.value and asset_key not in handles:
-            raise RuntimeError(f"Completed asset key {asset_key} not found in handles {handles}")
+            raise RunnerError(f"Completed asset key {asset_key} not found in handles {handles}")
 
         return asset_key
 
@@ -144,7 +145,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
             return super().run(dag_spec.reconstruct(), partition_or_window)
         except Exception:
             self._wait_all()
-            raise RuntimeError(
+            raise RunnerError(
                 f"Failed to materialize workflow. Failed assets: "
                 f"{[asset.instance_key for asset in self.state.failed_assets]}"
             )
@@ -183,7 +184,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
 
     def list_steps(self) -> list[StepInfo]:
         if self._handle is None:
-            raise RuntimeError("Workflow handle is not set. Materialization has not been executed.")
+            raise RunnerError("Workflow handle is not set. Materialization has not been executed.")
 
         steps = DBOS.list_workflow_steps(self._handle.workflow_id)
         return [step for step in steps if step["function_name"] == "execute_asset"]
@@ -197,7 +198,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
 
             workflow = DBOS.get_workflow_status(workflow_id)
             if not workflow:
-                raise RuntimeError(f"Workflow {workflow_id} not found")
+                raise RunnerError(f"Workflow {workflow_id} not found")
 
             if workflow.status == "ERROR":
                 failed_steps.append(step)

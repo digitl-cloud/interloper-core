@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from interloper.errors import NormalizerError
 from interloper.normalizer.schema import infer_schema, reconcile_schema, validate_schema
 from interloper.utils.text import to_snake_case
 
@@ -164,7 +165,7 @@ class Normalizer:
                 return data
             if isinstance(first, BaseModel):
                 return [item.model_dump() for item in data]
-            raise TypeError(
+            raise NormalizerError(
                 f"Normalizer received list[{type(first).__name__}], expected list[dict] or list[BaseModel]."
             )
 
@@ -172,7 +173,7 @@ class Normalizer:
         if isinstance(data, dict):
             return [data]
 
-        raise TypeError(
+        raise NormalizerError(
             f"Normalizer does not support type {type(data).__name__}. "
             "Supported: dict, list[dict], BaseModel, list[BaseModel], Generator."
         )

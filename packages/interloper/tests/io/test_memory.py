@@ -5,6 +5,7 @@ import datetime as dt
 import pytest
 
 import interloper as il
+from interloper.errors import DataNotFoundError
 
 
 class TestMemoryIO:
@@ -66,7 +67,7 @@ class TestMemoryIO:
 
         context = il.IOContext(asset=my_asset())
 
-        with pytest.raises(KeyError, match="No data found in memory for: my_asset"):
+        with pytest.raises(DataNotFoundError, match="No data found in memory for: my_asset"):
             memory_io.read(context)
 
     def test_dataset_organization(self):
@@ -135,7 +136,7 @@ class TestMemoryIO:
         il.MemoryIO.clear()
 
         # Verify data is gone
-        with pytest.raises(KeyError):
+        with pytest.raises(DataNotFoundError):
             memory_io.read(context)
 
     def test_to_spec(self):

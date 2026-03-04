@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from typing_extensions import Self
 
+from interloper.errors import EventError
+
 if TYPE_CHECKING:
     from interloper.assets.base import Asset
 
@@ -89,25 +91,25 @@ class Event:
         # Check mandatory 'type'
         type_val = data.get("type")
         if type_val is None:
-            raise ValueError("Missing required field 'type' in Event")
+            raise EventError("Missing required field 'type' in Event")
         try:
             event_type = EventType(type_val)
         except ValueError:
-            raise ValueError(f"Invalid event type '{type_val}' in Event")
+            raise EventError(f"Invalid event type '{type_val}' in Event")
 
         # Check mandatory 'timestamp'
         timestamp_val = data.get("timestamp")
         if timestamp_val is None:
-            raise ValueError("Missing required field 'timestamp' in Event")
+            raise EventError("Missing required field 'timestamp' in Event")
         if isinstance(timestamp_val, str):
             try:
                 timestamp = dt.datetime.fromisoformat(timestamp_val)
             except ValueError:
-                raise ValueError(f"Invalid timestamp format: {timestamp_val!r}")
+                raise EventError(f"Invalid timestamp format: {timestamp_val!r}")
         elif isinstance(timestamp_val, dt.datetime):
             timestamp = timestamp_val
         else:
-            raise TypeError(f"Invalid timestamp value for Event: {timestamp_val!r}")
+            raise EventError(f"Invalid timestamp value for Event: {timestamp_val!r}")
 
         metadata = {k: v for k, v in data.items() if k not in ("type", "timestamp")}
 

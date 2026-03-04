@@ -17,6 +17,7 @@ from docker.models.containers import Container
 from interloper.backfillers.base import Backfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
+from interloper.errors import PartitionError
 from interloper.events.base import Event, EventBus, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
@@ -123,7 +124,7 @@ class DockerBackfiller(Backfiller[Container]):
                 ]
             )
         else:
-            raise ValueError("Unsupported partition or window type")
+            raise PartitionError("Unsupported partition or window type")
         return cmd
 
     def _build_env(self) -> dict[str, str]:

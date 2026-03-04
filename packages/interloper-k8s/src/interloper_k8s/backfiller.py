@@ -15,6 +15,7 @@ from typing import Any, cast
 from interloper.backfillers.base import Backfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
+from interloper.errors import PartitionError, RunnerError
 from interloper.events.base import Event, EventBus, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
@@ -102,7 +103,7 @@ class KubernetesBackfiller(Backfiller[str]):
             try:
                 config.load_kube_config()
             except Exception as e:
-                raise RuntimeError(f"Failed to load Kubernetes config: {e}") from e
+                raise RunnerError(f"Failed to load Kubernetes config: {e}") from e
 
         self._batch_v1 = client.BatchV1Api()
         self._core_v1 = client.CoreV1Api()
@@ -159,7 +160,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 ]
             )
         else:
-            raise ValueError("Unsupported partition or window type")
+            raise PartitionError("Unsupported partition or window type")
         return cmd
 
     def _build_env(self) -> list[client.V1EnvVar]:
@@ -407,7 +408,7 @@ class KubernetesBackfiller(Backfiller[str]):
                                 partition = p
                                 break
                         else:
-                            raise RuntimeError(f"Partition {partition} not found in state")
+                            raise PartitionError(f"Partition {partition} not found in state")
 
                     if is_complete:
                         # TODO: This is not the true RunResult, we need to get it from the container?

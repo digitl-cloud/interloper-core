@@ -3,6 +3,7 @@
 import pytest
 from pydantic import BaseModel
 
+from interloper.errors import NormalizerError, SchemaError
 from interloper.normalizer.base import Normalizer
 
 # ---------------------------------------------------------------------------
@@ -60,11 +61,11 @@ class TestCoerce:
         assert self.n._coerce([]) == []
 
     def test_unsupported_type_raises(self):
-        with pytest.raises(TypeError, match="does not support type"):
+        with pytest.raises(NormalizerError, match="does not support type"):
             self.n._coerce(42)
 
     def test_list_of_unsupported_raises(self):
-        with pytest.raises(TypeError, match="list\\[int\\]"):
+        with pytest.raises(NormalizerError, match="list\\[int\\]"):
             self.n._coerce([1, 2, 3])
 
 
@@ -235,7 +236,7 @@ class TestInferSchema:
 
     def test_empty_data_raises(self):
         n = Normalizer()
-        with pytest.raises(ValueError, match="Cannot infer schema from empty data"):
+        with pytest.raises(SchemaError, match="Cannot infer schema from empty data"):
             n.infer_schema([])
 
 
@@ -255,5 +256,5 @@ class TestValidateSchema:
             name: str
 
         n = Normalizer()
-        with pytest.raises(ValueError, match="Schema validation failed"):
+        with pytest.raises(SchemaError, match="Schema validation failed"):
             n.validate_schema([{"name": 123}], StrictSchema)

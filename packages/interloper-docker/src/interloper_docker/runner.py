@@ -16,6 +16,7 @@ from docker.models.containers import Container
 from interloper.assets.base import Asset
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
+from interloper.errors import PartitionError, RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
@@ -83,7 +84,7 @@ class DockerRunner(Runner[Container]):
                 ]
             )
         else:
-            raise ValueError("Unsupported partition or window type")
+            raise PartitionError("Unsupported partition or window type")
         return cmd
 
     def _build_env(self) -> dict[str, str]:
@@ -174,7 +175,7 @@ class DockerRunner(Runner[Container]):
                     if asset_key and asset_key in self.state.dag.asset_map:
                         asset = self.state.dag.asset_map[asset_key]
                     if asset is None:
-                        raise RuntimeError("Failed to map container to asset")
+                        raise RunnerError("Failed to map container to asset")
 
                     if status_code == 0:
                         self.state.mark_asset_completed(asset)
@@ -192,7 +193,7 @@ class DockerRunner(Runner[Container]):
                             pass
 
                         if self._reraise or self._fail_fast:
-                            raise RuntimeError(f"Container {container.id} exited with code {status_code}")
+                            raise RunnerError(f"Container {container.id} exited with code {status_code}")
 
                     # Remove the container after processing
                     try:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
+from interloper.errors import AdapterError
 from interloper.io.adapter import DataAdapter
 
 
@@ -28,7 +29,7 @@ class DataFrameAdapter(DataAdapter):
             TypeError: If *data* is not a ``DataFrame``
         """
         if not isinstance(data, pd.DataFrame):
-            raise TypeError(f"DataFrameAdapter expects a pandas DataFrame, got {type(data).__name__}.")
+            raise AdapterError(f"DataFrameAdapter expects a pandas DataFrame, got {type(data).__name__}.")
         return data.to_dict("records")
 
     def from_rows(self, rows: list[dict[str, Any]]) -> Any:

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
+from interloper.errors import ConfigError, TableNotFoundError
 from interloper.io.database import DatabaseIO, WriteDisposition
 from interloper.serialization.io import IOSpec
 
@@ -104,7 +105,7 @@ class BigQueryIO(DatabaseIO):
         """
         dataset = schema or self.default_dataset
         if dataset is None:
-            raise ValueError(
+            raise ConfigError(
                 "BigQueryIO requires a dataset. Either set 'dataset' on the asset "
                 "or provide 'default_dataset' to BigQueryIO."
             )
@@ -246,7 +247,7 @@ class BigQueryIO(DatabaseIO):
         """
         if not self._table_exists(table, schema):
             qualified = self._table_ref(table, schema)
-            raise ValueError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
+            raise TableNotFoundError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
         ref = self._table_ref(table, schema)
         rows = self._client.query(f"SELECT * FROM `{ref}`").result()
         return [dict(row) for row in rows]
@@ -268,7 +269,7 @@ class BigQueryIO(DatabaseIO):
         """
         if not self._table_exists(table, schema):
             qualified = self._table_ref(table, schema)
-            raise ValueError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
+            raise TableNotFoundError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
         ref = self._table_ref(table, schema)
         query = f"SELECT * FROM `{ref}` WHERE `{column}` = @partition_value"
         job_config = bigquery.QueryJobConfig(

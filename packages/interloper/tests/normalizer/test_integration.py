@@ -4,6 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 import interloper as il
+from interloper.errors import AssetError, SchemaError
 from interloper.normalizer.base import Normalizer
 from interloper.normalizer.strategy import MaterializationStrategy
 
@@ -167,7 +168,7 @@ class TestMaterializationStrategy:
             return [{"a": 1}]
 
         asset = my_asset()
-        with pytest.raises(ValueError, match="strategy='strict' requires a schema"):
+        with pytest.raises(AssetError, match="strategy='strict' requires a schema"):
             asset.run()
 
     def test_strict_valid_data_passes(self):
@@ -204,7 +205,7 @@ class TestMaterializationStrategy:
             return [{"name": 123}]
 
         asset = my_asset()
-        with pytest.raises(ValueError, match="Schema validation failed"):
+        with pytest.raises(SchemaError, match="Schema validation failed"):
             asset.run()
 
     def test_strict_rejects_extra_columns(self):
@@ -222,7 +223,7 @@ class TestMaterializationStrategy:
             return [{"name": "alice", "extra": "should_fail"}]
 
         asset = my_asset()
-        with pytest.raises(ValueError, match="extra fields not in schema"):
+        with pytest.raises(SchemaError, match="extra fields not in schema"):
             asset.run()
 
     def test_strict_rejects_missing_required_fields(self):
@@ -241,7 +242,7 @@ class TestMaterializationStrategy:
             return [{"name": "alice"}]
 
         asset = my_asset()
-        with pytest.raises(ValueError, match="missing required fields"):
+        with pytest.raises(SchemaError, match="missing required fields"):
             asset.run()
 
     def test_strict_allows_missing_optional_fields(self):
@@ -271,7 +272,7 @@ class TestMaterializationStrategy:
             return [{"a": 1}]
 
         asset = my_asset()
-        with pytest.raises(ValueError, match="strategy='reconcile' requires a schema"):
+        with pytest.raises(AssetError, match="strategy='reconcile' requires a schema"):
             asset.run()
 
     def test_reconcile_coerces_types(self):
