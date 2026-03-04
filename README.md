@@ -8,7 +8,7 @@ Define assets as functions, group them in sources, wire dependencies automatical
 ## Install
 
 ```bash
-uv add interloper
+uv add interloper-core
 ```
 
 ## Quick Start
