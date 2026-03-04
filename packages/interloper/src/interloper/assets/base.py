@@ -28,6 +28,7 @@ from interloper.utils.text import to_label, validate_name
 if TYPE_CHECKING:
     from interloper.dag.base import DAG
     from interloper.normalizer.base import Normalizer
+    from interloper.normalizer.strategy import MaterializationStrategy
     from interloper.source.base import Source, SourceDefinition
     from interloper.source.config import Config
 
@@ -44,6 +45,7 @@ class AssetDefinition:
     config: type[Config] | None = None
     io: IO | None = None
     normalizer: Normalizer | None = None
+    strategy: MaterializationStrategy | None = None
     tags: tuple[str, ...] = ()
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
@@ -81,6 +83,7 @@ class AssetDefinition:
         dataset: str | None = None,
         default_io_key: str | None = None,
         materializable: bool = True,
+        strategy: MaterializationStrategy | None = None,
     ) -> Asset:
         """Instantiate the asset with runtime parameters.
 
@@ -92,6 +95,7 @@ class AssetDefinition:
             dataset: Override dataset name.
             default_io_key: Override default IO key for multi-IO setups.
             materializable: Whether the asset can be materialized.
+            strategy: Override materialization strategy.
         """
         if name is not None:
             validate_name(name)
@@ -130,6 +134,7 @@ class AssetDefinition:
             config=resolved_config,
             io=io or self.io,
             normalizer=self.normalizer,
+            strategy=strategy or self.strategy,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
             default_io_key=default_io_key,
@@ -151,6 +156,7 @@ class Asset(Serializable[AssetSpec]):
     config: Config | None = None
     io: IO | dict[str, IO] | None = None
     normalizer: Normalizer | None = None
+    strategy: MaterializationStrategy | None = None
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
     default_io_key: str | None = None
@@ -289,11 +295,27 @@ class Asset(Serializable[AssetSpec]):
 
         # Apply normalizer if configured
         if self.normalizer is not None:
+            from interloper.normalizer.strategy import MaterializationStrategy
+
             result = self.normalizer.normalize(result)
-            if self.schema is None and self.normalizer.infer:
-                self.schema = self.normalizer.infer_schema(result)
-            elif self.schema is not None:
-                self.normalizer.validate_schema(result, self.schema)
+            strategy = self.strategy or MaterializationStrategy.AUTO
+
+            if strategy == MaterializationStrategy.RECONCILE:
+                if self.schema is None:
+                    raise ValueError(f"Asset '{self.name}': strategy='reconcile' requires a schema.")
+                result = self.normalizer.reconcile(result, self.schema)
+
+            elif strategy == MaterializationStrategy.STRICT:
+                if self.schema is None:
+                    raise ValueError(f"Asset '{self.name}': strategy='strict' requires a schema.")
+                self.normalizer.validate_schema(result, self.schema, strict=True)
+
+            else:
+                if self.schema is None and self.normalizer.infer:
+                    self.schema = self.normalizer.infer_schema(result)
+                elif self.schema is not None:
+                    self.normalizer.validate_schema(result, self.schema)
+
         elif self.schema is not None:
             self._validate_schema(result)
 

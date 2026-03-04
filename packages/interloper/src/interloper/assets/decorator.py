@@ -15,6 +15,7 @@ from interloper.source.config import Config
 
 if TYPE_CHECKING:
     from interloper.normalizer.base import Normalizer
+    from interloper.normalizer.strategy import MaterializationStrategy
 
 
 @overload
@@ -29,6 +30,7 @@ def asset(
     config: type[Config] | None = None,
     io: IO | None = None,
     normalizer: Normalizer | None = None,
+    strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
@@ -45,6 +47,7 @@ def asset(
     config: type[Config] | None = None,
     io: IO | None = None,
     normalizer: Normalizer | None = None,
+    strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
@@ -69,6 +72,7 @@ def asset(
             config=config,
             io=io,
             normalizer=normalizer,
+            strategy=strategy,
             partitioning=partitioning,
             dataset=dataset,
             requires=requires or {},

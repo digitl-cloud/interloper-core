@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from interloper.normalizer.schema import infer_schema, validate_schema
+from interloper.normalizer.schema import infer_schema, reconcile_schema, validate_schema
 from interloper.utils.text import to_snake_case
 
 
@@ -90,14 +90,36 @@ class Normalizer:
         self,
         data: list[dict[str, Any]],
         schema: type[BaseModel],
+        *,
+        strict: bool = False,
     ) -> None:
         """Validate normalized data against a Pydantic schema.
 
         Args:
             data: Normalized list of row dicts.
             schema: Pydantic model class to validate against.
+            strict: When ``True``, reject extra and missing required fields.
         """
-        validate_schema(data, schema)
+        validate_schema(data, schema, strict=strict)
+
+    def reconcile(
+        self,
+        data: list[dict[str, Any]],
+        schema: type[BaseModel],
+    ) -> list[dict[str, Any]]:
+        """Reconcile normalized data against a Pydantic schema.
+
+        Aligns columns to the schema (drops extras, adds missing) and
+        coerces values to the schema's types via Pydantic ``model_validate``.
+
+        Args:
+            data: Normalized list of row dicts.
+            schema: Pydantic model class describing the target shape.
+
+        Returns:
+            Reconciled list of row dicts.
+        """
+        return reconcile_schema(data, schema)
 
     def column_name(self, name: str) -> str:
         """Transform a column name according to the normalizer's convention.

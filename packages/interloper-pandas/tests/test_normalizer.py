@@ -127,3 +127,39 @@ class TestDataFrameValidateSchema:
         df = pd.DataFrame({"name": [123]})
         with pytest.raises(ValueError, match="Schema validation failed"):
             n.validate_schema(df, Schema)
+
+
+class TestDataFrameReconcile:
+    """Tests for DataFrameNormalizer.reconcile()."""
+
+    def test_reconcile_returns_dataframe(self):
+        class Schema(BaseModel):
+            name: str
+            age: int | None = None
+
+        n = DataFrameNormalizer()
+        df = pd.DataFrame({"name": ["alice"], "age": [30]})
+        result = n.reconcile(df, Schema)
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["name", "age"]
+
+    def test_reconcile_coerces_types(self):
+        class Schema(BaseModel):
+            value: int
+
+        n = DataFrameNormalizer()
+        df = pd.DataFrame({"value": ["123", "456"]})
+        result = n.reconcile(df, Schema)
+        assert isinstance(result, pd.DataFrame)
+        assert result["value"].tolist() == [123, 456]
+
+    def test_reconcile_drops_extra_columns(self):
+        class Schema(BaseModel):
+            name: str
+
+        n = DataFrameNormalizer()
+        df = pd.DataFrame({"name": ["alice"], "extra": ["drop_me"]})
+        result = n.reconcile(df, Schema)
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["name"]
+        assert "extra" not in result.columns

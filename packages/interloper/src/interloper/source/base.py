@@ -20,6 +20,7 @@ from interloper.utils.text import to_label, validate_name
 
 if TYPE_CHECKING:
     from interloper.normalizer.base import Normalizer
+    from interloper.normalizer.strategy import MaterializationStrategy
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class SourceDefinition:
     tags: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
     normalizer: Normalizer | None = None
+    strategy: MaterializationStrategy | None = None
 
     def __post_init__(self):
         """Set name to class name if not provided, validate."""
@@ -78,6 +80,7 @@ class SourceDefinition:
         config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
         assets: Sequence[str] | dict[str, str] | None = None,
+        strategy: MaterializationStrategy | None = None,
     ) -> Source:
         """Instantiate the source with optional runtime parameter override."""
 
@@ -224,6 +227,11 @@ class SourceDefinition:
             # Inherit source-level normalizer if asset doesn't have its own
             if asset_instance.normalizer is None and self.normalizer is not None:
                 asset_instance.normalizer = self.normalizer
+
+            # Inherit source-level strategy if asset doesn't have its own
+            resolved_strategy = strategy or self.strategy
+            if asset_instance.strategy is None and resolved_strategy is not None:
+                asset_instance.strategy = resolved_strategy
 
             asset_instances[asset_instance.name] = asset_instance
 

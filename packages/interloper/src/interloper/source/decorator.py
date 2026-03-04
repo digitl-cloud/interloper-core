@@ -11,6 +11,7 @@ from interloper.source.config import Config
 
 if TYPE_CHECKING:
     from interloper.normalizer.base import Normalizer
+    from interloper.normalizer.strategy import MaterializationStrategy
 
 
 @overload
@@ -25,6 +26,7 @@ def source(
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
     normalizer: Normalizer | None = None,
+    strategy: MaterializationStrategy | None = None,
 ) -> Callable[[type], SourceDefinition]: ...
 
 
@@ -36,6 +38,7 @@ def source(
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
     normalizer: Normalizer | None = None,
+    strategy: MaterializationStrategy | None = None,
 ) -> SourceDefinition | Callable[[type], SourceDefinition]:
     """Class decorator to define a source.
 
@@ -60,6 +63,7 @@ def source(
             tags=tuple(tags) if tags else (),
             dataset=dataset,
             normalizer=normalizer,
+            strategy=strategy,
         )
 
     # Called without parentheses: @source

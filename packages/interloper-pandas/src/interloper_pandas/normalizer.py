@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 from interloper.normalizer.base import Normalizer
-from interloper.normalizer.schema import infer_schema, validate_schema
+from interloper.normalizer.schema import infer_schema, reconcile_schema, validate_schema
 from pydantic import BaseModel
 
 
@@ -83,6 +83,8 @@ class DataFrameNormalizer(Normalizer):
         self,
         data: pd.DataFrame,
         schema: type[BaseModel],
+        *,
+        strict: bool = False,
     ) -> None:
         """Validate a ``DataFrame`` against a Pydantic schema.
 
@@ -91,9 +93,31 @@ class DataFrameNormalizer(Normalizer):
         Args:
             data: Normalized ``DataFrame``.
             schema: Pydantic model class to validate against.
+            strict: When ``True``, reject extra and missing required fields.
         """
         rows = data.to_dict("records")
-        validate_schema(rows, schema)
+        validate_schema(rows, schema, strict=strict)
+
+    def reconcile(
+        self,
+        data: pd.DataFrame,
+        schema: type[BaseModel],
+    ) -> pd.DataFrame:
+        """Reconcile a ``DataFrame`` against a Pydantic schema.
+
+        Aligns columns to the schema (drops extras, adds missing) and
+        coerces values to the schema's types via Pydantic ``model_validate``.
+
+        Args:
+            data: Normalized ``DataFrame``.
+            schema: Pydantic model class describing the target shape.
+
+        Returns:
+            Reconciled ``DataFrame``.
+        """
+        rows = data.to_dict("records")
+        reconciled = reconcile_schema(rows, schema)
+        return pd.DataFrame(reconciled)
 
     def _flatten_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Flatten nested dicts in DataFrame cells using separator-joined keys.

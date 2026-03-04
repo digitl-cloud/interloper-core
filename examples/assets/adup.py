@@ -8,10 +8,8 @@ load_dotenv()
 
 il.subscribe(print)
 
-partition = il.TimePartition(dt.date(2024, 1, 1))
-
 adup = Adup()
 dag = il.DAG(adup)
-dag.materialize(partition_or_window=partition)
-
-# print(adup.account.run())
+partition = il.TimePartition(dt.date(2024, 1, 1))
+results = dag.materialize(partition_or_window=partition)
+print(results)

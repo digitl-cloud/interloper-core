@@ -69,7 +69,7 @@ class Event:
             # f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
             # f"{str(m.get('error')) if m.get('error') is not None else '-'}",
         ]
-        return " ".join(fields)
+        return "  ".join(fields)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the event to a dictionary."""
