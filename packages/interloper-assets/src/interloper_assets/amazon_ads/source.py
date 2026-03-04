@@ -1,7 +1,6 @@
 import datetime as dt
 import gzip
 import json
-import logging
 from enum import Enum
 from functools import partial
 
@@ -18,13 +17,11 @@ from tenacity import (
     retry_if_result,
     stop_after_attempt,
     stop_after_delay,
-    wait_fixed,
+    wait_exponential,
     wait_incrementing,
 )
 
-from interloper_assets.amazon_ads import schemas
-
-logger = logging.getLogger(__name__)
+from interloper_assets.amazon_ads import constants, schemas
 
 
 class AmazonAdsAPILocation(Enum):
@@ -84,6 +81,10 @@ class AmazonAds:
         self.client.base_url = self.location.api_url
         self.client.headers.update({"Amazon-Advertising-API-ClientId": config.client_id})
 
+    # ------------------------------------------------------------------
+    # HELPERS
+    # ------------------------------------------------------------------
+
     def request_report(
         self,
         report_type_id: str,
@@ -129,7 +130,8 @@ class AmazonAds:
         return response.json()
 
     def download_report(self, url: str) -> list[dict]:
-        response = self.client.get(url, timeout=None)
+        # Use httpx.get directly to not use the client's auth
+        response = httpx.get(url, timeout=None)
         response.raise_for_status()
 
         gzip_content = response.content
@@ -137,7 +139,7 @@ class AmazonAds:
 
         return json.loads(json_content)
 
-    def _log_retry(self, retry_state: RetryCallState) -> None:
+    def _log_retry(self, context: il.ExecutionContext, retry_state: RetryCallState) -> None:
         if retry_state.outcome is None:
             raise RuntimeError("log called before outcome was set")
 
@@ -146,11 +148,13 @@ class AmazonAds:
 
         if retry_state.outcome.failed:
             ex = retry_state.outcome.exception()
-            logger.debug(f"Retrying in {retry_state.next_action.sleep}. Raised {ex.__class__.__name__}: {ex}.")
+            context.logger.debug(f"Retrying in {retry_state.next_action.sleep}. Raised {ex.__class__.__name__}: {ex}.")
             if isinstance(ex, httpx.HTTPStatusError) and ex.response.status_code == 429:
-                logger.debug(f"Retry-After response header: {ex.response.headers.get('Retry-After')}")
+                context.logger.debug(f"Retry-After response header: {ex.response.headers.get('Retry-After')}")
         else:
-            logger.debug(f"Retrying in {retry_state.next_action.sleep}. Returned {retry_state.outcome.result()}")
+            context.logger.debug(
+                f"Retrying in {retry_state.next_action.sleep}. Returned {retry_state.outcome.result()}"
+            )
 
     @retry(stop=stop_after_attempt(5))
     def _clear_auth(self) -> None:
@@ -161,6 +165,7 @@ class AmazonAds:
 
     def request_and_download_report(
         self,
+        context: il.ExecutionContext,
         report_type_id: str,
         profile_id: str,
         ad_product: str,
@@ -174,9 +179,9 @@ class AmazonAds:
     ) -> list[dict]:
         ConfiguredRetrying = partial(
             Retrying,
-            wait=wait_fixed(60),
+            wait=wait_exponential(multiplier=10, max=60),
             before=lambda _: self._clear_auth(),
-            before_sleep=self._log_retry,
+            before_sleep=partial(self._log_retry, context),
             reraise=True,
         )
 
@@ -185,7 +190,7 @@ class AmazonAds:
             wait=wait_incrementing(start=60, increment=dt.timedelta(minutes=5), max=dt.timedelta(minutes=15)),
         ):
             with attempt:
-                logger.info(
+                context.logger.info(
                     f"Requesting {report_type_id} report for profile {profile_id} "
                     f"(attempt {attempt.retry_state.attempt_number})"
                 )
@@ -194,7 +199,7 @@ class AmazonAds:
                 )
 
         report_id = data["reportId"]
-        logger.info(f"Report id: {report_id} for profile {profile_id}")
+        context.logger.info(f"Report id: {report_id} for profile {profile_id}")
 
         # Wait for report
         for attempt in ConfiguredRetrying(
@@ -203,23 +208,27 @@ class AmazonAds:
             | retry_if_exception(lambda e: issubclass(e.__class__, httpx.HTTPError)),
         ):
             with attempt:
-                logger.info(f"Waiting for report {report_id} (profile {profile_id}) ")
+                context.logger.info(f"Waiting for report {report_id} (profile {profile_id}) ")
                 response = self.get_report_status(profile_id, report_id)
 
             if attempt.retry_state.outcome and not attempt.retry_state.outcome.failed:
                 attempt.retry_state.set_result(response["status"])
 
         report_url = response["url"]
-        logger.info(f"Report URL: {report_url} for profile {profile_id}")
+        context.logger.info(f"Report URL: {report_url} for profile {profile_id}")
 
         for attempt in ConfiguredRetrying(
             stop=stop_after_delay(max_download_delay),
         ):
             with attempt:
-                logger.info(f"Downloading report (attempt {attempt.retry_state.attempt_number})")
+                context.logger.info(f"Downloading report (attempt {attempt.retry_state.attempt_number})")
                 report = self.download_report(report_url)
 
         return report
+
+    # ------------------------------------------------------------------
+    # ASSETS
+    # ------------------------------------------------------------------
 
     @il.asset(
         schema=schemas.Profiles,
@@ -238,11 +247,12 @@ class AmazonAds:
         """Performance of advertised products including clicks, impressions, sales, purchases, and attributed sales."""
 
         data = self.request_and_download_report(
-            report_type_id="ProductsAdvertisedProducts",
+            context,
             profile_id=self.config.profile_id,
-            ad_product="SP",
-            group_by=["date", "campaignName", "sku", "asin", "title"],
-            columns=["clicks", "impressions", "sales", "purchases", "attributedSales"],
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spAdvertisedProduct",
+            group_by=["advertiser"],
+            columns=constants.PRODUCTS_ADVERTISED_PRODUCT_METRICS,
             start_date=context.partition_date,
             end_date=context.partition_date,
         )
@@ -253,8 +263,17 @@ class AmazonAds:
         """Campaign performance for advertised products including clicks, impressions, sales, purchases, and attributed
         sales.
         """
-
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spCampaigns",
+            group_by=["campaign", "adGroup"],
+            columns=constants.PRODUCTS_CAMPAIGN_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def products_search_terms(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -262,7 +281,17 @@ class AmazonAds:
         impressions, purchases, and sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spSearchTerm",
+            group_by=["searchTerm"],
+            columns=constants.PRODUCTS_SEARCH_TERM_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def products_targeting(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -270,13 +299,33 @@ class AmazonAds:
         impressions, purchases, and sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spTargeting",
+            group_by=["targeting"],
+            columns=constants.PRODUCTS_TARGETING_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def products_purchased_products(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Performance of advertised products including sales, purchases, SKU, and units sold."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spPurchasedProduct",
+            group_by=["asin"],
+            columns=constants.PRODUCTS_PURCHASED_PRODUCT_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def products_gross_and_invalid_traffic(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -284,7 +333,17 @@ class AmazonAds:
         quality indicators.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_PRODUCTS",
+            report_type_id="spGrossAndInvalids",
+            group_by=["campaign"],
+            columns=constants.PRODUCTS_GROSS_AND_INVALID_TRAFFIC_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -292,7 +351,17 @@ class AmazonAds:
         attributed sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdCampaigns",
+            group_by=["campaign"],
+            columns=constants.DISPLAY_CAMPAIGN_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_advertised_products(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -300,7 +369,17 @@ class AmazonAds:
         sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdAdvertisedProduct",
+            group_by=["advertiser"],
+            columns=constants.DISPLAY_ADVERTISED_PRODUCT_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_purchased_products(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -308,19 +387,49 @@ class AmazonAds:
         attributed sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdPurchasedProduct",
+            group_by=["asin"],
+            columns=constants.DISPLAY_PURCHASED_PRODUCT_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_targeting(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Ad campaign performance based on targeting criteria including clicks, impressions, purchases, and sales."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdTargeting",
+            group_by=["targeting"],
+            columns=constants.DISPLAY_TARGETING_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_gross_and_invalid_traffic(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Traffic quality for display campaigns including total clicks, impressions, and traffic quality indicators."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdGrossAndInvalids",
+            group_by=["campaign"],
+            columns=constants.DISPLAY_GROSS_AND_INVALID_TRAFFIC_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def display_ad_groups(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -328,13 +437,33 @@ class AmazonAds:
         attributed sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_DISPLAY",
+            report_type_id="sdAdGroup",
+            group_by=["adGroup"],
+            columns=constants.DISPLAY_AD_GROUP_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Brand promotion campaign performance including impressions, clicks, conversions, and attributed sales."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbCampaigns",
+            group_by=["campaign"],
+            columns=constants.BRANDS_CAMPAIGN_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_ads(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -342,13 +471,33 @@ class AmazonAds:
         attributed sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbAds",
+            group_by=["ads"],
+            columns=constants.BRANDS_AD_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_search_terms(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Search term performance in brand campaigns including clicks, impressions, purchases, and sales."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbSearchTerm",
+            group_by=["searchTerm"],
+            columns=constants.BRANDS_SEARCH_TERM_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_targeting(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -356,25 +505,65 @@ class AmazonAds:
         sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbTargeting",
+            group_by=["targeting"],
+            columns=constants.BRANDS_TARGETING_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_purchased_products(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Products purchased through brand campaigns including number of purchases, sales, and attributed sales."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbPurchasedProduct",
+            group_by=["purchasedAsin"],
+            columns=constants.BRANDS_PURCHASED_PRODUCT_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_gross_and_invalid_traffic(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Traffic quality for brand campaigns including total clicks, impressions, and traffic quality indicators."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbGrossAndInvalids",
+            group_by=["campaign"],
+            columns=constants.BRANDS_GROSS_AND_INVALID_TRAFFIC_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_placements(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Campaign performance by ad placement including clicks, impressions, purchases, and sales."""
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbCampaignPlacement",
+            group_by=["campaignPlacement"],
+            columns=constants.BRANDS_PLACEMENT_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def brands_ad_groups(self, context: il.ExecutionContext) -> pd.DataFrame:
@@ -382,4 +571,46 @@ class AmazonAds:
         sales.
         """
 
-        raise NotImplementedError
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_BRANDS",
+            report_type_id="sbAdGroup",
+            group_by=["adGroup"],
+            columns=constants.BRANDS_AD_GROUP_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
+
+    @il.asset(tags=["Report"])
+    def television_campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Television campaign performance including clicks, impressions, purchases, and sales."""
+
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_TELEVISION",
+            report_type_id="stCampaigns",
+            group_by=["campaign"],
+            columns=constants.TELEVISION_CAMPAIGN_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
+
+    @il.asset(tags=["Report"])
+    def television_targeting(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Television campaign performance by targeting including clicks, impressions, purchases, and sales."""
+
+        data = self.request_and_download_report(
+            context,
+            profile_id=self.config.profile_id,
+            ad_product="SPONSORED_TELEVISION",
+            report_type_id="stTargeting",
+            group_by=["targeting"],
+            columns=constants.TELEVISION_TARGETING_METRICS,
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
