@@ -3,7 +3,7 @@
 # ###############
 [project]
 name = "interloper-argo"
-version = "0.0.0"
+version = "0.1.0"
 description = "Interloper Argo Workflows integration"
 readme = "README.md"
 authors = [{ name = "Guillaume Onfroy", email = "guillaume@digitlcloud.com" }]
