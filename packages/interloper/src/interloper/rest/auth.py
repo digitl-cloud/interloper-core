@@ -169,6 +169,10 @@ class OAuth2Auth(httpx.Auth):
         """The authentication headers for token requests."""
         return None
 
+    def clear_token(self) -> None:
+        """Clear the cached access token."""
+        self._access_token = None
+
     def sync_auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         """Authenticate the request with OAuth2, handling token acquisition and refresh.
 
@@ -245,6 +249,10 @@ class OAuth2RefreshTokenAuth(OAuth2Auth):
     def grant_type(self) -> str:
         """The grant type."""
         return "refresh_token"
+
+    def refresh(self) -> None:
+        """Refresh the access token using the refresh token."""
+        self._refresh_access_token()
 
     @property
     def auth_data(self) -> dict[str, str]:

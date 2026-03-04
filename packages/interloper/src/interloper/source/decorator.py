@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import overload
+from typing import TYPE_CHECKING, overload
 
 from interloper.assets.base import AssetDefinition
 from interloper.source.base import SourceDefinition
 from interloper.source.config import Config
+
+if TYPE_CHECKING:
+    from interloper.normalizer.base import Normalizer
 
 
 @overload
@@ -21,6 +24,7 @@ def source(
     config: type[Config] | None = None,
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
+    normalizer: Normalizer | None = None,
 ) -> Callable[[type], SourceDefinition]: ...
 
 
@@ -31,6 +35,7 @@ def source(
     config: type[Config] | None = None,
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
+    normalizer: Normalizer | None = None,
 ) -> SourceDefinition | Callable[[type], SourceDefinition]:
     """Class decorator to define a source.
 
@@ -38,7 +43,7 @@ def source(
         @source
         class MySource: ...
 
-        @source(config=MyConfig)
+        @source(config=MyConfig, normalizer=Normalizer())
         class MySource: ...
     """
 
@@ -54,6 +59,7 @@ def source(
             config=config,
             tags=tuple(tags) if tags else (),
             dataset=dataset,
+            normalizer=normalizer,
         )
 
     # Called without parentheses: @source

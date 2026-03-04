@@ -27,6 +27,7 @@ from interloper.utils.text import to_label, validate_name
 
 if TYPE_CHECKING:
     from interloper.dag.base import DAG
+    from interloper.normalizer.base import Normalizer
     from interloper.source.base import Source, SourceDefinition
     from interloper.source.config import Config
 
@@ -42,6 +43,7 @@ class AssetDefinition:
     schema: type[BaseModel] | None = None
     config: type[Config] | None = None
     io: IO | None = None
+    normalizer: Normalizer | None = None
     tags: tuple[str, ...] = ()
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
@@ -127,6 +129,7 @@ class AssetDefinition:
             schema=self.schema,
             config=resolved_config,
             io=io or self.io,
+            normalizer=self.normalizer,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
             default_io_key=default_io_key,
@@ -147,6 +150,7 @@ class Asset(Serializable[AssetSpec]):
     schema: type[BaseModel] | None = None
     config: Config | None = None
     io: IO | dict[str, IO] | None = None
+    normalizer: Normalizer | None = None
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
     default_io_key: str | None = None
@@ -283,8 +287,14 @@ class Asset(Serializable[AssetSpec]):
             )
             raise
 
-        # Validate schema if provided
-        if self.schema is not None:
+        # Apply normalizer if configured
+        if self.normalizer is not None:
+            result = self.normalizer.normalize(result)
+            if self.schema is None and self.normalizer.infer:
+                self.schema = self.normalizer.infer_schema(result)
+            elif self.schema is not None:
+                self.normalizer.validate_schema(result, self.schema)
+        elif self.schema is not None:
             self._validate_schema(result)
 
         return result
@@ -467,10 +477,16 @@ class Asset(Serializable[AssetSpec]):
     def _validate_schema(self, data: Any) -> None:
         """Validate data against schema.
 
-        Note: intentionally left unimplemented for now per requirements.
+        Delegates to :func:`~interloper.normalizer.schema.validate_schema`
+        when data is ``list[dict]``.
         """
-        # TODO
-        return
+        if self.schema is None:
+            return
+
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            from interloper.normalizer.schema import validate_schema
+
+            validate_schema(data, self.schema)
 
     def to_spec(self) -> AssetSpec:
         """Convert to serializable spec."""

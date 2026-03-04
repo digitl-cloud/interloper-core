@@ -18,6 +18,7 @@ from interloper.events.base import (
     unsubscribe,
 )
 from interloper.io import IO, FileIO, IOContext, MemoryIO
+from interloper.normalizer import Normalizer
 from interloper.partitioning import (
     Partition,
     PartitionConfig,
@@ -62,6 +63,7 @@ __all__ = [
     "MemoryIO",
     "MultiProcessRunner",
     "MultiThreadRunner",
+    "Normalizer",
     "OAuth2Auth",
     "OAuth2ClientCredentialsAuth",
     "OAuth2RefreshTokenAuth",

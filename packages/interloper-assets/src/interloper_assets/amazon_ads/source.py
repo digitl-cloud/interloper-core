@@ -1,10 +1,30 @@
+import datetime as dt
+import gzip
+import json
+import logging
 from enum import Enum
+from functools import partial
 
+import httpx
 import interloper as il
 import pandas as pd
+from interloper_pandas import DataFrameNormalizer
 from pydantic_settings import SettingsConfigDict
+from tenacity import (
+    RetryCallState,
+    Retrying,
+    retry,
+    retry_if_exception,
+    retry_if_result,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_fixed,
+    wait_incrementing,
+)
 
 from interloper_assets.amazon_ads import schemas
+
+logger = logging.getLogger(__name__)
 
 
 class AmazonAdsAPILocation(Enum):
@@ -31,6 +51,7 @@ class AmazonAdsAPILocation(Enum):
 
 class AmazonAdsConfig(il.Config):
     location: str
+    profile_id: str
     client_id: str
     client_secret: str
     refresh_token: str
@@ -41,8 +62,10 @@ class AmazonAdsConfig(il.Config):
 @il.source(
     config=AmazonAdsConfig,
     tags=["Advertising"],
+    normalizer=DataFrameNormalizer(flatten_max_level=1),
 )
 class AmazonAds:
+    config: AmazonAdsConfig
     location: AmazonAdsAPILocation
     client: il.RESTClient
 
@@ -58,28 +81,178 @@ class AmazonAds:
                 refresh_token=config.refresh_token,
             ),
         )
+        self.client.base_url = self.location.api_url
         self.client.headers.update({"Amazon-Advertising-API-ClientId": config.client_id})
+
+    def request_report(
+        self,
+        report_type_id: str,
+        profile_id: str,
+        ad_product: str,
+        group_by: list[str],
+        columns: list[str],
+        start_date: dt.date,
+        end_date: dt.date,
+    ) -> dict:
+        response = self.client.post(
+            "/reporting/reports",
+            headers={
+                "Amazon-Advertising-API-Scope": profile_id,
+                "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+            },
+            json={
+                "name": f"{report_type_id} | {start_date.isoformat()} - {end_date.isoformat()}",
+                "startDate": start_date.isoformat(),
+                "endDate": end_date.isoformat(),
+                "configuration": {
+                    "reportTypeId": report_type_id,
+                    "adProduct": ad_product,
+                    "groupBy": group_by,
+                    "columns": columns,
+                    "timeUnit": "DAILY",
+                    "format": "GZIP_JSON",
+                },
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_report_status(self, profile_id: str, report_id: str) -> dict:
+        response = self.client.get(
+            f"/reporting/reports/{report_id}",
+            headers={
+                "Amazon-Advertising-API-Scope": profile_id,
+                "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def download_report(self, url: str) -> list[dict]:
+        response = self.client.get(url, timeout=None)
+        response.raise_for_status()
+
+        gzip_content = response.content
+        json_content = gzip.decompress(gzip_content)
+
+        return json.loads(json_content)
+
+    def _log_retry(self, retry_state: RetryCallState) -> None:
+        if retry_state.outcome is None:
+            raise RuntimeError("log called before outcome was set")
+
+        if retry_state.next_action is None:
+            raise RuntimeError("log called before next_action was set")
+
+        if retry_state.outcome.failed:
+            ex = retry_state.outcome.exception()
+            logger.debug(f"Retrying in {retry_state.next_action.sleep}. Raised {ex.__class__.__name__}: {ex}.")
+            if isinstance(ex, httpx.HTTPStatusError) and ex.response.status_code == 429:
+                logger.debug(f"Retry-After response header: {ex.response.headers.get('Retry-After')}")
+        else:
+            logger.debug(f"Retrying in {retry_state.next_action.sleep}. Returned {retry_state.outcome.result()}")
+
+    @retry(stop=stop_after_attempt(5))
+    def _clear_auth(self) -> None:
+        auth = self.client.auth
+        if isinstance(auth, il.OAuth2RefreshTokenAuth):
+            # Clear the token to force a new token to be acquired
+            auth.clear_token()
+
+    def request_and_download_report(
+        self,
+        report_type_id: str,
+        profile_id: str,
+        ad_product: str,
+        group_by: list[str],
+        columns: list[str],
+        start_date: dt.date,
+        end_date: dt.date,
+        max_request_delay: int | dt.timedelta = dt.timedelta(hours=1),
+        max_wait_delay: int | dt.timedelta = dt.timedelta(hours=2),
+        max_download_delay: int | dt.timedelta = dt.timedelta(minutes=10),
+    ) -> list[dict]:
+        ConfiguredRetrying = partial(
+            Retrying,
+            wait=wait_fixed(60),
+            before=lambda _: self._clear_auth(),
+            before_sleep=self._log_retry,
+            reraise=True,
+        )
+
+        for attempt in ConfiguredRetrying(
+            stop=stop_after_delay(max_request_delay),
+            wait=wait_incrementing(start=60, increment=dt.timedelta(minutes=5), max=dt.timedelta(minutes=15)),
+        ):
+            with attempt:
+                logger.info(
+                    f"Requesting {report_type_id} report for profile {profile_id} "
+                    f"(attempt {attempt.retry_state.attempt_number})"
+                )
+                data = self.request_report(
+                    report_type_id, profile_id, ad_product, group_by, columns, start_date, end_date
+                )
+
+        report_id = data["reportId"]
+        logger.info(f"Report id: {report_id} for profile {profile_id}")
+
+        # Wait for report
+        for attempt in ConfiguredRetrying(
+            stop=stop_after_delay(max_wait_delay),
+            retry=retry_if_result(lambda status: status != "COMPLETED")
+            | retry_if_exception(lambda e: issubclass(e.__class__, httpx.HTTPError)),
+        ):
+            with attempt:
+                logger.info(f"Waiting for report {report_id} (profile {profile_id}) ")
+                response = self.get_report_status(profile_id, report_id)
+
+            if attempt.retry_state.outcome and not attempt.retry_state.outcome.failed:
+                attempt.retry_state.set_result(response["status"])
+
+        report_url = response["url"]
+        logger.info(f"Report URL: {report_url} for profile {profile_id}")
+
+        for attempt in ConfiguredRetrying(
+            stop=stop_after_delay(max_download_delay),
+        ):
+            with attempt:
+                logger.info(f"Downloading report (attempt {attempt.retry_state.attempt_number})")
+                report = self.download_report(report_url)
+
+        return report
 
     @il.asset(
         schema=schemas.Profiles,
         tags=["Entity"],
     )
     def profiles(self) -> pd.DataFrame:
-        response = self.client.get(f"{self.location.api_url}/v2/profiles")
+        response = self.client.get("/v2/profiles")
         response.raise_for_status()
         return pd.DataFrame(response.json())
+
+    @il.asset(
+        partitioning=il.TimePartitionConfig(column="date"),
+        tags=["Report"],
+    )
+    def products_advertised_products(self, context: il.ExecutionContext) -> pd.DataFrame:
+        """Performance of advertised products including clicks, impressions, sales, purchases, and attributed sales."""
+
+        data = self.request_and_download_report(
+            report_type_id="ProductsAdvertisedProducts",
+            profile_id=self.config.profile_id,
+            ad_product="SP",
+            group_by=["date", "campaignName", "sku", "asin", "title"],
+            columns=["clicks", "impressions", "sales", "purchases", "attributedSales"],
+            start_date=context.partition_date,
+            end_date=context.partition_date,
+        )
+        return pd.DataFrame(data)
 
     @il.asset(tags=["Report"])
     def products_campaigns(self, context: il.ExecutionContext) -> pd.DataFrame:
         """Campaign performance for advertised products including clicks, impressions, sales, purchases, and attributed
         sales.
         """
-
-        raise NotImplementedError
-
-    @il.asset(tags=["Report"])
-    def products_advertised_products(self, context: il.ExecutionContext) -> pd.DataFrame:
-        """Performance of advertised products including clicks, impressions, sales, purchases, and attributed sales."""
 
         raise NotImplementedError
 

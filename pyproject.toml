@@ -17,6 +17,7 @@ dependencies = [
     "interloper-docker",
     "interloper-google-cloud",
     "interloper-k8s",
+    "interloper-pandas",
     "interloper-sql",
 ]
 
@@ -44,6 +45,7 @@ interloper-dbos = { workspace = true }
 interloper-docker = { workspace = true }
 interloper-google-cloud = { workspace = true }
 interloper-k8s = { workspace = true }
+interloper-pandas = { workspace = true }
 interloper-sql = { workspace = true }
 
 [tool.uv.workspace]
@@ -67,6 +69,7 @@ include = [
     "packages/interloper-docker/src",
     "packages/interloper-google-cloud/src",
     "packages/interloper-k8s/src",
+    "packages/interloper-pandas/src",
     "packages/interloper-sql/src",
 ]
 typeCheckingMode = "basic"

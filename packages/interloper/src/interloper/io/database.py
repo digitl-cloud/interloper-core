@@ -42,7 +42,7 @@ class DatabaseIO(IO):
     identity and can be safely shared across multiple assets.
 
     An optional :class:`~interloper.io.adapter.DataAdapter` can be provided to
-    convert between the asset's data type (e.g. a pandas ``DataFrame``) and the
+    convert between the asset's data type (e.g. a custom data format) and the
     universal ``list[dict]`` row format used internally by every database hook.
 
     **Write flow** (``write_disposition=REPLACE``):

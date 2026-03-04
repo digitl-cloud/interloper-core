@@ -2,7 +2,7 @@
 
 import pytest
 
-from interloper.utils.text import slugify, to_label, validate_name
+from interloper.utils.text import slugify, to_label, to_snake_case, validate_name
 
 
 class TestValidateName:
@@ -133,3 +133,48 @@ class TestToLabel:
 
     def test_camel_case(self):
         assert to_label("myAsset") == "My Asset"
+
+
+class TestToSnakeCase:
+    """Tests for to_snake_case()."""
+
+    def test_empty_string(self):
+        assert to_snake_case("") == ""
+
+    def test_camel_case(self):
+        assert to_snake_case("userName") == "user_name"
+
+    def test_pascal_case(self):
+        assert to_snake_case("UserName") == "user_name"
+
+    def test_already_snake(self):
+        assert to_snake_case("user_name") == "user_name"
+
+    def test_hyphens(self):
+        assert to_snake_case("user-name") == "user_name"
+
+    def test_spaces(self):
+        assert to_snake_case("user name") == "user_name"
+
+    def test_acronym(self):
+        assert to_snake_case("XMLParser") == "xml_parser"
+
+    def test_numbers_preserved(self):
+        assert to_snake_case("value1Name") == "value1_name"
+
+    def test_idempotent(self):
+        assert to_snake_case("already_snake") == "already_snake"
+        assert to_snake_case(to_snake_case("UserName")) == "user_name"
+
+    def test_special_characters(self):
+        assert to_snake_case("cost%") == "cost"
+        assert to_snake_case("hello@world") == "hello_world"
+
+    def test_mixed_separators(self):
+        assert to_snake_case("my-Asset_Name") == "my_asset_name"
+
+    def test_all_caps(self):
+        assert to_snake_case("HTTP") == "http"
+
+    def test_all_caps_with_suffix(self):
+        assert to_snake_case("HTTPResponse") == "http_response"

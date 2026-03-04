@@ -2,7 +2,7 @@ import interloper as il
 
 from interloper_assets.adservice.source import Adservice, AdserviceConfig
 from interloper_assets.adup.source import Adup, AdupConfig
-from interloper_assets.amazon_ads.source import AmazonAds
+from interloper_assets.amazon_ads.source import AmazonAds, AmazonAdsConfig
 from interloper_assets.amazon_selling_partner.source import AmazonSellingPartner
 from interloper_assets.awin.source import Awin
 from interloper_assets.bing_ads.source import BingAds
@@ -28,7 +28,7 @@ SOURCE_REGISTRY: dict[str, tuple[il.SourceDefinition, type[il.Config] | None]] =
     DemoSource.name: (DemoSource, DemoConfig),
     Adup.name: (Adup, AdupConfig),
     Adservice.name: (Adservice, AdserviceConfig),
-    AmazonAds.name: (AmazonAds, None),
+    AmazonAds.name: (AmazonAds, AmazonAdsConfig),
     AmazonSellingPartner.name: (AmazonSellingPartner, None),
     Awin.name: (Awin, None),
     BingAds.name: (BingAds, None),

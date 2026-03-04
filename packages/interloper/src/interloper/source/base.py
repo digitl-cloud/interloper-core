@@ -8,7 +8,7 @@ import inspect
 import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from interloper.assets.base import Asset, AssetDefinition
 from interloper.io.base import IO
@@ -17,6 +17,9 @@ from interloper.serialization.source import SourceSpec
 from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
+
+if TYPE_CHECKING:
+    from interloper.normalizer.base import Normalizer
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,7 @@ class SourceDefinition:
     config: type[Config] | None = None
     tags: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+    normalizer: Normalizer | None = None
 
     def __post_init__(self):
         """Set name to class name if not provided, validate."""
@@ -216,6 +220,11 @@ class SourceDefinition:
             asset_instance.func = bind_asset_method(asset_def.func, cls_instance)
             if asset_def.name != asset_name:
                 asset_instance.metadata["source_original_name"] = asset_def.name
+
+            # Inherit source-level normalizer if asset doesn't have its own
+            if asset_instance.normalizer is None and self.normalizer is not None:
+                asset_instance.normalizer = self.normalizer
+
             asset_instances[asset_instance.name] = asset_instance
 
         return Source(

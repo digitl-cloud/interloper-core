@@ -13,8 +13,8 @@ T = TypeVar("T")
 class DataAdapter(ABC, Generic[T]):
     """Converts between a typed data format and database rows (``list[dict]``).
 
-    A ``DataAdapter`` is the bridge between an asset's output type (e.g. a pandas
-    ``DataFrame``) and the universal row format that any
+    A ``DataAdapter`` is the bridge between an asset's output type and the
+    universal row format that any
     :class:`~interloper.io.database.DatabaseIO` works with internally.
 
     Subclasses implement two methods:
@@ -24,13 +24,12 @@ class DataAdapter(ABC, Generic[T]):
 
     Example::
 
-        class DataFrameAdapter(DataAdapter):
+        class MyAdapter(DataAdapter):
             def to_rows(self, data):
-                return data.to_dict("records")
+                return data.to_records()
 
             def from_rows(self, rows):
-                import pandas as pd
-                return pd.DataFrame(rows)
+                return MyType.from_records(rows)
     """
 
     @property
@@ -104,45 +103,3 @@ class RowAdapter(DataAdapter[list[dict[str, Any]]]):
             The same list of dicts
         """
         return rows
-
-
-class DataFrameAdapter(DataAdapter):
-    """Adapter for pandas ``DataFrame``.
-
-    Requires *pandas* to be installed.  An ``ImportError`` is raised at call
-    time (not at import time) if pandas is missing, so the class can always
-    be imported safely.
-    """
-
-    def to_rows(self, data: Any) -> list[dict[str, Any]]:
-        """Convert a ``DataFrame`` to a list of row dicts.
-
-        Args:
-            data: A pandas ``DataFrame``
-
-        Returns:
-            Rows as list of dicts
-
-        Raises:
-            TypeError: If *data* is not a ``DataFrame``
-        """
-        import pandas as pd
-
-        if not isinstance(data, pd.DataFrame):
-            raise TypeError(
-                f"DataFrameAdapter expects a pandas DataFrame, got {type(data).__name__}."
-            )
-        return data.to_dict("records")
-
-    def from_rows(self, rows: list[dict[str, Any]]) -> Any:
-        """Convert rows to a pandas ``DataFrame``.
-
-        Args:
-            rows: Raw rows from the database
-
-        Returns:
-            A pandas ``DataFrame``
-        """
-        import pandas as pd
-
-        return pd.DataFrame(rows)

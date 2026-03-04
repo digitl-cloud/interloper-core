@@ -55,3 +55,33 @@ def to_label(text: str) -> str:
     text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
     # collapse whitespace and capitalize
     return " ".join(text.split()).title()
+
+
+def to_snake_case(text: str) -> str:
+    """Convert text to snake_case.
+
+    Handles camelCase, PascalCase, hyphens, spaces, acronyms,
+    and special characters.
+
+    Examples::
+
+        >>> to_snake_case("userName")
+        'user_name'
+        >>> to_snake_case("XMLParser")
+        'xml_parser'
+        >>> to_snake_case("user-name")
+        'user_name'
+    """
+    if not text:
+        return ""
+
+    # Insert underscore before uppercase runs: "XMLParser" -> "XML_Parser"
+    text = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", text)
+    # Insert underscore at camelCase boundaries: "myAsset" -> "my_Asset"
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
+    # Replace special characters (including %) with underscores
+    text = re.sub(r"[^a-zA-Z0-9]+", "_", text)
+    # Collapse multiple underscores
+    text = re.sub(r"_+", "_", text)
+    # Strip leading/trailing underscores and lowercase
+    return text.strip("_").lower()

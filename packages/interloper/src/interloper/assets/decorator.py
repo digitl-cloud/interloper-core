@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from pydantic import BaseModel
 
@@ -12,6 +12,9 @@ from interloper.assets.keys import AssetDefinitionKey
 from interloper.io.base import IO
 from interloper.partitioning.base import PartitionConfig
 from interloper.source.config import Config
+
+if TYPE_CHECKING:
+    from interloper.normalizer.base import Normalizer
 
 
 @overload
@@ -25,6 +28,7 @@ def asset(
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
     io: IO | None = None,
+    normalizer: Normalizer | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
@@ -40,6 +44,7 @@ def asset(
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
     io: IO | None = None,
+    normalizer: Normalizer | None = None,
     partitioning: PartitionConfig | None = None,
     dataset: str | None = None,
     requires: dict[str, AssetDefinitionKey] | None = None,
@@ -52,7 +57,7 @@ def asset(
         @asset
         def my_asset(): ...
 
-        @asset(schema=MySchema)
+        @asset(schema=MySchema, normalizer=Normalizer())
         def my_asset(): ...
     """
 
@@ -63,6 +68,7 @@ def asset(
             schema=schema,
             config=config,
             io=io,
+            normalizer=normalizer,
             partitioning=partitioning,
             dataset=dataset,
             requires=requires or {},
