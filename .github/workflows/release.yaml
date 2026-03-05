@@ -22,17 +22,6 @@ jobs:
       id-token: "write"
 
     steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: "projects/499027771610/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
-          service_account: "github-actions@dc-int-connectors-prd.iam.gserviceaccount.com"
-
-      - name: Get Google Cloud access token
-        run: |
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
-          echo "ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
-
       - name: Get GitHub App token
         uses: actions/create-github-app-token@v2
         id: app-token
@@ -90,4 +79,4 @@ jobs:
         if: steps.release.outputs.released == 'true'
         run: |
           uv build --all-packages
-          uv publish --index dc-int-connectors-prd --username oauth2accesstoken --password ${{ env.ACCESS_TOKEN }} --keyring-provider subprocess
+          uv publish --trusted-publishing always

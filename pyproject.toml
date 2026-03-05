@@ -10,7 +10,7 @@ requires-python = ">=3.10"
 
 dependencies = [
     "fastapi>=0.119.0",
-    "interloper",
+    "interloper-core",
     "interloper-assets",
     "interloper-dbos",
     "interloper-docker",
@@ -37,7 +37,7 @@ dev = [
 # UV
 # ###############
 [tool.uv.sources]
-interloper = { workspace = true }
+interloper-core = { workspace = true }
 interloper-assets = { workspace = true }
 interloper-dbos = { workspace = true }
 interloper-docker = { workspace = true }
@@ -48,12 +48,6 @@ interloper-sql = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
-
-[[tool.uv.index]]
-name = "dc-int-connectors-prd"
-url = "https://europe-python.pkg.dev/dc-int-connectors-prd/python-public/simple"
-publish-url = "https://europe-python.pkg.dev/dc-int-connectors-prd/python-public"
-explicit = true
 
 # ###############
 # PYRIGHT
