@@ -1,5 +1,7 @@
 """Directed Acyclic Graph for asset execution."""
 
+from __future__ import annotations
+
 import inspect
 from typing import TYPE_CHECKING
 
@@ -13,6 +15,7 @@ from interloper.serialization.dag import DAGSpec
 from interloper.source.base import Source, SourceDefinition
 
 if TYPE_CHECKING:
+    from interloper.backfillers.results import BackfillResult
     from interloper.runners.state import RunState
 
 
@@ -306,6 +309,20 @@ class DAG(Serializable):
         runner = MultiThreadRunner()
         return runner.run(dag=self, partition_or_window=partition_or_window)
 
+    def backfill(
+        self,
+        partition_or_window: Partition | PartitionWindow | None = None,
+    ) -> BackfillResult:
+        """Execute all assets in dependency order using a default ``SerialBackfiller``.
+
+        Returns:
+            The result of the DAG execution.
+        """
+        from interloper.backfillers.serial import SerialBackfiller
+
+        backfiller = SerialBackfiller()
+        return backfiller.backfill(dag=self, partition_or_window=partition_or_window)
+
     def get_predecessors(self, asset_key: AssetInstanceKey) -> list[AssetInstanceKey]:
         """Return upstream asset keys (dependencies) for the given asset.
 
@@ -326,7 +343,7 @@ class DAG(Serializable):
             raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
         return self.successors.get(asset_key, [])
 
-    def mini_dag(self, asset_key: AssetInstanceKey) -> "DAG":
+    def mini_dag(self, asset_key: AssetInstanceKey) -> DAG:
         """Create a mini-DAG with the target asset and its immediate parents.
 
         Parents are included but marked as non-materializable so only the
@@ -351,7 +368,7 @@ class DAG(Serializable):
         assets.append(target)
         return DAG(*assets)
 
-    def copy(self) -> "DAG":
+    def copy(self) -> DAG:
         """Clone the DAG.
 
         Returns:
@@ -368,7 +385,7 @@ class DAG(Serializable):
         return DAGSpec(assets=[asset.to_spec() for asset in self.assets])
 
     @classmethod
-    def from_failed_state(cls, state: "RunState") -> "DAG":
+    def from_failed_state(cls, state: RunState) -> DAG:
         """Return a DAG marking completed assets as non-materializable.
 
         All assets that were COMPLETED in the provided state are set to

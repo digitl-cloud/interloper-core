@@ -243,6 +243,35 @@ class SqlIO(DatabaseIO):
             return [dict(row._mapping) for row in result]
 
     # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
+
+    def _count_by_partition(
+        self, table: str, schema: str | None, column: str,
+    ) -> dict[str, int]:
+        """Return row counts grouped by partition column via SQL ``GROUP BY``.
+
+        Args:
+            table: Target table name
+            schema: Database schema
+            column: Column to group by
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+
+        Raises:
+            TableNotFoundError: If the table does not exist.
+        """
+        from sqlalchemy import func
+
+        sa_table = self._require_table(table, schema)
+        col = sa_table.c[column]
+        stmt = sa_table.select().with_only_columns(col, func.count()).group_by(col)
+        with self._engine.connect() as conn:
+            result = conn.execute(stmt)
+            return {str(row[0]): row[1] for row in result}
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 

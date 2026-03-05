@@ -279,6 +279,38 @@ class BigQueryIO(DatabaseIO):
         return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
+
+    def _count_by_partition(
+        self, table: str, schema: str | None, column: str,
+    ) -> dict[str, int]:
+        """Return row counts grouped by partition column via BigQuery SQL.
+
+        Args:
+            table: Target table name.
+            schema: Database schema (dataset).
+            column: Column to group by.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+
+        Raises:
+            TableNotFoundError: If the table does not exist.
+        """
+        if not self._table_exists(table, schema):
+            ref = self._table_ref(table, schema)
+            raise TableNotFoundError(f"Table '{ref}' does not exist. Has the asset been materialized?")
+
+        ref = self._table_ref(table, schema)
+        query = (
+            f"SELECT CAST(`{column}` AS STRING) AS partition_value, "
+            f"COUNT(*) AS cnt FROM `{ref}` GROUP BY 1"
+        )
+        rows = self._client.query(query).result()
+        return {row["partition_value"]: row["cnt"] for row in rows}
+
+    # ------------------------------------------------------------------
     # Serialization
     # ------------------------------------------------------------------
 

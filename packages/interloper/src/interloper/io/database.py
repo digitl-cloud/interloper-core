@@ -180,6 +180,44 @@ class DatabaseIO(IO):
         """
 
     # ------------------------------------------------------------------
+    # Introspection
+    # ------------------------------------------------------------------
+
+    @abstractmethod
+    def _count_by_partition(
+        self, table: str, schema: str | None, column: str,
+    ) -> dict[str, int]:
+        """Return row counts grouped by the values of the given column.
+
+        Args:
+            table: Target table name (from ``asset.name``)
+            schema: Database schema (from ``asset.dataset``)
+            column: Column to group by.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+        """
+
+    def partition_row_counts(self, context: IOContext) -> dict[str, int]:
+        """Return row counts grouped by the asset's partition column.
+
+        Delegates to :meth:`_count_by_partition` using the table, schema, and
+        partition column extracted from the context.
+
+        Args:
+            context: IO context with asset and partition information.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+        """
+        assert context.asset.partitioning is not None
+        return self._count_by_partition(
+            context.asset.name,
+            context.asset.dataset,
+            context.asset.partitioning.column,
+        )
+
+    # ------------------------------------------------------------------
     # Data conversion
     # ------------------------------------------------------------------
 

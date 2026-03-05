@@ -37,6 +37,10 @@ class StubDatabaseIO(DatabaseIO):
         self.calls.append(("select_partition", table, schema, column, value))
         return [{"v": 1}]
 
+    def _count_by_partition(self, table, schema, column):
+        self.calls.append(("count_by_partition", table, schema, column))
+        return {}
+
     def to_spec(self):
         pass  # not needed for these tests
 

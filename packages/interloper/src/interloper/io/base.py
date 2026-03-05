@@ -53,5 +53,21 @@ class IO(Serializable):
         """
 
     @abstractmethod
+    def partition_row_counts(self, context: IOContext) -> dict[str, int]:
+        """Return row counts grouped by the asset's partition column.
+
+        The partition column is read from ``context.asset.partitioning.column``.
+        Each key in the returned dict is the string representation of a partition
+        value; each value is the number of rows in that partition.
+
+        Args:
+            context: IO context (uses ``asset.name``, ``asset.dataset``,
+                and ``asset.partitioning``).
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+        """
+
+    @abstractmethod
     def to_spec(self) -> IOSpec:
         """Convert to serializable spec."""

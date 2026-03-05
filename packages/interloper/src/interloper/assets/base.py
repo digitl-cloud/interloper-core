@@ -506,6 +506,59 @@ class Asset(Serializable[AssetSpec]):
 
         return kwargs
 
+    def _resolve_io(self, io_key: str | None = None) -> IO:
+        """Resolve a single IO from this asset.
+
+        Args:
+            io_key: For multi-IO assets, the key identifying which IO to use.
+                When ``None``, uses :attr:`default_io_key` or the first entry.
+
+        Returns:
+            The resolved IO instance.
+
+        Raises:
+            ConfigError: If *io_key* is not found or no IO is configured.
+        """
+        if isinstance(self.io, dict):
+            if io_key is not None:
+                if io_key not in self.io:
+                    raise ConfigError(
+                        f"IO key '{io_key}' not found on asset '{self.name}'. Available keys: {sorted(self.io.keys())}"
+                    )
+                return self.io[io_key]
+            if self.default_io_key is not None and self.default_io_key in self.io:
+                return self.io[self.default_io_key]
+            return next(iter(self.io.values()))
+
+        if self.io is None:
+            raise ConfigError(f"Asset '{self.name}' has no IO configured.")
+
+        return self.io
+
+    def partition_row_counts(self, *, io_key: str | None = None) -> dict[str, int]:
+        """Return row counts grouped by this asset's partition column.
+
+        Delegates to :meth:`IO.partition_row_counts` using the resolved IO.
+
+        Args:
+            io_key: For multi-IO assets, the IO key to query.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+
+        Raises:
+            PartitionError: If this asset is not partitioned.
+        """
+        if self.partitioning is None:
+            raise PartitionError(
+                f"Asset '{self.name}' is not partitioned. "
+                "Cannot compute partition row counts without a partition column."
+            )
+
+        io = self._resolve_io(io_key)
+        context = IOContext(asset=self)
+        return io.partition_row_counts(context)
+
     def _validate_schema(self, data: Any) -> None:
         """Validate data against schema.
 
