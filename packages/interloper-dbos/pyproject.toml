@@ -3,7 +3,7 @@
 # ###############
 [project]
 name = "interloper-dbos"
-version = "0.1.0"
+version = "0.2.0-rc.1"
 description = "Interloper DBOS integration"
 readme = "README.md"
 authors = [{ name = "Guillaume Onfroy", email = "guillaume@digitlcloud.com" }]
