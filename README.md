@@ -5,6 +5,13 @@
 Define assets as functions, group them in sources, wire dependencies automatically, and materialize them with pluggable IO backends and runners.
 </p>
 
+<p align="center">
+  <a href="https://github.com/digitl-cloud/interloper-core/actions/workflows/check_release.yaml"><img src="https://github.com/digitl-cloud/interloper-core/actions/workflows/check_release.yaml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://codecov.io/gh/digitl-cloud/interloper-core"><img src="https://codecov.io/gh/digitl-cloud/interloper-core/graph/badge.svg" alt="Coverage"></a>
+  <img src="https://img.shields.io/badge/python-3.10+-3776ab?logo=python&logoColor=white" alt="Python 3.10+">
+  <a href="https://github.com/digitl-cloud/interloper-core/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
+</p>
+
 ## Install
 
 ```bash
