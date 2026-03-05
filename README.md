@@ -42,7 +42,7 @@ dag.materialize()
 
 | Package             | Description                                           |
 | ------------------- | ----------------------------------------------------- |
-| `interloper`        | Core: assets, sources, DAG, runners, IO, partitioning |
+| `interloper-core`   | Core: assets, sources, DAG, runners, IO, partitioning |
 | `interloper-sql`    | SQL IO backends (Postgres, MySQL, SQLite)             |
 | `interloper-assets` | Pre-built source definitions and registry             |
 | `interloper-argo`   | Argo Workflows integration                            |
@@ -53,8 +53,8 @@ dag.materialize()
 ## Development
 
 ```bash
-uv sync               # install dependencies
-uv run pytest          # run tests
-uv run ruff check .    # lint
-uv run pyright         # type check
+uv sync --all-packages --all-extras
+uv run pytest
+uv run ruff check .
+uv run pyright
 ```
