@@ -40,7 +40,7 @@ from interloper.events.base import (
     subscribe,
     unsubscribe,
 )
-from interloper.io import IO, FileIO, IOContext, MemoryIO
+from interloper.io import IO, CsvIO, FileIO, IOContext, MemoryIO
 from interloper.normalizer import MaterializationStrategy, Normalizer
 from interloper.partitioning import (
     Partition,
@@ -82,6 +82,7 @@ __all__ = [
     "Config",
     "ConfigError",
     "ConfigSpec",
+    "CsvIO",
     "DAGError",
     "DAGSpec",
     "DataNotFoundError",
