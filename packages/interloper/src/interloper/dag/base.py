@@ -264,63 +264,37 @@ class DAG(Serializable):
         self,
         partition_or_window: Partition | PartitionWindow | None = None,
     ) -> RunResult:
-        """Execute all assets in dependency order and write to IO.
-
-        This is syntactic sugar that internally uses MultiThreadRunner.
-
-        Args:
-            partition_or_window: Either a Partition or PartitionWindow object
-
-        Returns:
-            RunResult
-        """
+        """Execute all assets in dependency order using a default ``MultiThreadRunner``."""
         from interloper.runners.multi_thread import MultiThreadRunner
 
         runner = MultiThreadRunner()
         return runner.run(dag=self, partition_or_window=partition_or_window)
 
     def get_predecessors(self, asset_key: AssetInstanceKey) -> list[AssetInstanceKey]:
-        """Return list of upstream asset keys (dependencies) for the given asset.
-
-        Args:
-            asset_key: The key of the asset to get predecessors for
-
-        Returns:
-            List of asset keys that the given asset depends on
+        """Return upstream asset keys (dependencies) for the given asset.
 
         Raises:
-            AssetNotFoundError: If the asset_key is not found in the DAG
+            AssetNotFoundError: If the asset key is not in the DAG.
         """
         if asset_key not in self.asset_map:
             raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
         return self.predecessors.get(asset_key, [])
 
     def get_successors(self, asset_key: AssetInstanceKey) -> list[AssetInstanceKey]:
-        """Return list of downstream asset keys (dependents) for the given asset.
-
-        Args:
-            asset_key: The key of the asset to get successors for
-
-        Returns:
-            List of asset keys that depend on the given asset
+        """Return downstream asset keys (dependents) for the given asset.
 
         Raises:
-            AssetNotFoundError: If the asset_key is not found in the DAG
+            AssetNotFoundError: If the asset key is not in the DAG.
         """
         if asset_key not in self.asset_map:
             raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
         return self.successors.get(asset_key, [])
 
     def mini_dag(self, asset_key: AssetInstanceKey) -> "DAG":
-        """Create a mini-DAG with the target and its immediate parents only.
+        """Create a mini-DAG with the target asset and its immediate parents.
 
-        The parents are marked as non-materializable.
-
-        Args:
-            asset_key: The key of the asset to create a mini-DAG for
-
-        Returns:
-            A mini-DAG with the target and its immediate parents only
+        Parents are included but marked as non-materializable so only the
+        target asset is actually executed.
         """
         if asset_key not in self.asset_map:
             raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")

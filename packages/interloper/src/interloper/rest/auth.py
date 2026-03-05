@@ -1,4 +1,4 @@
-"""This module contains the authentication classes for the REST client."""
+"""Authentication handlers for the REST client (Bearer, OAuth2)."""
 
 from __future__ import annotations
 

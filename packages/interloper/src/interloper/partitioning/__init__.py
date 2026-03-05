@@ -1,4 +1,4 @@
-"""Partitioning configurations."""
+"""Partition configs and windows for splitting assets into discrete units."""
 
 from interloper.partitioning.base import (
     Partition,

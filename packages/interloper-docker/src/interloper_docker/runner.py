@@ -44,6 +44,17 @@ class DockerRunner(Runner[Container]):
         reraise: bool = False,
         on_event: Callable[[Event], None] | None = None,
     ) -> None:
+        """Initialize the DockerRunner.
+
+        Args:
+            image: Docker image to use for container execution.
+            max_containers: Maximum number of concurrent containers.
+            env_vars: Environment variables to pass to the container.
+            volumes: Volume mounts for the container.
+            fail_fast: Stop execution on first failure.
+            reraise: Re-raise exceptions.
+            on_event: Optional event handler for lifecycle events.
+        """
         super().__init__(fail_fast=fail_fast, reraise=reraise, on_event=on_event)
         self._image = image
         self._max_containers = max_containers
@@ -61,6 +72,16 @@ class DockerRunner(Runner[Container]):
         partition_or_window: Partition | PartitionWindow | None,
         run_id: str,
     ) -> list[str]:
+        """Build the CLI command for asset execution in a container.
+
+        Args:
+            dag: The DAG to execute.
+            partition_or_window: The partition or window.
+            run_id: The run ID.
+
+        Returns:
+            Command list for the container.
+        """
         config = Config(dag=dag)
 
         cmd = [

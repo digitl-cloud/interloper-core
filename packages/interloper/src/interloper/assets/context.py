@@ -27,8 +27,8 @@ class EventLogger:
         """Initialize the logger.
 
         Args:
-            asset_key: The key of the asset that owns this logger.
-            metadata: Run metadata to include in every LOG event.
+            asset_key: Instance key of the asset that owns this logger.
+            metadata: Run metadata included in every emitted LOG event.
         """
         self._asset_key = asset_key
         self._metadata = metadata
@@ -72,10 +72,10 @@ class ExecutionContext:
         """Initialize the context.
 
         Args:
-            asset_key: The name of the asset being executed
-            partitioning: The partitioning configuration
-            partition_or_window: Either a Partition or PartitionWindow object
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
+            asset_key: The instance key of the asset being executed.
+            partitioning: Partitioning configuration for this asset.
+            partition_or_window: Partition or PartitionWindow for this run.
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
         """
         self._asset_key = asset_key
         self._partitioning = partitioning
@@ -143,7 +143,7 @@ class ExecutionContext:
 
     @property
     def asset_key(self) -> AssetInstanceKey:
-        """The name of the current asset being executed."""
+        """The instance key of the current asset."""
         return self._asset_key
 
     @property

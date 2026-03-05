@@ -1,4 +1,4 @@
-"""Event bus system for the Interloper framework."""
+"""Event types, data structures, and the singleton event bus."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ INTERLOPER_EVENT_MARKER = "[INTERLOPER_EVENT]"
 
 
 class EventType(Enum):
-    """Event types for the framework lifecycle."""
+    """Enumeration of all framework lifecycle event types."""
 
     ASSET_STARTED = "asset_started"
     ASSET_COMPLETED = "asset_completed"
@@ -65,14 +65,18 @@ class LogLevel(Enum):
 
 @dataclass
 class Event:
-    """Event data structure."""
+    """An event emitted during the framework lifecycle.
+
+    Carries a type, UTC timestamp, and an arbitrary metadata dict.
+    Supports JSON and dict serialization for forwarding and persistence.
+    """
 
     type: EventType
     timestamp: dt.datetime = field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
-        """Return a string representation of the event."""
+        """Return a human-readable summary line for logging."""
         m = self.metadata
         fields = [
             f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]}",
@@ -85,7 +89,7 @@ class Event:
         return "  ".join(fields)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert the event to a dictionary."""
+        """Serialize to a flat dict with type, timestamp, and metadata fields."""
         return {
             "type": self.type.value,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
@@ -93,12 +97,16 @@ class Event:
         }
 
     def to_json(self) -> str:
-        """Convert the event to a JSON string."""
+        """Serialize to a JSON string."""
         return json.dumps(self.to_dict())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Event:
-        """Create an Event from a dictionary with mandatory/validated fields."""
+        """Deserialize an Event from a dict.
+
+        Raises:
+            EventError: If required fields are missing or have invalid values.
+        """
         # Check mandatory 'type'
         type_val = data.get("type")
         if type_val is None:
@@ -132,25 +140,34 @@ class Event:
 
     @classmethod
     def from_json(cls, json_str: str) -> Event:
-        """Create an Event from a JSON string."""
+        """Deserialize an Event from a JSON string."""
         return cls.from_dict(json.loads(json_str))
 
 
 @dataclass
 class Sentinel:
-    """Internal sentinel for flushing the queue."""
+    """Marker placed on the event queue to signal that all preceding events have been processed.
+
+    Used by :meth:`EventBus.flush` to block until the queue is drained up to
+    this point.  The ``completion_event`` is set by the worker thread when it
+    dequeues the sentinel.
+    """
 
     completion_event: threading.Event
 
 
 class EventBus:
-    """Singleton event bus for the framework."""
+    """Thread-safe singleton event bus.
+
+    Events are enqueued and processed asynchronously by a background worker
+    thread.  Handlers are called in the order they were subscribed.
+    """
 
     _instance: EventBus | None = None
     _lock = threading.Lock()
 
     def __new__(cls) -> Self:
-        """Thread-safe singleton pattern."""
+        """Create or return the singleton instance (double-checked locking)."""
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -160,7 +177,7 @@ class EventBus:
         return cast(Self, cls._instance)
 
     def __init__(self) -> None:
-        """Initialize the event bus."""
+        """Initialize handlers, queue, and background worker (runs once)."""
         if hasattr(self, "_initialized") and self._initialized:
             return
 
@@ -178,20 +195,17 @@ class EventBus:
         atexit.register(self.shutdown)
 
     def __del__(self) -> None:
-        """Clean up the event bus."""
+        """Drain the queue and stop the worker on garbage collection."""
         self.shutdown()
 
     def _start_worker(self) -> None:
-        """Start the background worker thread for processing events."""
+        """Start the background daemon thread that drains the event queue."""
         if self._worker_thread is None or not self._worker_thread.is_alive():
             self._worker_thread = threading.Thread(target=self._process_events, daemon=True)
             self._worker_thread.start()
 
     def _process_events(self) -> None:
-        """Background worker that processes events from the queue.
-
-        Continues processing events until shutdown is set and the queue is empty.
-        """
+        """Worker loop: dequeue events and dispatch to handlers until shutdown."""
         while True:
             # If shutdown is set, only process remaining events, then exit
             if self._shutdown.is_set() and self._event_queue.empty():
@@ -312,7 +326,7 @@ def emit(event_type: EventType, *, metadata: dict[str, Any] | None = None) -> No
 
     Args:
         event_type: The type of event to emit.
-        metadata: Metadata dict.
+        metadata: Optional key-value pairs attached to the event.
     """
     EventBus.get_instance().emit(Event(type=event_type, metadata=metadata or {}))
 
@@ -349,7 +363,7 @@ def unsubscribe(handler: Callable[[Event], None]) -> None:
 
 
 def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
-    """Get the metadata for an asset event."""
+    """Build common metadata fields (key, name, source) for an asset event."""
     metadata = {
         "asset_key": asset.instance_key,
         "asset_name": asset.name,
@@ -391,10 +405,12 @@ def disable_event_forwarding() -> bool:
 
 
 def forward_event(event: Event) -> None:
-    """Forward an event to the remote event bus.
+    """Forward an event via stderr logging and/or HTTP POST.
 
-    Args:
-        event: The event to forward.
+    Controlled by environment variables:
+
+    - ``INTERLOPER_EVENTS_TO_STDERR``: write JSON to stderr (for Docker/K8s log collection).
+    - ``INTERLOPER_EVENTS_TARGET_URL``: POST JSON to a remote endpoint (legacy).
     """
     # Log-based event streaming (for Docker/K8s log collection)
     if os.getenv("INTERLOPER_EVENTS_TO_STDERR"):

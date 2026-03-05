@@ -49,7 +49,9 @@ class DockerBackfiller(Backfiller[Container]):
             env_vars: Environment variables to pass to the container
             max_containers: Maximum number of concurrent containers (default 1)
             runner: Runner to use for running assets
+            volumes: Volume mounts for the container
             dind: If True, mount the Docker socket to enable Docker-in-Docker
+            on_event: Optional event handler for lifecycle events
         """
         super().__init__(runner=runner, on_event=on_event)
 
@@ -95,6 +97,7 @@ class DockerBackfiller(Backfiller[Container]):
         Args:
             dag: The DAG to execute
             partition_or_window: The partition or window
+            backfill_id: The backfill ID
 
         Returns:
             Command list for the container

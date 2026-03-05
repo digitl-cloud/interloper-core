@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class ConfigSpec(Spec):
-    """A specification for a config file."""
+    """Top-level spec that bundles a DAG with its runner, IO, and backfiller settings."""
 
     backfiller: BackfillerSpec | None = None
     runner: RunnerSpec | None = None

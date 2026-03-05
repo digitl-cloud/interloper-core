@@ -21,6 +21,12 @@ from interloper.utils.imports import require_import
 
 
 def _load_script(path: str) -> DAG:
+    """Load and return the single DAG defined in a Python script.
+
+    Raises:
+        ScriptLoadError: If the file is missing, unloadable, or does not
+            contain exactly one DAG.
+    """
     script_path = Path(path).expanduser().resolve()
     if not script_path.exists():
         raise ScriptLoadError(f"Script file not found: {script_path}")
@@ -81,7 +87,7 @@ def _config_from_inline_json(json_data: str) -> Config:
 
 
 def _config_from_script(path: str) -> Config:
-    """Load a DAG from a Python script."""
+    """Load a Config from a Python script containing a DAG."""
     return Config(
         backfiller=SerialBackfiller(),
         dag=_load_script(path),
@@ -89,6 +95,7 @@ def _config_from_script(path: str) -> Config:
 
 
 def _config_from_args(args: argparse.Namespace) -> Config:
+    """Build a Config from parsed CLI arguments."""
     if args.format == "script":
         return _config_from_script(args.file)
     elif args.format == "inline":
@@ -102,6 +109,7 @@ def _config_from_args(args: argparse.Namespace) -> Config:
 
 
 def _partition_or_window_from_args(args: argparse.Namespace) -> TimePartition | TimePartitionWindow | None:
+    """Extract the partition or window from parsed CLI arguments."""
     if args.date is not None:
         return TimePartition(args.date)
     elif args.start_date is not None and args.end_date is not None:
@@ -115,6 +123,7 @@ def _backfill(
     windowed: bool = False,
     backfill_id: str | None = None,
 ) -> None:
+    """Execute a backfill using the configured backfiller and runner."""
     backfiller = config.backfiller or SerialBackfiller()
     runner = config.runner or MultiThreadRunner()
     dag = config.dag
@@ -133,6 +142,7 @@ def _run(
     run_id: str | None = None,
     backfill_id: str | None = None,
 ) -> None:
+    """Execute a single run using the configured runner."""
     if config.backfiller is not None:
         print("Warning: backfiller is configured, but will be ignored when using the `run` command.")
 

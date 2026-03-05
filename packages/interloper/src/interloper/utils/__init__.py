@@ -1,3 +1,5 @@
+"""Shared utility helpers for imports and text processing."""
+
 from interloper.utils.imports import get_object_path, import_from_path
 from interloper.utils.text import to_label
 

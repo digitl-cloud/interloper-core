@@ -1,4 +1,4 @@
-"""Base IO classes and interfaces."""
+"""Abstract base class defining the IO read/write interface."""
 
 from __future__ import annotations
 
@@ -13,7 +13,11 @@ if TYPE_CHECKING:
 
 
 class IO(Serializable):
-    """Abstract base class for IO implementations."""
+    """Abstract base class for IO implementations.
+
+    Subclasses must implement :meth:`read`, :meth:`write`, and :meth:`to_spec`.
+    A per-subclass :meth:`singleton` factory is provided for stateless backends.
+    """
 
     _singleton: IO | None = None
 

@@ -1,4 +1,4 @@
-"""Execution result classes for runners."""
+"""Result types for asset and DAG execution."""
 
 import datetime as dt
 from dataclasses import dataclass, field
@@ -10,7 +10,7 @@ from interloper.partitioning.base import Partition, PartitionWindow
 
 
 class ExecutionStatus(str, Enum):
-    """Execution status for assets and DAGs."""
+    """Execution status for assets and runs."""
 
     QUEUED = "queued"
     READY = "ready"
@@ -73,7 +73,7 @@ class AssetExecutionInfo:
 
 @dataclass
 class RunResult:
-    """Result of executing a DAG for a single partition."""
+    """Result of a single DAG execution (one partition, window, or unpartitioned)."""
 
     partition_or_window: Partition | PartitionWindow | None = None
     status: ExecutionStatus = ExecutionStatus.COMPLETED

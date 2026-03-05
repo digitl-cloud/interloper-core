@@ -1,4 +1,4 @@
-"""Dynamic scheduler for asset execution."""
+"""Run state tracking and dynamic asset scheduling."""
 
 from __future__ import annotations
 
@@ -16,11 +16,10 @@ from interloper.runners.results import AssetExecutionInfo, ExecutionStatus
 
 
 class RunState:
-    """Tracks asset states and finds schedulable assets.
+    """Tracks asset execution state and determines which assets are ready to run.
 
-    Provides dynamic scheduling by continuously finding assets that are ready
-    to execute based on completed dependencies, rather than being constrained
-    to DAG levels.
+    Used by runners to dynamically schedule assets based on dependency
+    completion rather than static DAG levels.
     """
 
     def __init__(
@@ -28,12 +27,12 @@ class RunState:
         dag: DAG,
         metadata: dict[str, Any] | None = None,
     ):
-        """Initialize the state.
+        """Initialize the run state.
 
         Args:
-            dag: The DAG to track
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
-                      If run_id is not provided, a UUID will be generated automatically.
+            dag: The DAG to track.
+            metadata: Arbitrary metadata (e.g. run_id, backfill_id).
+                A run_id is generated automatically if not provided.
         """
         self.dag = dag
         self.metadata: dict[str, Any] = metadata or {}
@@ -79,86 +78,47 @@ class RunState:
 
     @property
     def queued_assets(self) -> list[Asset]:
-        """Get all assets that are queued.
-
-        Returns:
-            List of assets that are queued
-        """
+        """List of assets waiting to be scheduled."""
         return self.assets_with_status(ExecutionStatus.QUEUED)
 
     @property
     def ready_assets(self) -> list[Asset]:
-        """Get all assets that are ready to be scheduled.
-
-        Returns:
-            List of assets that can be executed immediately
-        """
+        """List of assets whose dependencies are met and can be executed."""
         return self.assets_with_status(ExecutionStatus.READY)
 
     @property
     def running_assets(self) -> list[Asset]:
-        """Get all assets that are currently running.
-
-        Returns:
-            List of assets that are currently running
-        """
+        """List of assets currently being executed."""
         return self.assets_with_status(ExecutionStatus.RUNNING)
 
     @property
     def completed_assets(self) -> list[Asset]:
-        """Get set of completed asset names.
-
-        Returns:
-            Set of asset names that have completed successfully
-        """
+        """List of assets that completed successfully."""
         return self.assets_with_status(ExecutionStatus.COMPLETED)
 
     @property
     def failed_assets(self) -> list[Asset]:
-        """Get set of failed asset names.
-
-        Returns:
-            Set of asset names that have failed
-        """
+        """List of assets that failed."""
         return self.assets_with_status(ExecutionStatus.FAILED)
 
     @property
     def elapsed_time(self) -> float | None:
-        """Get the elapsed time of the execution.
-
-        Returns:
-            Elapsed time in seconds
-        """
+        """Elapsed wall-clock time of the run in seconds, or None if not finished."""
         return (self.end_time - self.start_time).total_seconds() if self.end_time and self.start_time else None
 
     def assets_with_status(self, status: ExecutionStatus) -> list[Asset]:
-        """Return all assets with the given execution status.
-
-        Args:
-            status: The desired ExecutionStatus to filter assets.
-
-        Returns:
-            List of Asset objects with the specified status.
-        """
+        """Return all assets matching the given execution status."""
         return [asset for asset in self.dag.assets if self.asset_executions[asset.instance_key].status == status]
 
     def is_run_complete(self) -> bool:
-        """Check if all assets are completed or failed.
-
-        Returns:
-            True if execution is complete, False otherwise
-        """
+        """True if every asset has reached a terminal state (completed, failed, or skipped)."""
         return all(
             exec_info.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.SKIPPED)
             for exec_info in self.asset_executions.values()
         )
 
     def start_run(self, partition_or_window: Partition | PartitionWindow | None) -> None:
-        """Start DAG execution and emit RUN_STARTED event.
-
-        Args:
-            partition_or_window: Either a Partition or PartitionWindow object
-        """
+        """Record the run start time and emit a RUN_STARTED event."""
         self.partition_or_window = partition_or_window
         self.start_time = dt.datetime.now(dt.timezone.utc)
         self.end_time = None
@@ -170,7 +130,7 @@ class RunState:
         emit(EventType.RUN_STARTED, metadata=metadata)
 
     def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[AssetInstanceKey, AssetExecutionInfo]:
-        """End DAG execution, emit RUN_COMPLETED/FAILED event, return asset_executions."""
+        """Record the run end time, emit a terminal event, and return asset executions."""
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
         event_type = EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED
@@ -184,11 +144,7 @@ class RunState:
         return self.asset_executions.copy()
 
     def mark_asset_running(self, asset: Asset) -> None:
-        """Mark an asset as currently running and emit ASSET_STARTED event.
-
-        Args:
-            asset: The asset to mark as running
-        """
+        """Transition an asset to RUNNING and emit ASSET_STARTED."""
         self.asset_executions[asset.instance_key].mark_running()
 
         metadata = {
@@ -199,11 +155,7 @@ class RunState:
         emit(EventType.ASSET_STARTED, metadata=metadata)
 
     def mark_asset_completed(self, asset: Asset) -> None:
-        """Mark an asset as completed and emit ASSET_COMPLETED event.
-
-        Args:
-            asset: The asset to mark as completed
-        """
+        """Transition an asset to COMPLETED, emit event, and promote ready dependents."""
         self.asset_executions[asset.instance_key].mark_completed()
 
         metadata = {
@@ -216,12 +168,12 @@ class RunState:
         self._update_dependent_assets(asset.instance_key)
 
     def mark_asset_failed(self, asset: Asset, error: str, tb: str | None = None) -> None:
-        """Mark an asset as failed and emit ASSET_FAILED event.
+        """Transition an asset to FAILED, emit event, and propagate failure to dependents.
 
         Args:
-            asset: The asset to mark as failed
-            error: Error message describing the failure
-            tb: Optional formatted traceback string
+            asset: The asset that failed.
+            error: Error message describing the failure.
+            tb: Optional formatted traceback string.
         """
         self.asset_executions[asset.instance_key].mark_failed(error)
 
@@ -238,21 +190,11 @@ class RunState:
         self._propagate_failure(asset.instance_key)
 
     def mark_asset_cancelled(self, asset: Asset) -> None:
-        """Mark an asset as cancelled and emit ASSET_CANCELLED event.
-
-        Args:
-            asset: The asset to mark as cancelled
-        """
+        """Transition an asset to CANCELLED."""
         self.asset_executions[asset.instance_key].mark_cancelled()
 
     def _update_dependent_assets(self, completed_asset: AssetInstanceKey) -> None:
-        """Check if any dependent assets are now ready.
-
-        Uses successors to efficiently find assets that depend on the completed one.
-
-        Args:
-            completed_asset: Name of the asset that just completed
-        """
+        """Promote queued successors to READY if all their dependencies are met."""
         # Use successors to get all assets that depend on the completed one
         for successor in self.dag.successors.get(completed_asset, []):
             asset = self.dag.asset_map[successor]
@@ -266,11 +208,7 @@ class RunState:
                 self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
 
     def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
-        """Mark dependents as FAILED if they depend (directly or indirectly) on a failed asset.
-
-        Uses successors to efficiently propagate failures down the graph.
-        This ensures the scheduler reaches a terminal state when some branches fail.
-        """
+        """Recursively mark all downstream dependents as FAILED."""
         # Use successors to get all assets that depend on the failed one
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]

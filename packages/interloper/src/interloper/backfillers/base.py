@@ -66,31 +66,18 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             subscribe(event_handler)
 
     def __del__(self) -> None:
-        """Clean up the backfiller."""
+        """Flush pending events and unsubscribe the event handler."""
         if self._on_event is not None and not self._subscribed_via_context_manager:
             flush()
             unsubscribe(self._on_event)
 
     def __enter__(self) -> Self:
-        """Enter the context manager.
-
-        The subscription is already active from __init__ if on_event was provided.
-        This method marks that cleanup should happen on exit.
-
-        Returns:
-            The backfiller instance
-        """
+        """Mark that event cleanup should happen in ``__exit__`` instead of ``__del__``."""
         self._subscribed_via_context_manager = True
         return self
 
     def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Exit the context manager and unsubscribe from events.
-
-        Args:
-            exc_type: Exception type if an exception occurred
-            exc_val: Exception value if an exception occurred
-            exc_tb: Exception traceback if an exception occurred
-        """
+        """Flush pending events and unsubscribe the event handler."""
         if self._on_event is not None and self._subscribed_via_context_manager:
             flush()
             unsubscribe(self._on_event)
@@ -177,7 +164,14 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         windowed: bool = False,
         metadata: dict[str, Any] | None = None,
     ) -> BackfillResult:
-        """Execute a backfill."""
+        """Run the DAG across all partitions in the window, respecting capacity limits.
+
+        Args:
+            dag: The DAG to execute.
+            partition_or_window: A single partition, a window of partitions, or None.
+            windowed: If True, treat the entire window as a single run.
+            metadata: Arbitrary metadata forwarded to the backfill state.
+        """
         if windowed and not isinstance(partition_or_window, PartitionWindow):
             raise PartitionError("Windowed mode is only supported for windowed partitioning")
 

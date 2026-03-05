@@ -1,4 +1,4 @@
-"""Lightweight HTTP server that forwards JSON events to the local event bus."""
+"""HTTP server that receives JSON events and forwards them to the local event bus."""
 
 from __future__ import annotations
 
@@ -11,7 +11,14 @@ from interloper.events.base import Event, EventBus, EventType
 
 
 class EventHttpServer:
-    """Lightweight HTTP server that forwards JSON events to the local event bus."""
+    """HTTP server that accepts ``POST /events`` and forwards them to the local event bus.
+
+    Binds to an ephemeral port and runs in a daemon thread.  The URL is
+    exposed as :attr:`url` (using ``host.docker.internal``) so that child
+    Docker containers can post events back to the host.
+
+    Events can be filtered with optional include/exclude lists.
+    """
 
     def __init__(
         self,
@@ -34,11 +41,11 @@ class EventHttpServer:
 
     @property
     def url(self) -> str | None:
-        """Get the URL of the event HTTP server."""
+        """The ``host.docker.internal`` URL, or ``None`` if not started."""
         return self._url
 
     def start(self) -> None:
-        """Start the event HTTP server."""
+        """Bind to an ephemeral port and start serving in a daemon thread."""
         # Bind to an ephemeral port on all interfaces
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.bind(("0.0.0.0", 0))
@@ -61,7 +68,7 @@ class EventHttpServer:
         self._thread = t
 
     def stop(self) -> None:
-        """Stop the event HTTP server."""
+        """Shut down the server and release resources."""
         if self._server is not None:
             try:
                 self._server.shutdown()
@@ -72,14 +79,14 @@ class EventHttpServer:
         self._thread = None
 
     def _make_handler(self) -> type[BaseHTTPRequestHandler]:
-        """Create an HTTP handler class that captures the server's filters."""
+        """Build a request handler class closed over this server's filters."""
         server_ref = self
 
         class EventHttpHandler(BaseHTTPRequestHandler):
-            """HTTP handler that forwards JSON events to the local event bus."""
+            """Handles ``POST /events`` by parsing JSON and emitting to the event bus."""
 
             def do_POST(self) -> None:
-                """Handle a POST request."""
+                """Parse a JSON event from the request body and forward it."""
                 if self.path != "/events":
                     self.send_response(404)
                     self.end_headers()
@@ -115,9 +122,8 @@ class EventHttpServer:
                     self.send_response(500, "Error forwarding event")
                     self.end_headers()
 
-            def log_message(self, format: str, *args: object) -> None:  # silence
-                """Silence HTTP server logs."""
-                return
+            def log_message(self, format: str, *args: object) -> None:
+                """Suppress default HTTP server request logging."""
 
         return EventHttpHandler
 

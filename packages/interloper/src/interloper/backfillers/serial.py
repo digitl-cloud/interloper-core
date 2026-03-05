@@ -1,4 +1,4 @@
-"""Serial backfiller."""
+"""Serial (single-partition-at-a-time) backfiller implementation."""
 
 from interloper.backfillers.base import Backfiller
 from interloper.dag.base import DAG
@@ -7,7 +7,11 @@ from interloper.serialization.backfiller import BackfillerSpec
 
 
 class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
-    """Serial backfiller."""
+    """Backfiller that executes partitions one at a time in sequence.
+
+    Each partition run blocks until completion before the next one starts.
+    Suitable for simple workloads or when parallelism is not desired.
+    """
 
     @property
     def _capacity(self) -> int:
@@ -26,5 +30,5 @@ class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
         raise NotImplementedError("Not supported for serial backfiller")
 
     def to_spec(self) -> BackfillerSpec:
-        """Convert to SerialBackfillerSpec spec."""
+        """Convert to a serializable spec."""
         return BackfillerSpec(path=self.path)

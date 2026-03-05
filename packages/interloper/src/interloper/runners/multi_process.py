@@ -34,11 +34,10 @@ class MultiProcessRunner(Runner[Future[Any]]):
         """Initialize the multi-process runner.
 
         Args:
-            max_workers: Maximum number of worker processes (default 4)
-            fail_fast: Whether to fail fast
-            reraise: Whether to re-raise exceptions (takes precedence over fail_fast)
-            on_event: Optional event handler. If provided, the runner can be used as a context manager
-                to automatically subscribe/unsubscribe to events filtered by run_id.
+            max_workers: Maximum number of worker processes.
+            fail_fast: Stop execution after the first asset failure.
+            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
+            on_event: Event callback, filtered by run_id.
         """
         super().__init__(fail_fast=fail_fast, reraise=reraise, on_event=on_event)
         self._max_workers = max_workers
@@ -112,7 +111,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
                 pass
 
     def to_spec(self) -> RunnerSpec:
-        """Convert to MultiProcessRunnerSpec spec."""
+        """Serialize to a RunnerSpec."""
         return RunnerSpec(
             path=self.path,
             init={
@@ -130,13 +129,11 @@ def execute_in_process(
 ) -> tuple[str, bool, str | None]:
     """Execute a single asset in a worker process.
 
-    Args:
-        asset_spec: Serialized asset specification
-        dag_spec: Serialized DAG specification
-        partition_or_window: Either a Partition or PartitionWindow object (must be picklable)
+    Reconstructs the asset and DAG from their serialized specs to avoid
+    pickling complex objects across process boundaries.
 
     Returns:
-        Tuple of (asset_name, success_bool, error_message)
+        Tuple of (asset_key, success, error_message_or_none).
     """
     # Reconstruct objects from specs
     asset = asset_spec.reconstruct()

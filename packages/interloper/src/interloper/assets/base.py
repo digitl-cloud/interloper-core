@@ -86,17 +86,17 @@ class AssetDefinition:
         materializable: bool = True,
         strategy: MaterializationStrategy | None = None,
     ) -> Asset:
-        """Instantiate the asset with runtime parameters.
+        """Instantiate an ``Asset`` from this definition with runtime overrides.
 
         Args:
-            name: Override asset name.
-            config: Override config instance.
-            io: Override IO backend.
-            deps: Explicit dependency mapping (param name → asset instance key).
-            dataset: Override dataset name.
-            default_io_key: Override default IO key for multi-IO setups.
+            name: Override the asset name.
+            config: Override the config instance.
+            io: Override the IO backend (single or dict of named IOs).
+            deps: Explicit dependency mapping (param name to asset instance key).
+            dataset: Override the dataset name.
+            default_io_key: Default IO key for multi-IO setups.
             materializable: Whether the asset can be materialized.
-            strategy: Override materialization strategy.
+            strategy: Override the materialization strategy.
         """
         if name is not None:
             validate_name(name)
@@ -194,7 +194,7 @@ class Asset(Serializable[AssetSpec]):
         dataset: str | None = None,
         materializable: bool | None = None,
     ) -> Asset:
-        """Create a new asset instance with runtime parameters."""
+        """Return a shallow copy of this asset with optional overrides."""
         # Create a shallow copy and set attrs, since dataclasses.replace() fails on frozen/field-removed
         asset = copy.copy(self)
         if config is not None:
@@ -211,12 +211,10 @@ class Asset(Serializable[AssetSpec]):
 
     @property
     def path(self) -> str:
-        """Return the full import path of the decorated asset function.
+        """Return the fully-qualified path used to locate this asset.
 
-        Overrides the base class path property.
-
-        If the asset belongs to a source, the path is the source class path plus the asset name.
-        If the asset is standalone, the path is the import path of the asset function.
+        For source-bound assets: ``{source-class-path}:{asset-name}``.
+        For standalone assets: the import path of the decorated function.
         """
         if self.source:
             path = f"{get_object_path(self.source.definition.cls)}:{self.name}"
@@ -232,18 +230,16 @@ class Asset(Serializable[AssetSpec]):
     ) -> Any:
         """Execute the asset and return the result without writing to IO.
 
-        This method handles:
-        - Context and config parameters
-        - Upstream dependencies (loaded from IO via DAG)
-        - Schema validation
+        Resolves context, config, and upstream dependencies (via DAG), then
+        runs the decorated function and applies schema validation.
 
         Args:
-            partition_or_window: Either a Partition or PartitionWindow object
-            dag: DAG for dependency resolution (required for assets with dependencies)
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
+            partition_or_window: Partition or PartitionWindow for this run.
+            dag: DAG for dependency resolution (required if asset has deps).
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
 
         Returns:
-            The execution result
+            The raw execution result.
         """
         # Warn if partition provided for non-partitioned asset
         if self.partitioning is None and partition_or_window is not None:
@@ -330,15 +326,15 @@ class Asset(Serializable[AssetSpec]):
     ) -> Any:
         """Execute the asset and write the result to all configured IOs.
 
-        This method is equivalent to: run + write to IO(s)
+        Equivalent to calling ``run()`` followed by writing to every IO target.
 
         Args:
-            partition_or_window: Either a Partition or PartitionWindow object
-            dag: DAG for dependency resolution (required for assets with dependencies)
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
+            partition_or_window: Partition or PartitionWindow for this run.
+            dag: DAG for dependency resolution (required if asset has deps).
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
 
         Returns:
-            The execution result
+            The execution result, or ``None`` if the asset is not materializable.
         """
         if not self.materializable:
             return None
@@ -354,12 +350,12 @@ class Asset(Serializable[AssetSpec]):
         metadata: dict[str, Any],
         result: Any,
     ) -> None:
-        """Write the result of the asset execution to all configured IO targets.
+        """Write the execution result to all configured IO targets.
 
         Args:
-            partition_or_window: Either a Partition or PartitionWindow object
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
-            result: The execution result
+            partition_or_window: Partition or PartitionWindow for this run.
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
+            result: The value to write.
         """
         if self.io is None:
             return
@@ -406,22 +402,22 @@ class Asset(Serializable[AssetSpec]):
         partition_or_window: Partition | PartitionWindow | None,
         dag: DAG | None,
     ) -> dict[str, Any]:
-        """Build kwargs for asset function including dependencies.
+        """Build kwargs for the asset function.
 
-        Handles:
-        - Context and config parameters
-        - Upstream dependencies (loaded from IO via DAG)
+        Maps function parameters to their values: ``context`` and ``config``
+        are injected directly, all other parameters are treated as upstream
+        dependencies and loaded from IO via the DAG.
 
         Args:
-            context: Context object
-            partition_or_window: Either a Partition or PartitionWindow object
-            dag: DAG for dependency resolution
+            context: Execution context for this run.
+            partition_or_window: Partition or PartitionWindow for this run.
+            dag: DAG for dependency resolution.
 
         Returns:
-            Dictionary of kwargs for the function
+            Keyword arguments to pass to the asset function.
 
         Raises:
-            AssetError: If dependencies cannot be resolved
+            AssetError: If a dependency cannot be resolved or read.
         """
         kwargs: dict[str, Any] = {}
         sig = inspect.signature(self.func)

@@ -1,4 +1,4 @@
-"""Serialization specs for framework entities."""
+"""Base classes for the Spec/Serializable serialization pattern."""
 
 from __future__ import annotations
 
@@ -11,24 +11,33 @@ from interloper.utils.imports import get_object_path
 
 
 class Spec(BaseModel, ABC):
-    """Abstract base class for all serialization specs."""
+    """Pydantic model that captures the state needed to reconstruct a framework object.
+
+    Subclasses store constructor arguments and import paths as plain data,
+    then rebuild the live object via ``reconstruct()``. This makes specs
+    safe to serialize to JSON, send across processes, or persist to a database.
+    """
 
     @abstractmethod
     def reconstruct(self) -> Any:
-        """Reconstruct the object from the spec."""
+        """Reconstruct the live framework object from this spec."""
 
 
 T = TypeVar("T", bound=Spec)
 
 
 class Serializable(ABC, Generic[T]):
-    """Abstract base class for all serializable objects."""
+    """Mixin for framework objects that can produce a Spec of themselves.
+
+    Implementors define ``to_spec()`` to return a ``Spec`` subclass capturing
+    whatever state is needed to later ``reconstruct()`` the object.
+    """
 
     @property
     def path(self) -> str:
-        """The import path or identifier for this object."""
+        """Fully qualified import path for this object's class."""
         return get_object_path(type(self))
 
     @abstractmethod
     def to_spec(self) -> T:
-        """Convert to serializable spec."""
+        """Convert this object into a serializable Spec."""

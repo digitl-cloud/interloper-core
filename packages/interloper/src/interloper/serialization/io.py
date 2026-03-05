@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class IOSpec(Spec):
-    """Serializable IO specification."""
+    """Spec for an IO handler, storing its import path and constructor kwargs."""
 
     path: str
     init: dict[str, Any] = Field(default_factory=dict)

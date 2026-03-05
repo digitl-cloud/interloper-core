@@ -1,4 +1,4 @@
-"""IO context for IO operations."""
+"""Frozen context object passed to every IO read/write call."""
 
 from __future__ import annotations
 
@@ -13,12 +13,16 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class IOContext:
-    """Context information for IO operations.
+    """Immutable context passed to :meth:`IO.read` and :meth:`IO.write`.
+
+    Carries the target asset, optional partition scope, and arbitrary metadata
+    (e.g. ``run_id``, ``backfill_id``) so that IO implementations can resolve
+    the correct storage location without additional parameters.
 
     Attributes:
-        asset: Asset being materialized
-        partition_or_window: Either a Partition or PartitionWindow object
-        metadata: Arbitrary metadata dict (e.g. run_id, backfill_id)
+        asset: Asset being materialized.
+        partition_or_window: Partition scope, or ``None`` for unpartitioned assets.
+        metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
     """
 
     asset: Asset

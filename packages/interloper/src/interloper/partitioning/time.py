@@ -1,4 +1,4 @@
-"""Time-based partitioning configuration."""
+"""Time-based (daily) partitioning."""
 
 from __future__ import annotations
 
@@ -10,15 +10,12 @@ from interloper.partitioning.base import Partition, PartitionConfig, PartitionWi
 
 
 def date_range(start_date: dt.date, end_date: dt.date, reversed: bool = False) -> Generator[dt.date, None, None]:
-    """Generate a range of dates.
+    """Yield each date from *start_date* to *end_date* inclusive.
 
     Args:
-        start_date: The start date of the range.
-        end_date: The end date of the range.
-        reversed: Whether to reverse the range.
-
-    Yields:
-        The dates in the range.
+        start_date: Start of the range.
+        end_date: End of the range.
+        reversed: When True, yield dates from end to start.
     """
     if reversed:
         while end_date >= start_date:
@@ -32,76 +29,55 @@ def date_range(start_date: dt.date, end_date: dt.date, reversed: bool = False) -
 
 @dataclass(frozen=True)
 class TimePartitionConfig(PartitionConfig):
-    """The configuration for a time partition.
-
-    Attributes:
-        start_date: The start date of the partition.
-    """
+    """Partition config with an optional start date bound."""
 
     start_date: dt.date | None = None
 
 
 @dataclass(frozen=True)
 class TimePartition(Partition):
-    """A time-based partition of an asset.
-
-    Attributes:
-        value: The date of the partition.
-    """
+    """A single date-based partition."""
 
     value: dt.date
 
     def __repr__(self) -> str:
-        """Return a string representation of the partition."""
+        """Return ISO-formatted date string."""
         return self.value.isoformat()
 
     @property
     def id(self) -> str:
-        """The unique identifier of the partition."""
+        """ISO-formatted date string."""
         return self.value.isoformat()
 
 
 @dataclass(frozen=True)
 class TimePartitionWindow(PartitionWindow):
-    """A window of time-based partitions.
-
-    Attributes:
-        start: The start date of the window.
-        end: The end date of the window.
-    """
+    """A date-range window that yields daily ``TimePartition`` instances."""
 
     start: dt.date
     end: dt.date
 
     def __iter__(self) -> Iterator[TimePartition]:
-        """Iterate over the partitions in the window.
+        """Iterate over partitions from most recent to oldest.
 
         Yields:
-            The partitions in the window.
+            Each ``TimePartition`` in the window.
         """
         yield from self.iter_partitions()
 
     def __str__(self) -> str:
-        """Return a string representation of the partition window."""
+        """Return ``start:end`` in ISO format."""
         return f"{self.start.isoformat()}:{self.end.isoformat()}"
 
     def __repr__(self) -> str:
-        """Return a string representation of the partition window."""
+        """Return ``start to end`` in ISO format."""
         return f"{self.start.isoformat()} to {self.end.isoformat()}"
 
     def iter_partitions(self) -> Generator[TimePartition, None, None]:
-        """Iterate over the partitions in the window.
-
-        Yields:
-            The partitions in the window.
-        """
+        """Yield partitions from end to start (most recent first)."""
         for date in date_range(self.start, self.end, reversed=True):
             yield TimePartition(date)
 
     def partition_count(self) -> int:
-        """The number of partitions in the window.
-
-        Returns:
-            The number of partitions in the window.
-        """
+        """Return the number of days in the window (inclusive)."""
         return (self.end - self.start).days + 1

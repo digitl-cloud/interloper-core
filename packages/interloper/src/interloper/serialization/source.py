@@ -18,16 +18,20 @@ if TYPE_CHECKING:
 
 
 class SourceSpec(Spec):
-    """Serializable Source specification."""
+    """Spec for a Source, identified by a dotted import path to a SourceDefinition.
+
+    When ``assets`` is provided, only the listed asset names are marked as
+    materializable; all others are set to non-materializable.
+    """
 
     type: Literal["source"] = Field(default="source", init=False, frozen=True)
     path: str
     io: IOSpec | dict[str, IOSpec] | None = None
     config: dict[str, Any] | None = None  # dict to initialize the config Pydantic model
-    assets: list[str] | None = None  # list of asset to mark as materializable (names not keys, for better UX in config)
+    assets: list[str] | None = None  # asset names to mark as materializable
 
     def reconstruct(self) -> Source:
-        """Reconstruct Source from spec."""
+        """Reconstruct a Source from this spec."""
         from interloper.source.base import SourceDefinition
 
         io = self._reconstruct_io(self.io)

@@ -1,4 +1,4 @@
-"""Base runner class."""
+"""Abstract base runner and shared execution logic."""
 
 from __future__ import annotations
 
@@ -38,10 +38,10 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         """Initialize the runner.
 
         Args:
-            fail_fast: Whether to fail fast
-            reraise: Whether to re-raise exceptions (takes precedence over fail_fast)
-            on_event: Optional event handler. If provided, the runner can be used as a context manager
-                to automatically subscribe/unsubscribe to events filtered by run_id.
+            fail_fast: Stop execution after the first asset failure.
+            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
+            on_event: Event callback, filtered by run_id. When provided, the runner
+                can be used as a context manager for automatic subscribe/unsubscribe.
         """
         self._fail_fast: bool = fail_fast
         self._reraise: bool = reraise
@@ -61,31 +61,18 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             subscribe(event_handler)
 
     def __del__(self) -> None:
-        """Clean up the runner."""
+        """Flush pending events and unsubscribe if not using context manager."""
         if self._on_event is not None and not self._subscribed_via_context_manager:
             flush()
             unsubscribe(self._on_event)
 
     def __enter__(self) -> Self:
-        """Enter the context manager.
-
-        The subscription is already active from __init__ if on_event was provided.
-        This method marks that cleanup should happen on exit.
-
-        Returns:
-            The runner instance
-        """
+        """Mark that event cleanup should happen on __exit__ rather than __del__."""
         self._subscribed_via_context_manager = True
         return self
 
     def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Exit the context manager and unsubscribe from events.
-
-        Args:
-            exc_type: Exception type if an exception occurred
-            exc_val: Exception value if an exception occurred
-            exc_tb: Exception traceback if an exception occurred
-        """
+        """Flush pending events and unsubscribe from the event bus."""
         if self._on_event is not None and self._subscribed_via_context_manager:
             # Wait for any pending events to be processed before unsubscribing
             flush()
@@ -94,14 +81,18 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             self._subscribed_via_context_manager = False
 
     def _on_start(self) -> None:
-        """Optional lifecycle hook before a run begins (e.g., create pools)."""
+        """Lifecycle hook called before a run begins (e.g. create pools)."""
 
     def _on_end(self) -> None:
-        """Optional lifecycle hook after a run ends (e.g., shutdown pools)."""
+        """Lifecycle hook called after a run ends (e.g. shutdown pools)."""
 
     @property
     def state(self) -> RunState:
-        """Get the current state of the runner."""
+        """The current run state.
+
+        Raises:
+            RunnerError: If state has not been initialized via ``run()``.
+        """
         if self._state is None:
             raise RunnerError("State not initialized")
         return self._state
@@ -118,15 +109,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         asset: Asset,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> HandleT:
-        """Submit execution of an asset and return a handle for completion tracking.
-
-        Args:
-            asset: The asset to execute
-            partition_or_window: Either a Partition or PartitionWindow object
-
-        Returns:
-            A handle for the asset execution
-        """
+        """Submit an asset for execution and return a handle for completion tracking."""
         raise NotImplementedError
 
     def _execute_asset(
@@ -134,20 +117,10 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         asset: Asset,
         partition_or_window: Partition | PartitionWindow | None = None,
     ) -> Any:
-        """Execute a single asset with full dependency resolution and state tracking.
+        """Execute a single asset with state tracking.
 
-        Delegates to Asset.materialize() which handles:
-        - Context and config parameters
-        - Upstream dependencies (loaded from IO via DAG)
-        - Schema validation
-        - Writing results to all configured IOs
-
-        Args:
-            asset: The asset to execute
-            partition_or_window: Either a Partition or PartitionWindow object
-
-        Returns:
-            The output of the asset function
+        Delegates to ``Asset.materialize()`` for dependency resolution, schema
+        validation, and IO writes. Updates run state on success or failure.
         """
         self.state.mark_asset_running(asset)
 
@@ -183,7 +156,7 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         raise NotImplementedError
 
     def _preflight_validation(self, dag: DAG, partition_or_window: Partition | PartitionWindow | None) -> None:
-        """Preflight check for the run."""
+        """Run preflight validations before execution begins."""
         self._validate_partition_window_support(dag, partition_or_window)
 
     def _validate_partition_window_support(
@@ -191,7 +164,11 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         dag: DAG,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> None:
-        """Validate that all materialized partitioned assets allow windowed runs."""
+        """Validate that all partitioned assets support windowed execution.
+
+        Raises:
+            PartitionError: If any partitioned asset has ``allow_window=False``.
+        """
         if not isinstance(partition_or_window, PartitionWindow):
             return
 
@@ -214,18 +191,12 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
         partition_or_window: Partition | PartitionWindow | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> RunResult:
-        """Materialize the DAG using dynamic scheduling.
-
-        Uses the scheduler to continuously find and execute ready assets
-        until all assets are completed or failed.
+        """Materialize the DAG by dynamically scheduling ready assets until completion.
 
         Args:
-            dag: The DAG to execute
-            partition_or_window: Either a Partition or PartitionWindow object
-            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
-
-        Returns:
-            RunResult
+            dag: The DAG to execute.
+            partition_or_window: Partition or window to scope the run.
+            metadata: Arbitrary metadata (e.g. run_id, backfill_id).
         """
         self._preflight_validation(dag, partition_or_window)
         self._state = RunState(dag, metadata=metadata)

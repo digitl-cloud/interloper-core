@@ -19,7 +19,12 @@ if TYPE_CHECKING:
 
 
 class AssetSpec(Spec):
-    """Serializable Asset specification."""
+    """Spec for a single Asset.
+
+    The ``path`` field supports two formats:
+        - A dotted import path to an ``AssetDefinition``.
+        - A ``"source.path:asset_name"`` pair referencing an asset within a source.
+    """
 
     type: Literal["asset"] = Field(default="asset", init=False, frozen=True)
     path: str
@@ -28,7 +33,7 @@ class AssetSpec(Spec):
     materializable: bool = True
 
     def reconstruct(self) -> Asset:
-        """Reconstruct Asset from spec."""
+        """Reconstruct an Asset from this spec."""
         io = self._reconstruct_io(self.io)
 
         if ":" in self.path:
@@ -53,7 +58,7 @@ class AssetSpec(Spec):
         return None
 
     def _from_asset_def(self, io: IO | dict[str, IO] | None) -> Asset:
-        """Reconstruct asset from AssetDefinition."""
+        """Reconstruct asset from a standalone AssetDefinition."""
         from interloper.assets.base import AssetDefinition
 
         asset_def = import_from_path(self.path, AssetDefinition)
@@ -61,7 +66,7 @@ class AssetSpec(Spec):
         return asset_def(io=io, config=config, materializable=self.materializable)
 
     def _from_source_def(self, io: IO | dict[str, IO] | None) -> Asset:
-        """Reconstruct asset from SourceDefinition."""
+        """Reconstruct asset by extracting it from a SourceDefinition."""
         from interloper.source.base import SourceDefinition
 
         source_path, asset_name = self.path.split(":")

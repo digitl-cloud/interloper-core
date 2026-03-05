@@ -31,7 +31,8 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         """Initialize the DBOS runner.
 
         Args:
-            concurrency: The concurrency of the DBOS queue
+            concurrency: The concurrency of the DBOS queue.
+            on_event: Optional event handler for lifecycle events.
         """
         Runner.__init__(self, fail_fast=False, reraise=True, on_event=on_event)
         DBOSConfiguredInstance.__init__(self, config_name="interloper")

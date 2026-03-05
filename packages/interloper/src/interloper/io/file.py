@@ -1,4 +1,4 @@
-"""File-based IO implementation."""
+"""Filesystem-backed IO using pickle serialization."""
 
 from __future__ import annotations
 
@@ -13,7 +13,12 @@ from interloper.serialization.io import IOSpec
 
 
 class FileIO(IO):
-    """IO implementation for reading and writing to the local filesystem."""
+    """IO that reads and writes pickle files on the local filesystem.
+
+    Data is stored under ``{base_path}/{dataset}/{asset_name}/data.pkl``
+    (or ``{base_path}/{asset_name}/data.pkl`` when no dataset is set).
+    Partitioned assets add a ``{column}={id}`` subdirectory.
+    """
 
     def __init__(self, base_path: str):
         """Initialize FileIO.
@@ -24,16 +29,11 @@ class FileIO(IO):
         self.base_path = base_path
 
     def write(self, context: IOContext, data: Any) -> None:
-        """Write data to a file.
-
-        Creates partition-specific paths if partition is present:
-        {base_path}/{asset_name}/{partition_column}={partition.id}/data.pkl
-
-        If partition_or_window is a PartitionWindow, writes data for each partition individually.
+        """Pickle data to a file, creating partition subdirectories as needed.
 
         Args:
-            context: IO context with asset and partition information
-            data: Data to write
+            context: IO context with asset and partition information.
+            data: Data to write.
         """
         base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
         base_path.mkdir(parents=True, exist_ok=True)
@@ -67,17 +67,16 @@ class FileIO(IO):
                 pickle.dump(data, f)
 
     def read(self, context: IOContext) -> Any:
-        """Read data from a file.
-
-        Reads from partition-specific path if partition is present.
-
-        If partition_or_window is a PartitionWindow, reads and returns data for each partition as a list.
+        """Unpickle data from a file.
 
         Args:
-            context: IO context with asset and partition information
+            context: IO context with asset and partition information.
 
         Returns:
-            The read data (or list of data if reading from a window)
+            The deserialized data, or a list of results for partition windows.
+
+        Raises:
+            FileNotFoundError: If the expected data file does not exist.
         """
         base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
 
@@ -112,11 +111,7 @@ class FileIO(IO):
                 return pickle.load(f)
 
     def to_spec(self) -> IOSpec:
-        """Convert to serializable spec.
-
-        Returns:
-            IOSpec: The serializable spec
-        """
+        """Convert to a serializable spec."""
         return IOSpec(
             path=self.path,
             init={"base_path": self.base_path},

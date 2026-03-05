@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class DAGSpec(Spec):
-    """Serializable DAG specification."""
+    """Spec for a DAG, containing a list of asset and source specs."""
 
     assets: list[AssetSpec | SourceSpec]
 

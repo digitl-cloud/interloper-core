@@ -56,7 +56,8 @@ def asset(
 ) -> AssetDefinition | Callable[[Callable[..., Any]], AssetDefinition]:
     """Decorator to define an asset.
 
-    Can be used with or without parentheses:
+    Can be used with or without parentheses::
+
         @asset
         def my_asset(): ...
 

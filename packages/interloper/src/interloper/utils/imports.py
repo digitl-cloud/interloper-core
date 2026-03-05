@@ -1,4 +1,4 @@
-"""Utility functions for serialization."""
+"""Dynamic import helpers and import-guard decorator."""
 
 import importlib.util
 from collections.abc import Callable
@@ -14,16 +14,20 @@ def import_from_path(path: str) -> Any: ...
 @overload
 def import_from_path(path: str, target_type: type[T]) -> T: ...
 def import_from_path(path: str, target_type: type[T] | None = None) -> Any:
-    """Import an object from a module path.
+    """Import an object from a dotted module path.
 
     Args:
-        path: Dotted path like "module.submodule.ClassName" or "module.function_name"
-        target_type: The type of the object to import. If provided, the object will be validated against this type.
+        path: Dotted path like ``"module.submodule.ClassName"``.
+        target_type: If provided, validates the imported object is an instance
+            of this type.
 
     Returns:
-        The imported object
+        The imported object.
 
-    Examples:
+    Raises:
+        ValueError: If *target_type* is given and the object does not match.
+
+    Example:
         >>> import_from_path("interloper.io.file.FileIO")
         <class 'interloper.io.file.FileIO'>
     """
@@ -39,15 +43,15 @@ def import_from_path(path: str, target_type: type[T] | None = None) -> Any:
 
 
 def get_object_path(obj: Any) -> str:
-    """Get the import path for an object.
+    """Return the dotted import path for a class or function.
 
     Args:
-        obj: A class or function
+        obj: A class or function.
 
     Returns:
-        Dotted path string
+        Dotted path string like ``"module.submodule.ClassName"``.
 
-    Examples:
+    Example:
         >>> from interloper.io.file import FileIO
         >>> get_object_path(FileIO)
         'interloper.io.file.FileIO'
@@ -61,10 +65,18 @@ def get_object_path(obj: Any) -> str:
 
 
 def require_import(import_name: str, error_message: str) -> Callable[[F | C], F | C]:
-    """Decorator to check that a given import is installed, raising ImportError with error_message if not.
+    """Decorator that defers an ``ImportError`` until the decorated object is used.
 
-    Can be used with both functions and classes. For classes, the import check happens when the class
-    is instantiated. For functions, the check happens when the function is called.
+    Works with both classes and functions.  For classes the check runs at
+    instantiation; for functions it runs at call time.
+
+    Args:
+        import_name: Top-level package name to look for (e.g. ``"pandas"``).
+        error_message: Message for the ``ImportError`` raised when the package
+            is missing.
+
+    Returns:
+        A decorator that wraps the target class or function.
     """
 
     def decorator(obj: F | C) -> F | C:

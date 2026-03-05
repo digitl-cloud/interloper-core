@@ -1,4 +1,8 @@
-"""Serialization layer for multiprocessing support."""
+"""Specs for serializing framework objects into portable Pydantic models.
+
+Each Spec can reconstruct the original object from its serialized form,
+enabling cross-process transport and persistent configuration.
+"""
 
 from interloper.serialization.asset import AssetSpec
 from interloper.serialization.backfiller import BackfillerSpec

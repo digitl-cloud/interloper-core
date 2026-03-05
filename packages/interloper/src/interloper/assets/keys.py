@@ -17,6 +17,6 @@ class AssetDefinitionKey(str):
 class AssetInstanceKey(str):
     """Key identifying an asset instance.
 
-    Format: ``{source-name}:{asset-name}`` for source-bound assets,
+    Format: ``{source-instance-key}:{asset-name}`` for source-bound assets,
     or just ``{asset-name}`` for standalone assets.
     """

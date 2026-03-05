@@ -44,7 +44,7 @@ class BackfillState:
 
     @property
     def backfill_id(self) -> str:
-        """The backfill ID."""
+        """Unique identifier for this backfill, auto-generated if not provided in metadata."""
         return self.metadata["backfill_id"]
 
     def _initialize_runs(self) -> None:
@@ -56,49 +56,26 @@ class BackfillState:
             )
 
     def runs_with_status(self, status: ExecutionStatus) -> list[RunExecutionInfo]:
-        """Return all runs with the given execution status.
-
-        Args:
-            status: The desired ExecutionStatus to filter runs.
-
-        Returns:
-            List of RunExecutionInfo objects with the specified status.
-        """
+        """Return all runs matching the given status."""
         return [run for run in self.run_executions.values() if run.status == status]
 
     @property
     def completed_runs(self) -> list[RunExecutionInfo]:
-        """Get all runs that have completed successfully.
-
-        Returns:
-            List of runs that have completed successfully
-        """
+        """All runs that completed successfully."""
         return self.runs_with_status(ExecutionStatus.COMPLETED)
 
     @property
     def failed_runs(self) -> list[RunExecutionInfo]:
-        """Get all runs that have failed.
-
-        Returns:
-            List of runs that have failed
-        """
+        """All runs that failed."""
         return self.runs_with_status(ExecutionStatus.FAILED)
 
     @property
     def elapsed_time(self) -> float | None:
-        """Get the elapsed time of the backfill execution.
-
-        Returns:
-            Elapsed time in seconds
-        """
+        """Elapsed wall-clock time in seconds, or None if not yet finished."""
         return (self.end_time - self.start_time).total_seconds() if self.end_time and self.start_time else None
 
     def is_backfill_complete(self) -> bool:
-        """Check if all runs are completed or failed.
-
-        Returns:
-            True if backfill is complete, False otherwise
-        """
+        """Check if all runs have either completed or failed."""
         return all(
             run.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED) for run in self.run_executions.values()
         )
@@ -132,11 +109,7 @@ class BackfillState:
         return self.run_executions.copy()
 
     def mark_run_running(self, partition_or_window: Partition | PartitionWindow | None) -> None:
-        """Mark a run as currently running.
-
-        Args:
-            partition_or_window: The partition or window to mark as running
-        """
+        """Mark a run as currently running."""
         self.run_executions[partition_or_window].mark_running()
 
     def mark_run_completed(
@@ -144,12 +117,7 @@ class BackfillState:
         partition_or_window: Partition | PartitionWindow | None,
         run_result: RunResult,
     ) -> None:
-        """Mark a run as completed.
-
-        Args:
-            partition_or_window: The partition or window to mark as completed
-            run_result: The result of the run
-        """
+        """Mark a run as completed with its result."""
         self.run_executions[partition_or_window].mark_completed(run_result)
 
     def mark_run_failed(
@@ -158,22 +126,12 @@ class BackfillState:
         error: str,
         run_result: RunResult | None = None,
     ) -> None:
-        """Mark a run as failed.
-
-        Args:
-            partition_or_window: The partition or window to mark as failed
-            error: Error message describing the failure
-            run_result: Optional run result if available
-        """
+        """Mark a run as failed with an error message."""
         self.run_executions[partition_or_window].mark_failed(error, run_result)
 
     def mark_run_cancelled(
         self,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> None:
-        """Mark a run as cancelled.
-
-        Args:
-            partition_or_window: The partition or window to mark as cancelled
-        """
+        """Mark a run as cancelled."""
         self.run_executions[partition_or_window].mark_cancelled()

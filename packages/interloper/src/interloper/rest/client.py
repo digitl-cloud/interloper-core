@@ -1,4 +1,4 @@
-"""This module contains the REST client."""
+"""REST client extending httpx with pagination support."""
 
 from __future__ import annotations
 

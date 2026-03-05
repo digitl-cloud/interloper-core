@@ -32,11 +32,10 @@ class MultiThreadRunner(Runner[Future[Any]]):
         """Initialize the multi-thread runner.
 
         Args:
-            max_workers: Maximum number of worker threads (default 4)
-            fail_fast: Whether to fail fast
-            reraise: Whether to re-raise exceptions (takes precedence over fail_fast)
-            on_event: Optional event handler. If provided, the runner can be used as a context manager
-                to automatically subscribe/unsubscribe to events filtered by run_id.
+            max_workers: Maximum number of worker threads.
+            fail_fast: Stop execution after the first asset failure.
+            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
+            on_event: Event callback, filtered by run_id.
         """
         super().__init__(fail_fast, reraise, on_event)
         self._max_workers = max_workers
@@ -86,7 +85,7 @@ class MultiThreadRunner(Runner[Future[Any]]):
                 pass
 
     def to_spec(self) -> RunnerSpec:
-        """Convert to MultiThreadRunnerSpec spec."""
+        """Serialize to a RunnerSpec."""
         return RunnerSpec(
             path=self.path,
             init={

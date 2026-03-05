@@ -195,6 +195,7 @@ def _fmt_ts(timestamp: dt.datetime | None) -> str:
 
 
 def _fmt_time(seconds: float | None) -> str:
+    """Format elapsed seconds as a human-readable duration."""
     if seconds is None:
         return "-"
     if seconds < 60:
@@ -205,6 +206,7 @@ def _fmt_time(seconds: float | None) -> str:
 
 
 def _fmt_io(asset: AssetState) -> str:
+    """Format IO read/write/error counts for display."""
     parts: list[str] = []
     if asset.io_reads:
         parts.append(f"R:{asset.io_reads}")
@@ -216,6 +218,7 @@ def _fmt_io(asset: AssetState) -> str:
 
 
 def _short_id(value: str | None) -> str:
+    """Truncate long IDs to 8 characters for display."""
     if value is None:
         return ""
     return value[:8] if len(value) > 12 else value
@@ -670,10 +673,12 @@ class RichView:
                 run.assets[key] = AssetState(key=key, name=name, source_name=source_name)
 
     def _find_run(self, run_id: str) -> PartitionRun | None:
+        """Look up a partition run by its run ID."""
         idx = self._run_index.get(run_id)
         return self._partition_runs[idx] if idx is not None else None
 
     def _find_asset(self, metadata: dict[str, Any]) -> AssetState | None:
+        """Look up an asset by event metadata, creating it if absent."""
         run_id = metadata.get("run_id", "?")
         asset_key = AssetInstanceKey(metadata.get("asset_key", "?"))
         run = self._find_run(run_id)
@@ -697,6 +702,7 @@ class RichView:
         return run.assets.get(AssetInstanceKey(metadata.get("asset_key", "?")))
 
     def _active_run(self) -> PartitionRun | None:
+        """Return the currently executing partition run, if any."""
         if self._current_run_idx is not None and self._current_run_idx < len(self._partition_runs):
             return self._partition_runs[self._current_run_idx]
         return None

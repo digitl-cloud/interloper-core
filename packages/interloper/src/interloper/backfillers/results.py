@@ -71,7 +71,7 @@ class BackfillResult:
 
     @property
     def completed_partitions(self) -> list[Partition | PartitionWindow | None]:
-        """List of runs that completed successfully."""
+        """List of partitions that completed successfully."""
         return [partition for partition, run in self.run_executions.items() if run.status == ExecutionStatus.COMPLETED]
 
     @property
@@ -80,11 +80,7 @@ class BackfillResult:
         return [partition for partition, run in self.run_executions.items() if run.status == ExecutionStatus.FAILED]
 
     def __str__(self) -> str:
-        """Human-friendly summary string when printed.
-
-        Example:
-            BackfillResult(range=2025-01-01→2025-01-07, total=7, success=6, failed=1, time=12.45s)
-        """
+        """Human-friendly summary string."""
         parts: list[str] = [
             f"status={self.status.value}",
             f"completed={len(self.completed_partitions)}",

@@ -19,7 +19,7 @@ class Config:
     io: dict[str, IO] = field(default_factory=dict)
 
     def to_spec(self) -> ConfigSpec:
-        """Serialize the config to a JSON string."""
+        """Convert to a serializable ConfigSpec."""
         return ConfigSpec(
             backfiller=self.backfiller.to_spec() if self.backfiller is not None else None,
             runner=self.runner.to_spec() if self.runner is not None else None,

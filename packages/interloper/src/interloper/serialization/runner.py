@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class RunnerSpec(Spec):
-    """A specification for a runner."""
+    """Spec for a Runner, storing its import path and constructor kwargs."""
 
     path: str
     init: dict[str, Any] = Field(default_factory=dict)

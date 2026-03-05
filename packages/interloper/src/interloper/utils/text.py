@@ -1,4 +1,4 @@
-"""Text utilities."""
+"""Text processing utilities for naming, slugifying, and labeling."""
 
 import re
 
@@ -23,11 +23,9 @@ def validate_name(name: str) -> None:
 def slugify(text: str) -> str:
     """Convert text to a URL/key-safe slug.
 
-    - Lowercases the text
-    - Converts camelCase/PascalCase to hyphen-separated
-    - Replaces underscores and spaces with hyphens
-    - Collapses consecutive hyphens
-    - Strips leading/trailing hyphens
+    Lowercases the text, splits camelCase/PascalCase on boundaries,
+    replaces underscores and spaces with hyphens, and collapses
+    consecutive hyphens.
     """
     if not text:
         return ""
@@ -63,8 +61,7 @@ def to_snake_case(text: str) -> str:
     Handles camelCase, PascalCase, hyphens, spaces, acronyms,
     and special characters.
 
-    Examples::
-
+    Example:
         >>> to_snake_case("userName")
         'user_name'
         >>> to_snake_case("XMLParser")

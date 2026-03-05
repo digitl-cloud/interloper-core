@@ -1,4 +1,4 @@
-"""This module contains the paginator classes for the REST client."""
+"""Pagination strategies for the REST client."""
 
 from __future__ import annotations
 
@@ -87,6 +87,19 @@ class PageNumberPaginator(Paginator):
 
 
 def _json_path_extract(data: dict, path: str) -> Any:
+    """Extract a value from a nested dict using a dot-separated path.
+
+    Args:
+        data: The dictionary to extract from.
+        path: Dot-separated key path (e.g. ``"meta.total_pages"``).
+
+    Returns:
+        The value at the given path.
+
+    Raises:
+        ValueError: If the path is empty, malformed, or a key is missing.
+        TypeError: If an intermediate value is not a dict.
+    """
     if not isinstance(path, str) or not path:
         raise ValueError("Path must be a non-empty string.")
 

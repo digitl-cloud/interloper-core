@@ -1,4 +1,4 @@
-"""Memory-based IO implementation."""
+"""In-memory IO backed by a class-level dict, mainly useful for testing."""
 
 from __future__ import annotations
 
@@ -12,22 +12,20 @@ from interloper.serialization.io import IOSpec
 
 
 class MemoryIO(IO):
-    """IO implementation for reading and writing to memory."""
+    """IO that stores data in a class-level dict keyed by ``{dataset}/{name}/{partition}``.
+
+    All instances share a single ``_storage`` dict so data written by one
+    asset is visible to others.  Call :meth:`clear` between test runs.
+    """
 
     _storage: ClassVar[dict[str, Any]] = {}
 
     def write(self, context: IOContext, data: Any) -> None:
-        """Write data to memory.
-
-        Creates memory keys similar to FileIO paths:
-        {dataset}/{asset_name} or {asset_name}
-        If partitioned: {dataset}/{asset_name}/{partition_column}={partition_id}
-
-        If partition_or_window is a PartitionWindow, writes data for each partition individually.
+        """Store data in memory under a path-style key.
 
         Args:
-            context: IO context with asset and partition information
-            data: Data to write
+            context: IO context with asset and partition information.
+            data: Data to store.
         """
         # No partitioning - write directly
         if context.partition_or_window is None:
@@ -49,20 +47,16 @@ class MemoryIO(IO):
             self._storage[key] = data
 
     def read(self, context: IOContext) -> Any:
-        """Read data from memory.
-
-        Reads from memory using the same key structure as write.
-
-        If partition_or_window is a PartitionWindow, reads and returns data for each partition as a list.
+        """Retrieve data from memory.
 
         Args:
-            context: IO context with asset and partition information
+            context: IO context with asset and partition information.
 
         Returns:
-            The read data (or list of data if reading from a window)
+            The stored data, or a list of results for partition windows.
 
         Raises:
-            DataNotFoundError: If no data found for the given context
+            DataNotFoundError: If no data exists for the resolved key.
         """
         # No partitioning - read directly
         if context.partition_or_window is None:
@@ -98,17 +92,7 @@ class MemoryIO(IO):
         partitioning: PartitionConfig | None,
         partition: Partition | None,
     ) -> str:
-        """Build storage key from dataset, asset name, and partition.
-
-        Args:
-            name: The asset name
-            dataset: The dataset name
-            partitioning: The partitioning configuration
-            partition: The partition or None
-
-        Returns:
-            String key for memory storage
-        """
+        """Build a ``/``-joined storage key from the asset identity and partition."""
         parts = []
         if dataset:
             parts.append(dataset)
@@ -120,11 +104,7 @@ class MemoryIO(IO):
         return "/".join(parts)
 
     def to_spec(self) -> IOSpec:
-        """Convert to serializable spec.
-
-        Returns:
-            IOSpec: The serializable spec (storage is global, not instance-specific)
-        """
+        """Convert to a serializable spec."""
         return IOSpec(
             path=self.path,
             init={},

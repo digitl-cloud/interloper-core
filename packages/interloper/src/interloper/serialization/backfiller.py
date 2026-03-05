@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class BackfillerSpec(Spec):
-    """A specification for a backfiller."""
+    """Spec for a Backfiller, storing its import path and constructor kwargs."""
 
     path: str
     init: dict[str, Any] = Field(default_factory=dict)
