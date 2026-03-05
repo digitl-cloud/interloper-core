@@ -53,6 +53,7 @@ from interloper.partitioning import (
 from interloper.rest import HTTPBearerAuth, OAuth2Auth, OAuth2ClientCredentialsAuth, OAuth2RefreshTokenAuth, RESTClient
 from interloper.runners import MultiProcessRunner, MultiThreadRunner, Runner, SerialRunner
 from interloper.runners.results import AssetExecutionInfo, ExecutionStatus, RunResult
+from interloper.schema import AssetSchema
 from interloper.serialization import AssetSpec, BackfillerSpec, ConfigSpec, DAGSpec, IOSpec, RunnerSpec
 from interloper.source import Source, SourceDefinition, source
 from interloper.source.config import Config
@@ -70,6 +71,7 @@ __all__ = [
     "AssetExecutionInfo",
     "AssetInstanceKey",
     "AssetNotFoundError",
+    "AssetSchema",
     "AssetSpec",
     "AuthenticationError",
     "BackfillError",

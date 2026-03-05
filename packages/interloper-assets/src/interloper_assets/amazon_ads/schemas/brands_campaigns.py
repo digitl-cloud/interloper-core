@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class BrandsCampaigns(BaseModel):
+class BrandsCampaigns(AssetSchema):
     """
     The Brands Campaigns report provides insights into the performance of Amazon Ads campaigns focused on brand
     promotion. It includes key metrics such as impressions, clicks, conversions, add-to-cart actions, sales, purchases,

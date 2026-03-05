@@ -2,13 +2,12 @@ import logging
 
 import interloper as il
 import pandas as pd
-from pydantic import BaseModel
 from pydantic_settings import SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
 
-class DemoSchema(BaseModel):
+class DemoSchema(il.AssetSchema):
     hello: str
 
 

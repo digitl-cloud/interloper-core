@@ -1,9 +1,10 @@
 import datetime as dt
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class Campaigns(BaseModel):
+class Campaigns(AssetSchema):
     """
     The Campaigns report provides insights into the performance and financial outcomes of advertising campaigns.
     It includes key metrics such as click rates, conversion rates, revenue from various client activities such as

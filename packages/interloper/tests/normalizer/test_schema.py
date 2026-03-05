@@ -6,7 +6,8 @@ import pytest
 from pydantic import BaseModel
 
 from interloper.errors import SchemaError
-from interloper.normalizer.schema import _resolve_field_type, infer_schema, validate_schema
+from interloper.schema import infer_schema, validate_schema
+from interloper.schema.base import _resolve_field_type
 
 # ---------------------------------------------------------------------------
 # infer_schema

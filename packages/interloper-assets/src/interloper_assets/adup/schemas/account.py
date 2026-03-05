@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class Account(BaseModel):
+class Account(AssetSchema):
     username: str = Field(..., description="The username of the account")
     label: str = Field(..., description="The label of the account")
     type: str = Field(..., description="The type of the account")

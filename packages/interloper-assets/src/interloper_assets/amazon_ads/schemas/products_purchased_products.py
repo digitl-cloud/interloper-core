@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ProductsPurchasedProducts(BaseModel):
+class ProductsPurchasedProducts(AssetSchema):
     """
     The Products Purchased Products report provides information about the performance of advertised products.
     It includes key metrics such as sales, purchases, SKU, and units sold within different time frames.

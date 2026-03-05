@@ -9,6 +9,22 @@ from pydantic import BaseModel, ValidationError, create_model
 from interloper.errors import SchemaError
 
 
+class AssetSchema(BaseModel):
+    """Base class for asset schemas.
+
+    Subclass this to define typed schemas for your assets::
+
+        class UserSchema(AssetSchema):
+            id: int
+            name: str
+            email: str | None = None
+
+        @asset(schema=UserSchema)
+        def users(context):
+            ...
+    """
+
+
 def infer_schema(
     rows: list[dict[str, Any]],
     name: str = "InferredSchema",

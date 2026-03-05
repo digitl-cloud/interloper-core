@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class Profiles(BaseModel):
+class Profiles(AssetSchema):
     profile_id: int = Field(..., description="The Amazon Ads profile ID")
     country_code: str = Field(..., description="The account's country code")
     currency_code: str = Field(..., description="The account's currency code")

@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class DisplayCampaigns(BaseModel):
+class DisplayCampaigns(AssetSchema):
     """
     The Display Campaigns report provides insights into the performance of display advertising campaigns.
     It includes key metrics such as clicks, impressions, purchases, sales, viewability rates, and more.

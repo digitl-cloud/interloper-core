@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class BrandsPlacements(BaseModel):
+class BrandsPlacements(AssetSchema):
     """
     The Brands Placements report provides insights into the performance of Amazon Ads campaigns with a focus on
     different ad placements. It includes key metrics such as clicks, impressions, add-to-cart actions, branded

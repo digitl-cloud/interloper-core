@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class CampaignsByDeviceType(BaseModel):
+class CampaignsByDeviceType(AssetSchema):
     """
     The Campaigns by Device Type report provides insights into campaign performance
     based on the type of device used by users. It includes key metrics such as

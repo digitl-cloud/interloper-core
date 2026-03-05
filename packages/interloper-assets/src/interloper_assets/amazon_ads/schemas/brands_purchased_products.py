@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class BrandsPurchasedProducts(BaseModel):
+class BrandsPurchasedProducts(AssetSchema):
     """
     The Brands Purchased Products report provides insights into the performance of specific products purchased through
     Amazon Ads campaigns. It includes key metrics such as the number of purchases, sales, and units sold in the last

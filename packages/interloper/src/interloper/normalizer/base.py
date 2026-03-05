@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from interloper.errors import NormalizerError
-from interloper.normalizer.schema import infer_schema, reconcile_schema, validate_schema
+from interloper.schema import infer_schema, reconcile_schema, validate_schema
 from interloper.utils.text import to_snake_case
 
 

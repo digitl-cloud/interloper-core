@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ConversionsReport(BaseModel):
+class ConversionsReport(AssetSchema):
     """
     The Conversions report provides insights on conversion events tracked within campaigns.
     It includes key metrics such as the amount of conversions, conversion time, currency, IP geolocation data,

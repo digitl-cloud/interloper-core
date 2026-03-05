@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 from interloper.normalizer.base import Normalizer
-from interloper.normalizer.schema import infer_schema, reconcile_schema, validate_schema
+from interloper.schema import infer_schema, reconcile_schema, validate_schema
 from pydantic import BaseModel
 
 

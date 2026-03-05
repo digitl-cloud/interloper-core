@@ -1,9 +1,10 @@
 import datetime as dt
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class Ads(BaseModel):
+class Ads(AssetSchema):
     account_descriptive_name: str = Field(..., description="The descriptive name of the account")
     account_id: int = Field(..., description="The account ID")
     ad_name: str = Field(..., description="The name of the ad")

@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class BrandsTargeting(BaseModel):
+class BrandsTargeting(AssetSchema):
     """
     The Brands Targeting report provides insights into ad performance based on various targeting criteria.
     It includes key metrics such as clicks, impressions, purchases, and sales, along with dimensions like ad group,

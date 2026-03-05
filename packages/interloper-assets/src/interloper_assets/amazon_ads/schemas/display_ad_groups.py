@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class DisplayAdGroups(BaseModel):
+class DisplayAdGroups(AssetSchema):
     """
     The Display Ad Groups report provides insights into the performance of ad groups within display advertising
     campaigns. It includes key metrics such as clicks, impressions, purchases, sales, and viewability rates.

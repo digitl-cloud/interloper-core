@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from interloper.errors import SchemaError
 from interloper.normalizer.base import Normalizer
-from interloper.normalizer.schema import reconcile_schema
+from interloper.schema import reconcile_schema
 
 # ---------------------------------------------------------------------------
 # Schema helpers

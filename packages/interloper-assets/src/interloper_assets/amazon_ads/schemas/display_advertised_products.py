@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class DisplayAdvertisedProducts(BaseModel):
+class DisplayAdvertisedProducts(AssetSchema):
     """
     The Display Advertised Products report provides insights into the performance of advertised products within
     display ad campaigns. It includes key metrics such as clicks, impressions, purchases, sales, and viewability rates.

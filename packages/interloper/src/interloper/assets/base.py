@@ -498,14 +498,14 @@ class Asset(Serializable[AssetSpec]):
     def _validate_schema(self, data: Any) -> None:
         """Validate data against schema.
 
-        Delegates to :func:`~interloper.normalizer.schema.validate_schema`
+        Delegates to :func:`~interloper.schema.validate_schema`
         when data is ``list[dict]``.
         """
         if self.schema is None:
             return
 
         if isinstance(data, list) and data and isinstance(data[0], dict):
-            from interloper.normalizer.schema import validate_schema
+            from interloper.schema import validate_schema
 
             validate_schema(data, self.schema)
 

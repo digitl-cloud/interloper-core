@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class DisplayTargeting(BaseModel):
+class DisplayTargeting(AssetSchema):
     """
     The Display Targeting report provides insights into the performance of ad campaigns on Amazon Ads based on
     specific targeting criteria. It includes key metrics such as clicks, impressions, and detail page views, along with

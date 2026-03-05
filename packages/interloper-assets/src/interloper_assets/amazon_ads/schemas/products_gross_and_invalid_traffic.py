@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ProductsGrossAndInvalidTraffic(BaseModel):
+class ProductsGrossAndInvalidTraffic(AssetSchema):
     """
     The Products Gross and Invalid Traffic report provides insights into the performance of campaigns by revealing the
     impact of gross and invalid traffic on advertising efforts. It includes key metrics such as clicks, impressions,

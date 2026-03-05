@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ConversionsByTimeOfDay(BaseModel):
+class ConversionsByTimeOfDay(AssetSchema):
     """
     The Conversions by Time of Day report provides insights into conversion patterns based on the day of the week
     and hour of the day. It includes key metrics such as the number of conversions and revenue generated within each

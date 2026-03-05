@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ProductsAdvertisedProducts(BaseModel):
+class ProductsAdvertisedProducts(AssetSchema):
     """
     The Products Advertised Products report provides insights into the performance of advertised products on Amazon Ads.
     It includes key metrics such as clicks, impressions, sales, purchases, and return on ad spend (ROAS),

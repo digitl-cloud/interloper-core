@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ProductsCampaigns(BaseModel):
+class ProductsCampaigns(AssetSchema):
     """
     The Products Campaigns report provides insights into the performance of campaigns for advertised products on
     Amazon Ads. It includes key metrics such as clicks, impressions, sales, purchases, and attributed sales, along with

@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class CampaignsByCity(BaseModel):
+class CampaignsByCity(AssetSchema):
     """
     The Campaigns by City report provides insights into campaign performance segmented by cities.
     It includes key metrics such as conversion rates, the number of conversions, and user demographics

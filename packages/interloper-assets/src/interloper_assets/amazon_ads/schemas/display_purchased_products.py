@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class DisplayPurchasedProducts(BaseModel):
+class DisplayPurchasedProducts(AssetSchema):
     """
     The Display Purchased Products report provides insights into the performance of promoted products within
     ad campaigns on Amazon Ads. It includes key metrics such as conversions, sales, and units sold.

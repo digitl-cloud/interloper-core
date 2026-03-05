@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class ProductsSearchTerms(BaseModel):
+class ProductsSearchTerms(AssetSchema):
     """
     The Products Search Terms report provides insights into the performance of search terms used in advertising
     campaigns. It includes key metrics such as click-through rate, clicks, cost, impressions, sales, purchases,

@@ -1,5 +1,5 @@
 <h1 align="center">Interloper</h1>
-<h3 align="center">A Python framework for building and executing data pipelines</h3>
+<h3 align="center">A lightweight Python framework for building data assets</h3>
 
 <p align="center">
 Define assets as functions, group them in sources, wire dependencies automatically, and materialize them with pluggable IO backends and runners.

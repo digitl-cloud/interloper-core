@@ -1,9 +1,10 @@
 import datetime
 
-from pydantic import BaseModel, Field
+from interloper.schema import AssetSchema
+from pydantic import Field
 
 
-class BrandsSearchTerms(BaseModel):
+class BrandsSearchTerms(AssetSchema):
     """
     The Brands Search Terms report provides insights into the performance of ad campaigns. It includes key metrics such
     as clicks, impressions, purchases, and sales, along with dimensions like ad group, campaign, keyword, and search
