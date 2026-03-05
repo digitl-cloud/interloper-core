@@ -111,7 +111,11 @@ class FileIO(IO):
                 return pickle.load(f)
 
     def to_spec(self) -> IOSpec:
-        """Convert to a serializable spec."""
+        """Convert to a serializable spec.
+
+        Returns:
+            The IOSpec representation of this FileIO.
+        """
         return IOSpec(
             path=self.path,
             init={"base_path": self.base_path},

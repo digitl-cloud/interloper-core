@@ -92,7 +92,11 @@ class MemoryIO(IO):
         partitioning: PartitionConfig | None,
         partition: Partition | None,
     ) -> str:
-        """Build a ``/``-joined storage key from the asset identity and partition."""
+        """Build a ``/``-joined storage key from the asset identity and partition.
+
+        Returns:
+            The constructed storage key string.
+        """
         parts = []
         if dataset:
             parts.append(dataset)
@@ -104,7 +108,11 @@ class MemoryIO(IO):
         return "/".join(parts)
 
     def to_spec(self) -> IOSpec:
-        """Convert to a serializable spec."""
+        """Convert to a serializable spec.
+
+        Returns:
+            The IOSpec representation of this MemoryIO.
+        """
         return IOSpec(
             path=self.path,
             init={},

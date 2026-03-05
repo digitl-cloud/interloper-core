@@ -92,6 +92,7 @@ class TestSourceDefinition:
         source_instance = MySource(config=config)
         assert source_instance.config == config
 
+    @pytest.mark.filterwarnings("ignore:Config provided to source:UserWarning")
     def test_callable_with_asset_config_override(self):
         """Test calling SourceDefinition with config override propagated to assets."""
 
@@ -148,6 +149,7 @@ class TestSourceDefinition:
         ):
             MySource(config=WrongConfig())
 
+    @pytest.mark.filterwarnings("ignore:Config provided to source:UserWarning")
     def test_callable_with_asset_config_override_type_mismatch(self):
         """Test calling SourceDefinition with asset config override type mismatch.
 

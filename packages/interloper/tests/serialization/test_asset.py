@@ -1,4 +1,4 @@
-"""Test AssetSpec serialization and reconstruction."""
+"""Tests for AssetSpec serialization and reconstruction."""
 
 import pytest
 from pydantic import ValidationError
@@ -6,9 +6,21 @@ from pydantic import ValidationError
 import interloper as il
 from interloper.serialization import AssetSpec, IOSpec
 
+# Module-level source for serialization roundtrip tests
+_closed_over_value = "secret_value"
+
+
+@il.source(dataset="closure_source")
+class ClosureTestSource:
+    """Source at module level for serialization tests."""
+
+    @il.asset
+    def my_asset(self, context: il.ExecutionContext) -> str:
+        return f"Asset has access to: {_closed_over_value}"
+
 
 class TestAssetSpec:
-    """Test AssetSpec serialization and reconstruction."""
+    """Tests for AssetSpec serialization and reconstruction."""
 
     def test_assetspec_simple_roundtrip(self):
         """Test AssetSpec roundtrip with simple asset."""
@@ -130,4 +142,27 @@ class TestAssetSpec:
         # Parse from JSON
         parsed = AssetSpec.model_validate_json(json_str)
         assert parsed.path == spec.path
+
+
+class TestSourcedAssetSerialization:
+    """Tests for serializing assets that belong to sources."""
+
+    def test_asset_from_source_serialization(self):
+        """Asset from a source can be serialized."""
+        source_instance = ClosureTestSource()
+        asset_instance = source_instance.assets["my_asset"]
+
+        spec = asset_instance.to_spec()
+        assert ":" in spec.path
+        assert "ClosureTestSource:my_asset" in spec.path
+
+    def test_asset_from_source_reconstruction(self):
+        """Reconstructed sourced asset preserves closure."""
+        source_instance = ClosureTestSource()
+        asset_instance = source_instance.assets["my_asset"]
+
+        spec = asset_instance.to_spec()
+        reconstructed = spec.reconstruct()
+        result = reconstructed.run()
+        assert result == "Asset has access to: secret_value"
 

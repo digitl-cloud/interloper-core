@@ -60,7 +60,11 @@ class AssetExecutionInfo:
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            A dict representation of this execution info.
+        """
         return {
             "asset_key": self.asset_key,
             "status": self.status.value,
@@ -93,6 +97,9 @@ class RunResult:
 
     def __str__(self) -> str:
         """Human-friendly summary string when printed.
+
+        Returns:
+            A formatted summary of this run result.
 
         Example:
             RunResult(status=completed, partition=2025-01-01, executed=5, failed=0, time=2.34s)

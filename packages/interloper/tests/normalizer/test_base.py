@@ -3,6 +3,7 @@
 import pytest
 from pydantic import BaseModel
 
+import interloper as il
 from interloper.errors import NormalizerError, SchemaError
 from interloper.normalizer.base import Normalizer
 
@@ -258,3 +259,154 @@ class TestValidateSchema:
         n = Normalizer()
         with pytest.raises(SchemaError, match="Schema validation failed"):
             n.validate_schema([{"name": 123}], StrictSchema)
+
+
+# ---------------------------------------------------------------------------
+# Reconcile
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizerReconcile:
+    """Tests for Normalizer.reconcile() method delegation."""
+
+    def test_reconcile_delegates(self):
+        """reconcile() delegates to reconcile_schema()."""
+        class IntSchema(BaseModel):
+            v: int
+
+        n = Normalizer()
+        result = n.reconcile([{"v": "42"}], IntSchema)
+        assert result == [{"v": 42}]
+
+    def test_reconcile_drops_extras(self):
+        """reconcile() drops extra columns."""
+        n = Normalizer()
+
+        class NameOnly(BaseModel):
+            name: str
+
+        result = n.reconcile([{"name": "alice", "extra": "drop"}], NameOnly)
+        assert result == [{"name": "alice"}]
+
+
+# ---------------------------------------------------------------------------
+# Asset + normalizer integration
+# ---------------------------------------------------------------------------
+
+
+class TestAssetWithNormalizer:
+    """Tests for assets decorated with a normalizer."""
+
+    def test_run_applies_normalizer(self):
+        """Asset.run() applies normalizer transformations."""
+        @il.asset(normalizer=Normalizer(infer=False))
+        def my_asset():
+            return [{"UserName": "alice"}, {"UserAge": 30}]
+
+        result = my_asset().run()
+        assert result == [
+            {"user_name": "alice", "user_age": None},
+            {"user_name": None, "user_age": 30},
+        ]
+
+    def test_run_without_normalizer_unchanged(self):
+        """Asset without normalizer returns raw data."""
+        @il.asset
+        def my_asset():
+            return [{"UserName": "alice"}]
+
+        assert my_asset().run() == [{"UserName": "alice"}]
+
+    def test_normalizer_infers_schema(self):
+        """Normalizer infers and assigns schema after run."""
+        @il.asset(normalizer=Normalizer())
+        def my_asset():
+            return [{"name": "alice", "age": 30}]
+
+        asset = my_asset()
+        assert asset.schema is None
+        asset.run()
+        assert asset.schema is not None
+        assert issubclass(asset.schema, BaseModel)
+
+    def test_normalizer_validates_provided_schema(self):
+        """Provided schema is validated during run."""
+        class Schema(BaseModel):
+            name: str
+            age: int | None = None
+
+        @il.asset(schema=Schema, normalizer=Normalizer(normalize_columns=False, fill_missing=False, infer=False))
+        def my_asset():
+            return [{"name": "alice", "age": 30}]
+
+        asset = my_asset()
+        result = asset.run()
+        assert result == [{"name": "alice", "age": 30}]
+        assert asset.schema is Schema
+
+    def test_normalizer_with_flatten(self):
+        """Normalizer flattens nested dicts."""
+        @il.asset(normalizer=Normalizer(flatten_max_level=None, infer=False))
+        def my_asset():
+            return [{"user": {"name": "alice", "age": 30}}]
+
+        assert my_asset().run() == [{"user_name": "alice", "user_age": 30}]
+
+    def test_materialize_applies_normalizer(self):
+        """Asset.materialize() applies normalizer."""
+        @il.asset(normalizer=Normalizer(infer=False), io=il.MemoryIO())
+        def my_asset():
+            return [{"UserName": "alice"}]
+
+        assert my_asset().materialize() == [{"user_name": "alice"}]
+
+    def test_infer_disabled_no_schema(self):
+        """infer=False prevents schema inference."""
+        @il.asset(normalizer=Normalizer(infer=False))
+        def my_asset():
+            return [{"a": 1}]
+
+        asset = my_asset()
+        asset.run()
+        assert asset.schema is None
+
+
+# ---------------------------------------------------------------------------
+# Source-level normalizer
+# ---------------------------------------------------------------------------
+
+
+class TestSourceNormalizer:
+    """Tests for source-level normalizer inheritance."""
+
+    def test_source_normalizer_applied_to_assets(self):
+        """Source-level normalizer is applied to all assets."""
+        @il.source(normalizer=Normalizer(infer=False))
+        class MySource:
+            @il.asset
+            def my_asset(self):
+                return [{"UserName": "alice"}]
+
+        assert MySource().my_asset.run() == [{"user_name": "alice"}]
+
+    def test_asset_normalizer_overrides_source(self):
+        """Asset-level normalizer overrides source-level."""
+        asset_normalizer = Normalizer(normalize_columns=False, fill_missing=False, infer=False)
+
+        @il.source(normalizer=Normalizer(infer=False))
+        class MySource:
+            @il.asset(normalizer=asset_normalizer)
+            def my_asset(self):
+                return [{"UserName": "alice"}]
+
+        assert MySource().my_asset.run() == [{"UserName": "alice"}]
+
+    def test_source_without_normalizer(self):
+        """Source without normalizer returns raw data."""
+        @il.source
+        class MySource:
+            @il.asset
+            def my_asset(self):
+                return [{"UserName": "alice"}]
+
+        assert MySource().my_asset.run() == [{"UserName": "alice"}]

@@ -20,6 +20,10 @@ class RunnerSpec(Spec):
     init: dict[str, Any] = Field(default_factory=dict)
 
     def reconstruct(self) -> Runner:
-        """Reconstruct the runner from the spec."""
+        """Reconstruct the runner from the spec.
+
+        Returns:
+            The reconstructed Runner instance.
+        """
         return import_from_path(self.path)(**self.init)
 

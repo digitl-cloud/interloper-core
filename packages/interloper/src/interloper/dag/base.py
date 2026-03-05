@@ -43,6 +43,10 @@ class DAG(Serializable):
         Accepts runtime instances (`Asset`, `Source`) as well as definitions
         (`AssetDefinition`, `SourceDefinition`). Definitions are instantiated
         with best-effort config inference (env-based) when available.
+
+        Raises:
+            DAGError: If the input is empty, contains duplicates, or has invalid types.
+            DependencyNotFoundError: If a dependency is not found in the DAG.
         """
         if not assets_or_sources:
             raise DAGError("DAG must contain at least one asset or source")
@@ -111,7 +115,14 @@ class DAG(Serializable):
                     )
 
     def _resolve_source_alias_key(self, source_name: str, param_name: str) -> AssetInstanceKey | None:
-        """Resolve a dependency by matching a renamed asset within the same source."""
+        """Resolve a dependency by matching a renamed asset within the same source.
+
+        Returns:
+            The matching asset key, or None if no match is found.
+
+        Raises:
+            DependencyNotFoundError: If multiple renamed assets match ambiguously.
+        """
         matches: list[AssetInstanceKey] = []
         for asset in self.assets:
             if not asset.source or asset.source.name != source_name:
@@ -136,6 +147,9 @@ class DAG(Serializable):
         - Explicit mapping via asset.deps
         - Same-source implicit mapping (param -> source.asset), including renamed assets
         - Standalone implicit mapping (param -> param)
+
+        Returns:
+            The resolved asset instance key for the dependency.
         """
         if param_name in asset.deps:
             return AssetInstanceKey(asset.deps[param_name])
@@ -169,7 +183,11 @@ class DAG(Serializable):
         self._check_requires_constraints()
 
     def _check_partition_dependencies(self) -> None:
-        """Check that no non-partitioned asset depends on a partitioned asset."""
+        """Check that no non-partitioned asset depends on a partitioned asset.
+
+        Raises:
+            DAGError: If a non-partitioned asset depends on a partitioned asset.
+        """
         for asset_key, preds in self.predecessors.items():
             asset = self.asset_map[asset_key]
             for pred_key in preds:
@@ -181,7 +199,11 @@ class DAG(Serializable):
                     )
 
     def _check_requires_constraints(self) -> None:
-        """Check that resolved upstream assets match declared requires definitions."""
+        """Check that resolved upstream assets match declared requires definitions.
+
+        Raises:
+            DAGError: If a resolved upstream definition does not match the declared requirement.
+        """
         for asset_key, preds in self.predecessors.items():
             asset = self.asset_map[asset_key]
             requires = asset.definition.requires
@@ -201,7 +223,11 @@ class DAG(Serializable):
                         )
 
     def _check_circular_dependencies(self) -> None:
-        """Check for circular dependencies using DFS."""
+        """Check for circular dependencies using DFS.
+
+        Raises:
+            CircularDependencyError: If a cycle is detected in the dependency graph.
+        """
         visited = set()
         stack = set()
 
@@ -229,6 +255,12 @@ class DAG(Serializable):
         Each inner list contains assets that can be executed in parallel
         (no dependencies between them). Lists are ordered so that all
         dependencies of a level appear in previous levels.
+
+        Returns:
+            A list of asset groups ordered by dependency level.
+
+        Raises:
+            CircularDependencyError: If a cycle is detected in the DAG.
         """
         # Kahn's algorithm adapted to produce levels
         in_degree = {key: len(preds) for key, preds in self.predecessors.items()}
@@ -264,7 +296,11 @@ class DAG(Serializable):
         self,
         partition_or_window: Partition | PartitionWindow | None = None,
     ) -> RunResult:
-        """Execute all assets in dependency order using a default ``MultiThreadRunner``."""
+        """Execute all assets in dependency order using a default ``MultiThreadRunner``.
+
+        Returns:
+            The result of the DAG execution.
+        """
         from interloper.runners.multi_thread import MultiThreadRunner
 
         runner = MultiThreadRunner()
@@ -295,6 +331,12 @@ class DAG(Serializable):
 
         Parents are included but marked as non-materializable so only the
         target asset is actually executed.
+
+        Returns:
+            A new DAG containing only the target asset and its parents.
+
+        Raises:
+            AssetNotFoundError: If the asset key is not in the DAG.
         """
         if asset_key not in self.asset_map:
             raise AssetNotFoundError(f"Asset '{asset_key}' not found in DAG")
@@ -310,11 +352,19 @@ class DAG(Serializable):
         return DAG(*assets)
 
     def copy(self) -> "DAG":
-        """Clone the DAG."""
+        """Clone the DAG.
+
+        Returns:
+            A new DAG with the same assets.
+        """
         return DAG(*self.assets)
 
     def to_spec(self) -> DAGSpec:
-        """Convert to serializable spec."""
+        """Convert to serializable spec.
+
+        Returns:
+            The DAG as a serializable DAGSpec.
+        """
         return DAGSpec(assets=[asset.to_spec() for asset in self.assets])
 
     @classmethod

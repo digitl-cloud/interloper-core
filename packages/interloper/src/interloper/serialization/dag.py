@@ -18,7 +18,11 @@ class DAGSpec(Spec):
     assets: list[AssetSpec | SourceSpec]
 
     def reconstruct(self) -> DAG:
-        """Reconstruct DAG from spec."""
+        """Reconstruct DAG from spec.
+
+        Returns:
+            The reconstructed DAG instance.
+        """
         from interloper.dag.base import DAG
 
         assets = [spec.reconstruct() for spec in self.assets]

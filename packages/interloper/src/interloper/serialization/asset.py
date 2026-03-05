@@ -33,7 +33,11 @@ class AssetSpec(Spec):
     materializable: bool = True
 
     def reconstruct(self) -> Asset:
-        """Reconstruct an Asset from this spec."""
+        """Reconstruct an Asset from this spec.
+
+        Returns:
+            The reconstructed Asset instance.
+        """
         io = self._reconstruct_io(self.io)
 
         if ":" in self.path:
@@ -58,7 +62,11 @@ class AssetSpec(Spec):
         return None
 
     def _from_asset_def(self, io: IO | dict[str, IO] | None) -> Asset:
-        """Reconstruct asset from a standalone AssetDefinition."""
+        """Reconstruct asset from a standalone AssetDefinition.
+
+        Returns:
+            The reconstructed Asset.
+        """
         from interloper.assets.base import AssetDefinition
 
         asset_def = import_from_path(self.path, AssetDefinition)
@@ -66,7 +74,14 @@ class AssetSpec(Spec):
         return asset_def(io=io, config=config, materializable=self.materializable)
 
     def _from_source_def(self, io: IO | dict[str, IO] | None) -> Asset:
-        """Reconstruct asset by extracting it from a SourceDefinition."""
+        """Reconstruct asset by extracting it from a SourceDefinition.
+
+        Returns:
+            The reconstructed Asset.
+
+        Raises:
+            AssetError: If the named asset is not found in the source.
+        """
         from interloper.source.base import SourceDefinition
 
         source_path, asset_name = self.path.split(":")

@@ -72,7 +72,11 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             unsubscribe(self._on_event)
 
     def __enter__(self) -> Self:
-        """Mark that event cleanup should happen in ``__exit__`` instead of ``__del__``."""
+        """Mark that event cleanup should happen in ``__exit__`` instead of ``__del__``.
+
+        Returns:
+            The backfiller instance.
+        """
         self._subscribed_via_context_manager = True
         return self
 
@@ -92,7 +96,11 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
 
     @property
     def state(self) -> BackfillState:
-        """Get the current state of the backfiller."""
+        """Get the current state of the backfiller.
+
+        Raises:
+            BackfillError: If state has not been initialized.
+        """
         if self._state is None:
             raise BackfillError("State not initialized")
         return self._state
@@ -131,6 +139,9 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
         marked as failed so the backfill loop can continue to the next
         partition.  When ``fail_fast`` is True, the exception propagates
         and terminates the backfill.
+
+        Returns:
+            The result of the partition run.
         """
         try:
             self.state.mark_run_running(partition_or_window)
@@ -171,6 +182,13 @@ class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
             partition_or_window: A single partition, a window of partitions, or None.
             windowed: If True, treat the entire window as a single run.
             metadata: Arbitrary metadata forwarded to the backfill state.
+
+        Returns:
+            The result of the backfill execution.
+
+        Raises:
+            BackfillError: If an unexpected backfill state is encountered.
+            PartitionError: If windowed mode is used without a PartitionWindow.
         """
         if windowed and not isinstance(partition_or_window, PartitionWindow):
             raise PartitionError("Windowed mode is only supported for windowed partitioning")

@@ -67,7 +67,11 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             unsubscribe(self._on_event)
 
     def __enter__(self) -> Self:
-        """Mark that event cleanup should happen on __exit__ rather than __del__."""
+        """Mark that event cleanup should happen on __exit__ rather than __del__.
+
+        Returns:
+            This runner instance for use in a ``with`` block.
+        """
         self._subscribed_via_context_manager = True
         return self
 
@@ -121,6 +125,9 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
 
         Delegates to ``Asset.materialize()`` for dependency resolution, schema
         validation, and IO writes. Updates run state on success or failure.
+
+        Returns:
+            The materialization result, or None if the asset failed and reraise is False.
         """
         self.state.mark_asset_running(asset)
 
@@ -197,6 +204,12 @@ class Runner(Serializable[RunnerSpec], Generic[HandleT]):
             dag: The DAG to execute.
             partition_or_window: Partition or window to scope the run.
             metadata: Arbitrary metadata (e.g. run_id, backfill_id).
+
+        Returns:
+            A RunResult summarizing the execution outcome.
+
+        Raises:
+            RunnerError: If a deadlock or invalid DAG state is detected.
         """
         self._preflight_validation(dag, partition_or_window)
         self._state = RunState(dag, metadata=metadata)

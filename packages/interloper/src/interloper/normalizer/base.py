@@ -144,6 +144,12 @@ class Normalizer:
 
         Supported types: ``dict``, ``list[dict]``, ``BaseModel``,
         ``list[BaseModel]``, ``Generator`` / ``Iterator``, ``None``.
+
+        Returns:
+            The coerced list of row dicts.
+
+        Raises:
+            NormalizerError: If the data type is unsupported.
         """
         if data is None:
             return []
@@ -188,7 +194,11 @@ class Normalizer:
         parent_key: str = "",
         level: int = 0,
     ) -> dict[str, Any]:
-        """Flatten nested dicts using separator-joined keys."""
+        """Flatten nested dicts using separator-joined keys.
+
+        Returns:
+            A flat dict with separator-joined keys.
+        """
         items: list[tuple[str, Any]] = []
         for k, v in d.items():
             new_key = f"{parent_key}{self.flatten_separator}{k}" if parent_key else k
@@ -200,7 +210,11 @@ class Normalizer:
 
     @staticmethod
     def _fill_missing_keys(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Ensure every row has the same set of keys, filling gaps with ``None``."""
+        """Ensure every row has the same set of keys, filling gaps with ``None``.
+
+        Returns:
+            Rows with a uniform set of keys.
+        """
         if not rows:
             return rows
 

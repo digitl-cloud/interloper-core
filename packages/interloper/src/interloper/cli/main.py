@@ -23,6 +23,9 @@ from interloper.utils.imports import require_import
 def _load_script(path: str) -> DAG:
     """Load and return the single DAG defined in a Python script.
 
+    Returns:
+        The DAG defined in the script.
+
     Raises:
         ScriptLoadError: If the file is missing, unloadable, or does not
             contain exactly one DAG.
@@ -57,7 +60,11 @@ def _load_script(path: str) -> DAG:
 
 @require_import("yaml", "`pyyaml` package not found (please install interloper's `cli` extra)")
 def _config_from_yaml(path: str) -> Config:
-    """Load the config from a YAML file."""
+    """Load the config from a YAML file.
+
+    Returns:
+        The parsed Config.
+    """
     import yaml
 
     with open(path) as f:
@@ -66,7 +73,11 @@ def _config_from_yaml(path: str) -> Config:
 
 
 def _config_from_json(path: str) -> Config:
-    """Load the config from a JSON file."""
+    """Load the config from a JSON file.
+
+    Returns:
+        The parsed Config.
+    """
     with open(path) as f:
         spec = ConfigSpec.model_validate(json.load(f))
         return spec.reconstruct()
@@ -76,18 +87,25 @@ def _config_from_inline_json(json_data: str) -> Config:
     """Load a config from a JSON string.
 
     Useful for containerized workflows.
-    
+
     Example:
     ```bash
     interloper run --format inline --date 2025-01-01 \
-        '{"backfiller": {"type": "in_process"}, "io": {"file": {"path": "interloper.FileIO", "init": {"base_path": "data"}}}, "dag": {"assets": [{"type": "source", "path": "interloper_assets.adservice"}]}}' 
+        '{"backfiller": {"type": "in_process"}, "io": {"file": {"path": "interloper.FileIO", "init": {"base_path": "data"}}}, "dag": {"assets": [{"type": "source", "path": "interloper_assets.adservice"}]}}'
     ```
+
+    Returns:
+        The parsed Config.
     """  # noqa: E501
     return Config.from_dict(json.loads(json_data))
 
 
 def _config_from_script(path: str) -> Config:
-    """Load a Config from a Python script containing a DAG."""
+    """Load a Config from a Python script containing a DAG.
+
+    Returns:
+        The Config built from the script's DAG.
+    """
     return Config(
         backfiller=SerialBackfiller(),
         dag=_load_script(path),
@@ -95,7 +113,14 @@ def _config_from_script(path: str) -> Config:
 
 
 def _config_from_args(args: argparse.Namespace) -> Config:
-    """Build a Config from parsed CLI arguments."""
+    """Build a Config from parsed CLI arguments.
+
+    Returns:
+        The Config corresponding to the chosen format.
+
+    Raises:
+        ScriptLoadError: If the format is invalid.
+    """
     if args.format == "script":
         return _config_from_script(args.file)
     elif args.format == "inline":
@@ -109,7 +134,11 @@ def _config_from_args(args: argparse.Namespace) -> Config:
 
 
 def _partition_or_window_from_args(args: argparse.Namespace) -> TimePartition | TimePartitionWindow | None:
-    """Extract the partition or window from parsed CLI arguments."""
+    """Extract the partition or window from parsed CLI arguments.
+
+    Returns:
+        The partition, window, or None if no date arguments are set.
+    """
     if args.date is not None:
         return TimePartition(args.date)
     elif args.start_date is not None and args.end_date is not None:

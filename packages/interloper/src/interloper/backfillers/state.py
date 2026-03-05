@@ -75,7 +75,11 @@ class BackfillState:
         return (self.end_time - self.start_time).total_seconds() if self.end_time and self.start_time else None
 
     def is_backfill_complete(self) -> bool:
-        """Check if all runs have either completed or failed."""
+        """Check if all runs have either completed or failed.
+
+        Returns:
+            True if every run has completed or failed.
+        """
         return all(
             run.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED) for run in self.run_executions.values()
         )

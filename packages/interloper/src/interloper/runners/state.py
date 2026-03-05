@@ -111,7 +111,11 @@ class RunState:
         return [asset for asset in self.dag.assets if self.asset_executions[asset.instance_key].status == status]
 
     def is_run_complete(self) -> bool:
-        """True if every asset has reached a terminal state (completed, failed, or skipped)."""
+        """Check whether every asset has reached a terminal state.
+
+        Returns:
+            True if all assets are completed, failed, or skipped.
+        """
         return all(
             exec_info.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.SKIPPED)
             for exec_info in self.asset_executions.values()
@@ -130,7 +134,11 @@ class RunState:
         emit(EventType.RUN_STARTED, metadata=metadata)
 
     def end_run(self, status: ExecutionStatus, error: str | None = None) -> dict[AssetInstanceKey, AssetExecutionInfo]:
-        """Record the run end time, emit a terminal event, and return asset executions."""
+        """Record the run end time, emit a terminal event, and return asset executions.
+
+        Returns:
+            A copy of the asset execution info dictionary.
+        """
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
         event_type = EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED

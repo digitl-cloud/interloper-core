@@ -131,7 +131,11 @@ _EVENT_TYPE_WIDTH = 22
 
 
 def _status_text(asset: AssetState) -> Text:
-    """Render the status label, with phase detail when running."""
+    """Render the status label, with phase detail when running.
+
+    Returns:
+        A styled Text object with the status label.
+    """
     if asset.status == Status.RUNNING and asset.phase in _PHASE_LABEL:
         label, style = _PHASE_LABEL[asset.phase]
     else:
@@ -149,6 +153,9 @@ def _render_ops(asset: AssetState) -> Text:
       magenta = writing in progress
       green   = completed
       red     = this is where the failure occurred
+
+    Returns:
+        A styled Text object representing the operation pipeline.
     """
     ops = Text()
     is_failed = asset.status == Status.FAILED
@@ -187,7 +194,11 @@ def _render_ops(asset: AssetState) -> Text:
 
 
 def _fmt_ts(timestamp: dt.datetime | None) -> str:
-    """Format a timestamp as HH:MM:SS.mmm for log lines."""
+    """Format a timestamp as HH:MM:SS.mmm for log lines.
+
+    Returns:
+        The formatted timestamp string.
+    """
     if timestamp is None:
         return "        "
     local = timestamp.astimezone()
@@ -195,7 +206,11 @@ def _fmt_ts(timestamp: dt.datetime | None) -> str:
 
 
 def _fmt_time(seconds: float | None) -> str:
-    """Format elapsed seconds as a human-readable duration."""
+    """Format elapsed seconds as a human-readable duration.
+
+    Returns:
+        The formatted duration string.
+    """
     if seconds is None:
         return "-"
     if seconds < 60:
@@ -206,7 +221,11 @@ def _fmt_time(seconds: float | None) -> str:
 
 
 def _fmt_io(asset: AssetState) -> str:
-    """Format IO read/write/error counts for display."""
+    """Format IO read/write/error counts for display.
+
+    Returns:
+        The formatted IO counts string.
+    """
     parts: list[str] = []
     if asset.io_reads:
         parts.append(f"R:{asset.io_reads}")
@@ -218,14 +237,22 @@ def _fmt_io(asset: AssetState) -> str:
 
 
 def _short_id(value: str | None) -> str:
-    """Truncate long IDs to 8 characters for display."""
+    """Truncate long IDs to 8 characters for display.
+
+    Returns:
+        The truncated ID string.
+    """
     if value is None:
         return ""
     return value[:8] if len(value) > 12 else value
 
 
 def _fit_column(value: str, width: int) -> str:
-    """Pad or truncate values to keep log columns aligned."""
+    """Pad or truncate values to keep log columns aligned.
+
+    Returns:
+        The padded or truncated string.
+    """
     if len(value) <= width:
         return value.ljust(width)
     if width <= 1:
@@ -234,7 +261,11 @@ def _fit_column(value: str, width: int) -> str:
 
 
 def _event_type_style(event_type: str) -> str:
-    """Color event type by lifecycle outcome."""
+    """Color event type by lifecycle outcome.
+
+    Returns:
+        The Rich style string for the event type.
+    """
     if event_type.endswith("_FAILED"):
         return "bold red"
     if event_type.endswith("_COMPLETED"):
@@ -245,7 +276,11 @@ def _event_type_style(event_type: str) -> str:
 
 
 def _progress_bar(done: int, total: int) -> Table:
-    """Build a progress bar with count label for display inside a panel."""
+    """Build a progress bar with count label for display inside a panel.
+
+    Returns:
+        A Table containing the progress bar and count label.
+    """
     table = Table(show_header=False, box=None, pad_edge=False, expand=True)
     table.add_column("Bar", ratio=1)
     table.add_column("Count", no_wrap=True, justify="right", style="bold")
@@ -644,7 +679,11 @@ class RichView:
         partition_label: str | None,
         timestamp: dt.datetime | None,
     ) -> PartitionRun:
-        """Find an existing pre-populated run by label, or create a new one."""
+        """Find an existing pre-populated run by label, or create a new one.
+
+        Returns:
+            The matched or newly created PartitionRun.
+        """
         for idx, run in enumerate(self._partition_runs):
             if run.run_id is None and run.label == partition_label:
                 run.run_id = run_id
@@ -673,12 +712,20 @@ class RichView:
                 run.assets[key] = AssetState(key=key, name=name, source_name=source_name)
 
     def _find_run(self, run_id: str) -> PartitionRun | None:
-        """Look up a partition run by its run ID."""
+        """Look up a partition run by its run ID.
+
+        Returns:
+            The matching PartitionRun, or None if not found.
+        """
         idx = self._run_index.get(run_id)
         return self._partition_runs[idx] if idx is not None else None
 
     def _find_asset(self, metadata: dict[str, Any]) -> AssetState | None:
-        """Look up an asset by event metadata, creating it if absent."""
+        """Look up an asset by event metadata, creating it if absent.
+
+        Returns:
+            The matching AssetState, or None if the run is not found.
+        """
         run_id = metadata.get("run_id", "?")
         asset_key = AssetInstanceKey(metadata.get("asset_key", "?"))
         run = self._find_run(run_id)
@@ -695,7 +742,11 @@ class RichView:
         return asset
 
     def _find_asset_readonly(self, metadata: dict[str, Any]) -> AssetState | None:
-        """Look up an asset without creating it. Used for logging after state update."""
+        """Look up an asset without creating it. Used for logging after state update.
+
+        Returns:
+            The matching AssetState, or None if not found.
+        """
         run = self._find_run(metadata.get("run_id", "?"))
         if run is None:
             return None
@@ -712,7 +763,11 @@ class RichView:
     # ------------------------------------------------------------------
 
     def _render_run_view(self) -> RenderableType:
-        """Render the run view as a panel with a progress bar inside."""
+        """Render the run view as a panel with a progress bar inside.
+
+        Returns:
+            The renderable panel for the current run.
+        """
         run = self._active_run()
         if run is None:
             return Text("Starting...", style="dim")
@@ -730,7 +785,11 @@ class RichView:
         )
 
     def _run_title(self, run: PartitionRun) -> Text:
-        """Build a descriptive panel title for run mode."""
+        """Build a descriptive panel title for run mode.
+
+        Returns:
+            A styled Text object for the panel title.
+        """
         title = Text()
         title.append("Run", style="bold")
         title.append(f" {_short_id(run.run_id)}", style="dim")
@@ -742,7 +801,11 @@ class RichView:
         return title
 
     def _build_run_trees(self, run: PartitionRun) -> list[Tree]:
-        """Build source trees with per-asset status lines for a single run."""
+        """Build source trees with per-asset status lines for a single run.
+
+        Returns:
+            A list of Tree objects grouped by source.
+        """
         trees: list[Tree] = []
         current_source: str | None = None
         current_tree: Tree | None = None
@@ -766,7 +829,11 @@ class RichView:
         return trees
 
     def _render_run_asset_line(self, asset: AssetState) -> Table:
-        """Render a single asset line: name, spinner, ops, status, time, IO."""
+        """Render a single asset line: name, spinner, ops, status, time, IO.
+
+        Returns:
+            A Table representing the asset's status row.
+        """
         table = Table(show_header=False, box=None, show_lines=False, pad_edge=False, expand=False)
         table.add_column("Name", min_width=self._max_name_len)
         table.add_column("Spinner", min_width=2)
@@ -789,7 +856,11 @@ class RichView:
     # ------------------------------------------------------------------
 
     def _render_backfill_view(self) -> RenderableType:
-        """Render the backfill view as a panel with a progress bar inside."""
+        """Render the backfill view as a panel with a progress bar inside.
+
+        Returns:
+            The renderable panel for the backfill view.
+        """
         done = sum(1 for r in self._partition_runs if r.status in (Status.DONE, Status.FAILED))
         total = len(self._partition_runs) or 1
 
@@ -802,7 +873,11 @@ class RichView:
         )
 
     def _backfill_title(self) -> Text:
-        """Build a descriptive panel title for backfill mode."""
+        """Build a descriptive panel title for backfill mode.
+
+        Returns:
+            A styled Text object for the backfill panel title.
+        """
         title = Text()
         title.append("Backfill", style="bold")
         title.append(f" {_short_id(self._backfill_id)}", style="dim")
@@ -822,7 +897,11 @@ class RichView:
         return title
 
     def _build_backfill_trees(self) -> list[Tree]:
-        """Build source trees with per-asset progress strips."""
+        """Build source trees with per-asset progress strips.
+
+        Returns:
+            A list of Tree objects grouped by source with progress strips.
+        """
         trees: list[Tree] = []
         current_source: str | None = None
         current_tree: Tree | None = None
@@ -854,7 +933,11 @@ class RichView:
         partition_count: int,
         current_asset: AssetState | None,
     ) -> Table:
-        """Render a single asset line with ops + partition progress strip."""
+        """Render a single asset line with ops + partition progress strip.
+
+        Returns:
+            A Table representing the asset's backfill progress row.
+        """
         table = Table(show_header=False, box=None, show_lines=False, pad_edge=False, expand=False)
         table.add_column("Name", min_width=self._max_name_len)
         table.add_column("Spinner", min_width=2)
@@ -895,7 +978,11 @@ class RichView:
     # ------------------------------------------------------------------
 
     def _render(self) -> RenderableType:
-        """Build the live renderable (the fixed panel at the bottom)."""
+        """Build the live renderable (the fixed panel at the bottom).
+
+        Returns:
+            The renderable for the current display mode.
+        """
         with self._lock:
             if self._mode == MODE_BACKFILL:
                 return self._render_backfill_view()

@@ -34,5 +34,9 @@ class SerialRunner(Runner[str]):
         raise NotImplementedError("Not supported for serial runner")
 
     def to_spec(self) -> RunnerSpec:
-        """Serialize to a RunnerSpec."""
+        """Serialize to a RunnerSpec.
+
+        Returns:
+            A RunnerSpec for this serial runner.
+        """
         return RunnerSpec(path=self.path)

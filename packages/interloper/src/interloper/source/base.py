@@ -83,10 +83,21 @@ class SourceDefinition:
         assets: Sequence[str] | dict[str, str] | None = None,
         strategy: MaterializationStrategy | None = None,
     ) -> Source:
-        """Instantiate the source with optional runtime parameter override."""
+        """Instantiate the source with optional runtime parameter override.
+
+        Returns:
+            A configured Source instance.
+        """
 
         def instantiate_class(config: Config | None) -> Any:
-            """Instantiate the source class, passing config to __init__ if accepted."""
+            """Instantiate the source class, passing config to __init__ if accepted.
+
+            Returns:
+                The instantiated source class instance.
+
+            Raises:
+                ConfigError: If config is required but not provided.
+            """
             sig = inspect.signature(self.cls.__init__)
             if "config" in sig.parameters:
                 if config is None:
@@ -103,7 +114,14 @@ class SourceDefinition:
             return instance
 
         def resolve_source_config() -> Config | None:
-            """Resolve the config for the source."""
+            """Resolve the config for the source.
+
+            Returns:
+                The resolved Config instance, or None.
+
+            Raises:
+                ConfigError: If config type is incompatible or cannot be resolved.
+            """
             if config is not None and self.config is not None and not issubclass(type(config), self.config):
                 raise ConfigError(
                     f"Config provided to source '{self.name}' must be of type {self.config.__name__}, "
@@ -134,7 +152,14 @@ class SourceDefinition:
             asset_def: AssetDefinition,
             source_config: Config | None,
         ) -> Config | None:
-            """Resolve the config for an asset."""
+            """Resolve the config for an asset.
+
+            Returns:
+                The resolved Config instance for the asset, or None.
+
+            Raises:
+                ConfigError: If the asset config cannot be resolved.
+            """
             if config is not None and asset_def.config is not None and not issubclass(type(config), asset_def.config):
                 print(
                     f"Warning: Config provided to source '{self.name}' is not of compatible with asset "
@@ -162,7 +187,11 @@ class SourceDefinition:
         ) -> tuple[list[AssetDefinition], dict[str, str]]:
             """Filter and validate asset definitions based on the ``assets`` parameter.
 
-            Returns the filtered definitions and a rename map.
+            Returns:
+                The filtered definitions and a rename map.
+
+            Raises:
+                SourceError: If invalid asset names are provided or renames collide.
             """
             if assets is None:
                 return list(defs), {}
@@ -188,7 +217,11 @@ class SourceDefinition:
             return [d for d in defs if d.name in selected], rename_map
 
         def bind_asset_method(func: Callable, instance: Any) -> Callable:
-            """Bind an unbound method to an instance, removing ``self`` from the signature."""
+            """Bind an unbound method to an instance, removing ``self`` from the signature.
+
+            Returns:
+                The bound callable with updated signature.
+            """
 
             @functools.wraps(func)
             def bound(*args: Any, **kwargs: Any) -> Any:
@@ -248,7 +281,14 @@ class SourceDefinition:
         )
 
     def __getattr__(self, name: str) -> AssetDefinition:
-        """Access assets by name as attributes."""
+        """Access assets by name as attributes.
+
+        Returns:
+            The matching AssetDefinition.
+
+        Raises:
+            SourceError: If no asset definition with the given name exists.
+        """
         try:
             return self.asset_defs[name]
         except KeyError:
@@ -287,7 +327,11 @@ class Source(Serializable[SourceSpec]):
         config: Config | None = None,
         io: IO | dict[str, IO] | None = None,
     ) -> Source:
-        """Create an independent copy of this source with optional overrides."""
+        """Create an independent copy of this source with optional overrides.
+
+        Returns:
+            A new Source instance with deep-copied assets.
+        """
         source = copy.copy(self)
         if config is not None:
             source.config = config
@@ -302,7 +346,15 @@ class Source(Serializable[SourceSpec]):
         return source
 
     def __getattr__(self, name: str) -> Asset:
-        """Access assets by name as attributes."""
+        """Access assets by name as attributes.
+
+        Returns:
+            The matching Asset instance.
+
+        Raises:
+            AttributeError: If the name is a dunder attribute.
+            SourceError: If no asset with the given name exists.
+        """
         # Let Python handle dunder lookups normally (required for copy, pickle, etc.)
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
@@ -314,7 +366,11 @@ class Source(Serializable[SourceSpec]):
             raise SourceError(f"Source has no asset named '{name}'")
 
     def to_spec(self) -> SourceSpec:
-        """Convert to serializable spec."""
+        """Convert to serializable spec.
+
+        Returns:
+            The serialized SourceSpec representation.
+        """
         # TODO: serialize assets by setting the source spec `assets` field
 
         io_spec = None

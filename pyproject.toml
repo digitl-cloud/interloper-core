@@ -11,7 +11,6 @@ requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.119.0",
     "interloper",
-    "interloper-argo",
     "interloper-assets",
     "interloper-dbos",
     "interloper-docker",
@@ -39,7 +38,6 @@ dev = [
 # ###############
 [tool.uv.sources]
 interloper = { workspace = true }
-interloper-argo = { workspace = true }
 interloper-assets = { workspace = true }
 interloper-dbos = { workspace = true }
 interloper-docker = { workspace = true }
@@ -63,7 +61,6 @@ explicit = true
 [tool.pyright]
 include = [
     "packages/interloper/src",
-    "packages/interloper-argo/src",
     "packages/interloper-assets/src",
     "packages/interloper-dbos/src",
     "packages/interloper-docker/src",
@@ -87,7 +84,7 @@ extend-select = ["E", "I", "UP", "ANN001", "ANN201", "ANN202"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
-"tests/**" = ["ANN", "D102", "F811"]
+"tests/**" = ["ANN", "D102"]
 
 # ###############
 # PYTEST
@@ -95,6 +92,7 @@ extend-select = ["E", "I", "UP", "ANN001", "ANN201", "ANN202"]
 [tool.pytest.ini_options]
 markers = ["integration", "functional"]
 addopts = ["--import-mode=importlib", "-m not functional"]
+filterwarnings = ["ignore::FutureWarning:google.api_core"]
 
 # ###############
 # COVERAGE
@@ -129,7 +127,6 @@ commit_message = "chore(release): {version} [skip ci]"
 version_toml = [
     "pyproject.toml:project.version",
     "packages/interloper/pyproject.toml:project.version",
-    "packages/interloper-argo/pyproject.toml:project.version",
     "packages/interloper-assets/pyproject.toml:project.version",
     "packages/interloper-dbos/pyproject.toml:project.version",
     "packages/interloper-docker/pyproject.toml:project.version",

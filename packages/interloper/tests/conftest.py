@@ -8,7 +8,34 @@ import pytest
 
 import interloper as il
 
-from . import assets as test_assets
+# ---------------------------------------------------------------------------
+# Module-level assets for multiprocess tests (must be importable by path)
+# ---------------------------------------------------------------------------
+
+
+@il.asset
+def asset_a(context: il.ExecutionContext) -> str:  # noqa: D103
+    return "a_ran"
+
+
+@il.asset
+def asset_b(context: il.ExecutionContext) -> str:  # noqa: D103
+    return "b_ran"
+
+
+@il.asset
+def asset_c(context: il.ExecutionContext, a: str) -> str:  # noqa: D103
+    return f"c_ran_with_{a}"
+
+
+@il.asset
+def asset_a_fails(context: il.ExecutionContext) -> str:  # noqa: D103
+    raise RuntimeError("boom")
+
+
+@il.asset
+def asset_b_success(context: il.ExecutionContext) -> str:  # noqa: D103
+    return "b_success_ran"
 
 
 @pytest.fixture
@@ -240,9 +267,9 @@ def file_based_dag(tmp_path):
     """
     io = il.FileIO(tmp_path)
 
-    # Use the module-level assets but override their IO to use tmp_path
-    asset_a = test_assets.asset_a()(io=io)  # type: ignore[attr-defined]
-    asset_b = test_assets.asset_b()(io=io)  # type: ignore[attr-defined]
-    asset_c = test_assets.asset_c(io=io, deps={"a": "asset_a"})  # type: ignore[attr-defined]
+    # Use the module-level assets defined above, override IO to use tmp_path
+    a = asset_a()(io=io)  # type: ignore[attr-defined]
+    b = asset_b()(io=io)  # type: ignore[attr-defined]
+    c = asset_c(io=io, deps={"a": "asset_a"})  # type: ignore[attr-defined]
 
-    return il.DAG(asset_a, asset_b, asset_c)
+    return il.DAG(a, b, c)

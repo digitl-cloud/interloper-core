@@ -25,7 +25,11 @@ class ConfigSpec(Spec):
     dag: DAGSpec
 
     def reconstruct(self) -> Config:
-        """Reconstruct the config from the spec."""
+        """Reconstruct the config from the spec.
+
+        Returns:
+            The reconstructed Config instance.
+        """
         from interloper.cli.config import Config
 
         dag = self.dag.reconstruct()

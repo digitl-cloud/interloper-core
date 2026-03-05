@@ -30,5 +30,9 @@ class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
         raise NotImplementedError("Not supported for serial backfiller")
 
     def to_spec(self) -> BackfillerSpec:
-        """Convert to a serializable spec."""
+        """Convert to a serializable spec.
+
+        Returns:
+            A BackfillerSpec representing this backfiller.
+        """
         return BackfillerSpec(path=self.path)

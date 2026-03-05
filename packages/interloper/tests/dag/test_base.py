@@ -22,6 +22,7 @@ from interloper.errors import (
     DependencyNotFoundError,
     PartitionError,
 )
+from interloper.runners.results import ExecutionStatus
 
 
 class TestDAGInitialization:
@@ -444,34 +445,6 @@ class TestDAGMaterialize:
                 )
             )
 
-    @pytest.mark.skip(reason="Default MemoryIO means upstream assets always have IO by default")
-    def test_materialize_with_upstream_no_io(self, tmp_path):
-        @il.asset
-        def upstream(context: il.ExecutionContext) -> str:
-            return "a"
-
-        @il.asset
-        def downstream(context: il.ExecutionContext, upstream: str) -> str:
-            return upstream + "b"
-
-        dag = il.DAG(upstream(), downstream(io=il.FileIO(tmp_path)))
-        result = dag.materialize()
-        assert result.status == "failed"
-        assert "downstream" in result.failed_assets
-
-    @pytest.mark.skip(reason="Type hint validation not yet implemented")
-    def test_type_hint_matching(self, tmp_path):
-        @il.asset
-        def upstream(context: il.ExecutionContext) -> str:
-            return "a"
-
-        @il.asset
-        def downstream(context: il.ExecutionContext, upstream: int) -> str:
-            return "b"
-
-        with pytest.raises(DAGError):
-            il.DAG(upstream(io=il.FileIO(tmp_path)), downstream(io=il.FileIO(tmp_path)))
-
 
 class TestDAGGraphTraversal:
     """get_predecessors / get_successors and invalid key handling."""
@@ -740,3 +713,193 @@ class TestDAGRequiresValidation:
                 SourceB(),
                 consumer(deps={"wrong_data": "SourceB:data"}),
             )
+
+
+class TestEmptyDAG:
+    """DAG() with no arguments."""
+
+    def test_empty_dag_raises(self):
+        """DAG with no arguments raises DAGError."""
+        with pytest.raises(DAGError, match="at least one asset or source"):
+            il.DAG()
+
+
+class TestTopologicalGenerations:
+    """topological_generations grouping."""
+
+    def test_chain(self):
+        """Chain A->B->C yields three levels."""
+
+        @il.asset
+        def asset_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
+            return "b"
+
+        @il.asset
+        def asset_c(context: il.ExecutionContext, asset_b: str) -> str:
+            return "c"
+
+        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        gens = dag.topological_generations()
+
+        assert len(gens) == 3
+        assert [a.name for a in gens[0]] == ["asset_a"]
+        assert [a.name for a in gens[1]] == ["asset_b"]
+        assert [a.name for a in gens[2]] == ["asset_c"]
+
+    def test_diamond(self):
+        """Diamond A->{B,C}->D yields three levels with B and C parallel."""
+
+        @il.asset
+        def asset_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
+            return "b"
+
+        @il.asset
+        def asset_c(context: il.ExecutionContext, asset_a: str) -> str:
+            return "c"
+
+        @il.asset
+        def asset_d(context: il.ExecutionContext, asset_b: str, asset_c: str) -> str:
+            return "d"
+
+        dag = il.DAG(asset_a(), asset_b(), asset_c(), asset_d())
+        gens = dag.topological_generations()
+
+        assert len(gens) == 3
+        assert [a.name for a in gens[0]] == ["asset_a"]
+        assert sorted(a.name for a in gens[1]) == ["asset_b", "asset_c"]
+        assert [a.name for a in gens[2]] == ["asset_d"]
+
+
+class TestMiniDAG:
+    """mini_dag creates a sub-DAG with target and immediate parents."""
+
+    def test_structure(self):
+        """mini_dag includes target and its parents, parents non-materializable."""
+
+        @il.asset
+        def parent_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def parent_b(context: il.ExecutionContext) -> str:
+            return "b"
+
+        @il.asset
+        def child(context: il.ExecutionContext, parent_a: str, parent_b: str) -> str:
+            return "c"
+
+        dag = il.DAG(parent_a(), parent_b(), child())
+        mini = dag.mini_dag("child")
+
+        assert len(mini.assets) == 3
+        assert "child" in mini.asset_map
+
+        # Parents should be non-materializable
+        for key in ("parent_a", "parent_b"):
+            assert mini.asset_map[key].materializable is False
+
+        # Target should remain materializable
+        assert mini.asset_map["child"].materializable is True
+
+    def test_invalid_key_raises(self):
+        """mini_dag with unknown key raises AssetNotFoundError."""
+
+        @il.asset
+        def my_asset(context: il.ExecutionContext) -> str:
+            return "v"
+
+        dag = il.DAG(my_asset())
+        with pytest.raises(AssetNotFoundError, match="not found in DAG"):
+            dag.mini_dag("nonexistent")
+
+
+class TestCopy:
+    """DAG.copy creates a new DAG with the same assets."""
+
+    def test_copy_preserves_assets(self):
+        """Copied DAG has the same asset keys."""
+
+        @il.asset
+        def asset_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
+            return "b"
+
+        dag = il.DAG(asset_a(), asset_b())
+        copied = dag.copy()
+
+        assert set(copied.asset_map.keys()) == set(dag.asset_map.keys())
+        assert copied is not dag
+
+
+class TestFromFailedState:
+    """from_failed_state marks completed assets as non-materializable."""
+
+    def test_completed_assets_become_non_materializable(self):
+        """Assets that completed in the state are non-materializable in the new DAG."""
+        from interloper.runners.state import RunState
+
+        @il.asset
+        def asset_a(context: il.ExecutionContext) -> str:
+            return "a"
+
+        @il.asset
+        def asset_b(context: il.ExecutionContext, asset_a: str) -> str:
+            return "b"
+
+        @il.asset
+        def asset_c(context: il.ExecutionContext, asset_b: str) -> str:
+            return "c"
+
+        dag = il.DAG(asset_a(), asset_b(), asset_c())
+        state = RunState(dag)
+
+        # Simulate: asset_a completed, asset_b failed, asset_c still queued
+        state.asset_executions["asset_a"].status = ExecutionStatus.COMPLETED
+        state.asset_executions["asset_b"].status = ExecutionStatus.FAILED
+
+        retry_dag = il.DAG.from_failed_state(state)
+
+        # asset_a completed -> non-materializable
+        assert retry_dag.asset_map["asset_a"].materializable is False
+        # asset_b failed -> materializable (for retry)
+        assert retry_dag.asset_map["asset_b"].materializable is True
+        # asset_c was queued -> materializable
+        assert retry_dag.asset_map["asset_c"].materializable is True
+
+
+class TestResolveSourceAliasKey:
+    """_resolve_source_alias_key finds renamed assets by original name."""
+
+    def test_renamed_asset_resolved_by_original_name(self):
+        """When a source renames an asset, a sibling can depend on it by original name."""
+
+        @il.source
+        class MySource:
+            @il.asset
+            def original(self, context: il.ExecutionContext) -> str:
+                return "value"
+
+            @il.asset
+            def consumer(self, context: il.ExecutionContext, original: str) -> str:
+                return original
+
+        # Rename 'original' to 'renamed' at instantiation time
+        src = MySource(assets={"original": "renamed", "consumer": "consumer"})
+
+        dag = il.DAG(src)
+
+        # The renamed asset should have key MySource:renamed
+        assert "MySource:renamed" in dag.asset_map
+        # consumer should successfully resolve its dependency via the alias
+        assert "MySource:renamed" in dag.predecessors["MySource:consumer"]

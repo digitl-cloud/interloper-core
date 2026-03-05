@@ -89,7 +89,11 @@ class Event:
         return "  ".join(fields)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a flat dict with type, timestamp, and metadata fields."""
+        """Serialize to a flat dict with type, timestamp, and metadata fields.
+
+        Returns:
+            Dict with type, timestamp, and metadata fields.
+        """
         return {
             "type": self.type.value,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
@@ -97,12 +101,19 @@ class Event:
         }
 
     def to_json(self) -> str:
-        """Serialize to a JSON string."""
+        """Serialize to a JSON string.
+
+        Returns:
+            JSON-encoded string of the event.
+        """
         return json.dumps(self.to_dict())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Event:
         """Deserialize an Event from a dict.
+
+        Returns:
+            The deserialized Event instance.
 
         Raises:
             EventError: If required fields are missing or have invalid values.
@@ -140,7 +151,11 @@ class Event:
 
     @classmethod
     def from_json(cls, json_str: str) -> Event:
-        """Deserialize an Event from a JSON string."""
+        """Deserialize an Event from a JSON string.
+
+        Returns:
+            The deserialized Event instance.
+        """
         return cls.from_dict(json.loads(json_str))
 
 
@@ -316,7 +331,11 @@ class EventBus:
 
     @classmethod
     def get_instance(cls) -> EventBus:
-        """Get the singleton instance of the event bus."""
+        """Get the singleton instance of the event bus.
+
+        Returns:
+            The singleton EventBus instance.
+        """
         return cls()
 
 
@@ -363,7 +382,11 @@ def unsubscribe(handler: Callable[[Event], None]) -> None:
 
 
 def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
-    """Build common metadata fields (key, name, source) for an asset event."""
+    """Build common metadata fields (key, name, source) for an asset event.
+
+    Returns:
+        Dict with asset_key, asset_name, and optionally source_name.
+    """
     metadata = {
         "asset_key": asset.instance_key,
         "asset_name": asset.name,

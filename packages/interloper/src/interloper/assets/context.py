@@ -88,7 +88,9 @@ class ExecutionContext:
         """The partition value as a datetime.date object.
 
         Only available for time-based partitioning.
-        Raises an error if asset is not time-partitioned or no partition provided.
+
+        Raises:
+            AttributeError: If the asset is not time-partitioned or no partition is provided.
         """
         if self._partitioning is None:
             raise AttributeError("`context.partition_date` is not available, asset is not partitioned.")
@@ -115,7 +117,9 @@ class ExecutionContext:
         """A tuple of (start_date, end_date) representing a date range.
 
         Only available for TimePartitionConfig with allow_window=True.
-        Raises an error if allow_window=False or asset is not time-partitioned.
+
+        Raises:
+            AttributeError: If the asset is not time-partitioned or windows are not allowed.
         """
         if self._partitioning is None:
             raise AttributeError("`context.partition_date_window` is not available, asset is not partitioned.")

@@ -5,7 +5,11 @@ import threading
 import time
 from unittest.mock import Mock
 
+import pytest
+
+from interloper.errors import EventError
 from interloper.events.base import (
+    INTERLOPER_EVENT_MARKER,
     Event,
     EventBus,
     EventType,
@@ -13,8 +17,12 @@ from interloper.events.base import (
     emit,
     enable_event_forwarding,
     forward_event,
+    parse_event_from_log_line,
     subscribe,
     unsubscribe,
+)
+from interloper.events.base import (
+    flush as flush_fn,
 )
 
 
@@ -324,3 +332,175 @@ class TestDefaultForwarding:
 
         # Second disable should be a no-op.
         assert disable_event_forwarding() is False
+
+
+class TestEventStr:
+    """Test Event.__str__ human-readable output."""
+
+    def test_str_with_all_metadata(self):
+        """Test __str__ includes timestamp, type, asset_key, and message."""
+        ts = dt.datetime(2025, 6, 15, 10, 30, 45, 123456, tzinfo=dt.timezone.utc)
+        event = Event(
+            type=EventType.ASSET_STARTED,
+            timestamp=ts,
+            metadata={"asset_key": "my_asset", "message": "starting up"},
+        )
+        result = str(event)
+        assert "10:30:45.123" in result
+        assert "ASSET_STARTED" in result
+        assert "my_asset" in result
+        assert "starting up" in result
+
+    def test_str_missing_asset_key_shows_dash(self):
+        """Test __str__ shows '-' when asset_key is absent."""
+        event = Event(type=EventType.RUN_STARTED, metadata={})
+        result = str(event)
+        # The type field is padded to 20 chars; after the type the remaining
+        # two-space-separated tokens should both be '-'.
+        assert "RUN_STARTED" in result
+        # Strip leading timestamp + type portion and check trailing fields.
+        # The format is: "HH:MM:SS.mmm  TYPE<pad>  asset_key  message"
+        assert result.rstrip().endswith("-  -")
+
+    def test_str_missing_message_shows_dash(self):
+        """Test __str__ shows '-' when message is absent."""
+        event = Event(
+            type=EventType.ASSET_COMPLETED,
+            metadata={"asset_key": "x"},
+        )
+        result = str(event)
+        assert result.endswith("-")
+
+
+class TestEventFromDictErrors:
+    """Test Event.from_dict validation error paths."""
+
+    def test_missing_type_raises_event_error(self):
+        """Missing 'type' key raises EventError."""
+        with pytest.raises(EventError, match="Missing required field 'type'"):
+            Event.from_dict({"timestamp": "2025-01-01T00:00:00+00:00"})
+
+    def test_invalid_event_type_raises_event_error(self):
+        """Unrecognised type value raises EventError."""
+        with pytest.raises(EventError, match="Invalid event type"):
+            Event.from_dict({"type": "bogus_type", "timestamp": "2025-01-01T00:00:00+00:00"})
+
+    def test_missing_timestamp_raises_event_error(self):
+        """Missing 'timestamp' key raises EventError."""
+        with pytest.raises(EventError, match="Missing required field 'timestamp'"):
+            Event.from_dict({"type": "asset_started"})
+
+    def test_invalid_timestamp_format_raises_event_error(self):
+        """Unparseable timestamp string raises EventError."""
+        with pytest.raises(EventError, match="Invalid timestamp format"):
+            Event.from_dict({"type": "asset_started", "timestamp": "not-a-date"})
+
+    def test_non_string_non_datetime_timestamp_raises_event_error(self):
+        """Non-string, non-datetime timestamp raises EventError."""
+        with pytest.raises(EventError, match="Invalid timestamp value"):
+            Event.from_dict({"type": "asset_started", "timestamp": 12345})
+
+
+class TestEventBusFlush:
+    """Test EventBus.flush sentinel-based draining."""
+
+    def test_flush_returns_true(self):
+        """flush(timeout=5) returns True after all events are processed."""
+        bus = EventBus.get_instance()
+        handler = Mock()
+        bus.subscribe(handler)
+
+        event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "f"})
+        bus.emit(event)
+
+        result = bus.flush(timeout=5)
+        assert result is True
+        handler.assert_called_once_with(event)
+
+
+class TestEventBusShutdownIdempotent:
+    """Test EventBus.shutdown idempotency."""
+
+    def test_shutdown_twice_is_idempotent(self):
+        """Calling shutdown() a second time returns immediately without error."""
+        bus = EventBus.get_instance()
+
+        # Emit something so the bus is actively working.
+        bus.emit(Event(type=EventType.LOG, metadata={"asset_key": "z", "message": "hi", "level": "info"}))
+        bus.flush(timeout=2)
+
+        bus.shutdown()
+        # Second call should return immediately (no-op).
+        bus.shutdown()
+
+        # Re-initialise the bus for other tests.
+        bus._shutdown.clear()
+        bus._start_worker()
+
+
+class TestFlushSugar:
+    """Test module-level flush() convenience function."""
+
+    def test_flush_sugar_returns_true(self):
+        """Module-level flush() returns True after events are processed."""
+        handler = Mock()
+        subscribe(handler)
+
+        emit(EventType.ASSET_STARTED, metadata={"asset_key": "sugar"})
+        result = flush_fn(timeout=5)
+
+        assert result is True
+        handler.assert_called_once()
+
+
+class TestForwardEvent:
+    """Test forward_event with env-controlled transports."""
+
+    def test_stderr_output(self, monkeypatch, capsys):
+        """With INTERLOPER_EVENTS_TO_STDERR set, event JSON is written to stderr."""
+        monkeypatch.setenv("INTERLOPER_EVENTS_TO_STDERR", "1")
+        monkeypatch.delenv("INTERLOPER_EVENTS_TARGET_URL", raising=False)
+
+        event = Event(
+            type=EventType.ASSET_STARTED,
+            metadata={"asset_key": "test_asset"},
+        )
+        forward_event(event)
+
+        captured = capsys.readouterr()
+        assert INTERLOPER_EVENT_MARKER in captured.err
+        assert '"asset_started"' in captured.err
+
+    def test_unreachable_url_does_not_raise(self, monkeypatch):
+        """With INTERLOPER_EVENTS_TARGET_URL pointing nowhere, forward_event should not raise."""
+        monkeypatch.delenv("INTERLOPER_EVENTS_TO_STDERR", raising=False)
+        monkeypatch.setenv("INTERLOPER_EVENTS_TARGET_URL", "http://127.0.0.1:1")
+
+        event = Event(
+            type=EventType.ASSET_COMPLETED,
+            metadata={"asset_key": "test_asset"},
+        )
+        # Should not raise despite the connection error.
+        forward_event(event)
+
+
+class TestParseEventFromLogLine:
+    """Test parse_event_from_log_line helper."""
+
+    def test_valid_line(self):
+        """A line with the marker followed by valid JSON returns an Event."""
+        event = Event(type=EventType.ASSET_STARTED, metadata={"asset_key": "a"})
+        line = f"some prefix {INTERLOPER_EVENT_MARKER}{event.to_json()}"
+        parsed = parse_event_from_log_line(line)
+        assert parsed is not None
+        assert parsed.type == EventType.ASSET_STARTED
+        assert parsed.metadata["asset_key"] == "a"
+
+    def test_line_without_marker_returns_none(self):
+        """A regular log line without the marker returns None."""
+        assert parse_event_from_log_line("INFO: nothing special here") is None
+
+    def test_malformed_json_returns_none(self):
+        """A line with the marker but invalid JSON returns None."""
+        line = f"{INTERLOPER_EVENT_MARKER}{{not valid json}}"
+        assert parse_event_from_log_line(line) is None

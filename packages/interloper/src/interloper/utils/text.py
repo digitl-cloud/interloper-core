@@ -26,6 +26,9 @@ def slugify(text: str) -> str:
     Lowercases the text, splits camelCase/PascalCase on boundaries,
     replaces underscores and spaces with hyphens, and collapses
     consecutive hyphens.
+
+    Returns:
+        The slugified string.
     """
     if not text:
         return ""
@@ -43,7 +46,11 @@ def slugify(text: str) -> str:
 
 
 def to_label(text: str) -> str:
-    """Convert text to a human-readable label."""
+    """Convert text to a human-readable label.
+
+    Returns:
+        The human-readable label string.
+    """
     if not text:
         return ""
 
@@ -60,6 +67,9 @@ def to_snake_case(text: str) -> str:
 
     Handles camelCase, PascalCase, hyphens, spaces, acronyms,
     and special characters.
+
+    Returns:
+        The snake_cased string.
 
     Example:
         >>> to_snake_case("userName")

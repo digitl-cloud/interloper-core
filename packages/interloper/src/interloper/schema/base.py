@@ -162,6 +162,9 @@ def _resolve_field_type(types_seen: set[type]) -> type:
     - Single type → that type
     - ``{int, float}`` → ``float`` (numeric widening)
     - Multiple incompatible types → ``Any``
+
+    Returns:
+        The resolved Pydantic-compatible field type.
     """
     if not types_seen:
         return Any  # type: ignore[return-value]

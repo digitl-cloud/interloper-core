@@ -111,7 +111,11 @@ class MultiProcessRunner(Runner[Future[Any]]):
                 pass
 
     def to_spec(self) -> RunnerSpec:
-        """Serialize to a RunnerSpec."""
+        """Serialize to a RunnerSpec.
+
+        Returns:
+            A RunnerSpec for this multi-process runner.
+        """
         return RunnerSpec(
             path=self.path,
             init={

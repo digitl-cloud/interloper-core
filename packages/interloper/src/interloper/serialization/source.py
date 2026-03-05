@@ -31,7 +31,11 @@ class SourceSpec(Spec):
     assets: list[str] | None = None  # asset names to mark as materializable
 
     def reconstruct(self) -> Source:
-        """Reconstruct a Source from this spec."""
+        """Reconstruct a Source from this spec.
+
+        Returns:
+            The reconstructed Source instance.
+        """
         from interloper.source.base import SourceDefinition
 
         io = self._reconstruct_io(self.io)

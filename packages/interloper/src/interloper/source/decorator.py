@@ -48,6 +48,9 @@ def source(
 
         @source(config=MyConfig, normalizer=Normalizer())
         class MySource: ...
+
+    Returns:
+        A SourceDefinition, or a decorator that produces one.
     """
 
     def decorator(cls: type) -> SourceDefinition:

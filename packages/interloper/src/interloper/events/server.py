@@ -79,7 +79,11 @@ class EventHttpServer:
         self._thread = None
 
     def _make_handler(self) -> type[BaseHTTPRequestHandler]:
-        """Build a request handler class closed over this server's filters."""
+        """Build a request handler class closed over this server's filters.
+
+        Returns:
+            A BaseHTTPRequestHandler subclass bound to this server's filters.
+        """
         server_ref = self
 
         class EventHttpHandler(BaseHTTPRequestHandler):

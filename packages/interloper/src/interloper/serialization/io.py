@@ -20,5 +20,9 @@ class IOSpec(Spec):
     init: dict[str, Any] = Field(default_factory=dict)
 
     def reconstruct(self) -> IO:
-        """Reconstruct the IO object from spec."""
+        """Reconstruct the IO object from spec.
+
+        Returns:
+            The reconstructed IO instance.
+        """
         return import_from_path(self.path)(**self.init)

@@ -63,6 +63,9 @@ def asset(
 
         @asset(schema=MySchema, normalizer=Normalizer())
         def my_asset(): ...
+
+    Returns:
+        An AssetDefinition, or a decorator that produces one.
     """
 
     def decorator(f: Callable[..., Any]) -> AssetDefinition:

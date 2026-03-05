@@ -1,122 +1,145 @@
 """Tests for MultiProcessRunner."""
 
-import datetime as dt
-
-import pytest
+from concurrent.futures import Future
+from unittest.mock import MagicMock, patch
 
 import interloper as il
+from interloper.errors import RunnerError
 
 
-@pytest.mark.skip()
-class TestMultiProcessRunner:
-    """Tests for MultiProcessRunner."""
+class TestMultiProcessRunnerInit:
+    """MultiProcessRunner constructor and defaults."""
 
-    def test_initialization(self, file_based_dag):
-        """Test MultiProcessRunner initialization."""
+    def test_default_init(self):
+        """Default init uses 4 workers, fail_fast=True, reraise=False."""
         runner = il.MultiProcessRunner()
-        assert runner._max_workers == 4  # default
-        assert runner._fail_fast is True  # default
+        assert runner._max_workers == 4
+        assert runner._fail_fast is True
+        assert runner._reraise is False
 
-    def test_initialization_with_max_workers(self, file_based_dag):
-        """Test MultiProcessRunner initialization with custom max_workers."""
-        runner = il.MultiProcessRunner(max_workers=8, fail_fast=False)
+    def test_custom_init(self):
+        """Custom init accepts max_workers, fail_fast, reraise."""
+        runner = il.MultiProcessRunner(max_workers=8, fail_fast=False, reraise=True)
         assert runner._max_workers == 8
         assert runner._fail_fast is False
+        assert runner._reraise is True
 
-    def test_materialize_non_partitioned(self, file_based_dag, tmp_path):
-        """Test materialize for non-partitioned DAG."""
-        runner = il.MultiProcessRunner()
-        result = runner.run(dag=file_based_dag)
+    def test_capacity_matches_max_workers(self):
+        """_capacity property returns max_workers."""
+        runner = il.MultiProcessRunner(max_workers=6)
+        assert runner._capacity == 6
 
-        assert result.status == il.ExecutionStatus.COMPLETED
-        assert len(result.completed_assets) == 3
+    def test_to_spec_roundtrip(self):
+        """to_spec captures constructor args."""
+        runner = il.MultiProcessRunner(max_workers=3, fail_fast=False, reraise=True)
+        spec = runner.to_spec()
+        assert spec.init["max_workers"] == 3
+        assert spec.init["fail_fast"] is False
+        assert spec.init["reraise"] is True
 
-        # Verify that the output files were created with the correct content
-        data_dir = tmp_path / "data"
-        import pickle
 
-        # Check that the pickle files were created and contain the right data
-        asset_a_file = data_dir / "asset_a" / "data.pkl"
-        asset_b_file = data_dir / "asset_b" / "data.pkl"
-        asset_c_file = data_dir / "asset_c" / "data.pkl"
+class TestMultiProcessRunnerLifecycle:
+    """Pool lifecycle (_on_start / _on_end)."""
 
-        assert asset_a_file.exists()
-        assert asset_b_file.exists()
-        assert asset_c_file.exists()
-
-        with asset_a_file.open("rb") as f:
-            assert pickle.load(f) == "a_ran"
-        with asset_b_file.open("rb") as f:
-            assert pickle.load(f) == "b_ran"
-        with asset_c_file.open("rb") as f:
-            assert pickle.load(f) == "c_ran_with_a_ran"
-
-    def test_fail_fast_true(self, file_based_dag, tmp_path):
-        """When fail_fast=True, execution stops on first failure."""
-        # Create a simple DAG with just two assets where one fails
-        from .. import assets as test_assets
-
-        data_dir = tmp_path / "data"
-        data_dir.mkdir(exist_ok=True)
-
-        # Use module-level assets but override their IO to use tmp_path
-        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
-        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
-
-        dag = il.DAG(asset_a_fails, asset_b_success)
-
-        runner = il.MultiProcessRunner(fail_fast=True)
-        result = runner.run(dag=dag)
-
-        assert result.status == "failed"
-        assert "asset-a-fails" in result.failed_assets
-
-    def test_fail_fast_false(self, file_based_dag, tmp_path):
-        """When fail_fast=False, continue executing independent branches."""
-        # Create a simple DAG with two independent assets where one fails
-        from .. import assets as test_assets
-
-        data_dir = tmp_path / "data"
-        data_dir.mkdir(exist_ok=True)
-
-        # Use module-level assets but override their IO to use tmp_path
-        asset_a_fails = test_assets.asset_a_fails()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
-        asset_b_success = test_assets.asset_b_success()(io=il.FileIO(str(data_dir)))  # type: ignore[attr-defined]
-
-        dag = il.DAG(asset_a_fails, asset_b_success)
-
-        runner = il.MultiProcessRunner(fail_fast=False)
-        result = runner.run(dag=dag)
-
-        assert result.status == il.ExecutionStatus.COMPLETED  # The run itself is successful, even if some assets fail
-        assert "asset-a-fails" in result.failed_assets
-        assert "asset-b-success" in result.completed_assets
-
-        # 'b' should have run successfully - check the pickle file
-        import pickle
-
-        asset_b_file = data_dir / "asset-b-success" / "data.pkl"
-        assert asset_b_file.exists()
-        with asset_b_file.open("rb") as f:
-            assert pickle.load(f) == "b_success_ran"
-
-    def test_runner_with_identical_asset_names(self, double_source_dag):
-        """Test MultiProcessRunner with assets that have identical names but different keys."""
+    def test_on_start_creates_pool(self):
+        """_on_start creates a ProcessPoolExecutor."""
         runner = il.MultiProcessRunner(max_workers=2)
-        result = runner.run(dag=double_source_dag, partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
+        assert runner._pool is None
+        runner._on_start()
+        assert runner._pool is not None
+        runner._on_end()
 
-        assert result.status == il.ExecutionStatus.COMPLETED
+    def test_on_end_shuts_down_pool(self):
+        """_on_end shuts down the pool and sets it to None."""
+        runner = il.MultiProcessRunner(max_workers=2)
+        runner._on_start()
+        assert runner._pool is not None
+        runner._on_end()
+        assert runner._pool is None
 
-        # Should have 4 assets executed (2 from each source)
-        assert len(result.completed_assets) == 4
+    def test_on_end_without_pool_is_noop(self):
+        """_on_end with no pool does nothing."""
+        runner = il.MultiProcessRunner()
+        runner._on_end()  # Should not raise
 
-        # All assets should have been called exactly once
-        for asset in double_source_dag.assets:
-            asset.func.assert_called_once()
 
-        # Verify that both sources' assets were executed
-        # The assets should be tracked by their keys, not names
-        executed_keys = set(result.completed_assets)
-        expected_keys = {asset.instance_key for asset in double_source_dag.assets}
-        assert executed_keys == expected_keys
+class TestMultiProcessRunnerSubmit:
+    """_submit_asset error paths."""
 
+    def test_submit_without_pool_raises(self):
+        """_submit_asset raises RunnerError when pool is None."""
+        runner = il.MultiProcessRunner()
+        asset = MagicMock()
+        import pytest
+
+        with pytest.raises(RunnerError, match="Pool not initialized"):
+            runner._submit_asset(asset, None)
+
+
+class TestMultiProcessRunnerCancel:
+    """_cancel_all behaviour."""
+
+    def test_cancel_all_cancels_futures(self):
+        """_cancel_all calls cancel on each handle."""
+        runner = il.MultiProcessRunner()
+        f1 = MagicMock(spec=Future)
+        f2 = MagicMock(spec=Future)
+        runner._cancel_all([f1, f2])
+        f1.cancel.assert_called_once()
+        f2.cancel.assert_called_once()
+
+    def test_cancel_all_swallows_exceptions(self):
+        """_cancel_all does not propagate cancel errors."""
+        runner = il.MultiProcessRunner()
+        f1 = MagicMock(spec=Future)
+        f1.cancel.side_effect = RuntimeError("already done")
+        f2 = MagicMock(spec=Future)
+        runner._cancel_all([f1, f2])
+        # f2 should still be cancelled despite f1 raising
+        f2.cancel.assert_called_once()
+
+
+class TestMultiProcessRunnerWaitAny:
+    """_wait_any behaviour with mocked futures."""
+
+    def test_wait_any_returns_completed_future(self):
+        """_wait_any returns the first completed future."""
+        runner = il.MultiProcessRunner(fail_fast=False, reraise=False)
+        future = MagicMock(spec=Future)
+        future.result.return_value = ("asset_a", True, None)
+
+        with patch("interloper.runners.multi_process.wait") as mock_wait:
+            mock_wait.return_value = ({future}, set())
+            result = runner._wait_any([future])
+
+        assert result is future
+
+    def test_wait_any_fail_fast_raises_on_failure(self):
+        """_wait_any raises RunnerError on failure when fail_fast=True."""
+        runner = il.MultiProcessRunner(fail_fast=True, reraise=False)
+        failed = MagicMock(spec=Future)
+        failed.result.return_value = ("asset_x", False, "boom")
+        other = MagicMock(spec=Future)
+
+        with patch("interloper.runners.multi_process.wait") as mock_wait:
+            mock_wait.return_value = ({failed}, set())
+            import pytest
+
+            with pytest.raises(RunnerError, match="Asset asset_x failed: boom"):
+                runner._wait_any([failed, other])
+
+        # Other future should be cancelled (called twice: once from the
+        # if-block inside try, once from the except block)
+        assert other.cancel.call_count == 2
+
+    def test_wait_any_no_fail_fast_returns_on_failure(self):
+        """_wait_any returns normally on failure when fail_fast=False."""
+        runner = il.MultiProcessRunner(fail_fast=False, reraise=False)
+        failed = MagicMock(spec=Future)
+        failed.result.return_value = ("asset_x", False, "boom")
+
+        with patch("interloper.runners.multi_process.wait") as mock_wait:
+            mock_wait.return_value = ({failed}, set())
+            result = runner._wait_any([failed])
+
+        assert result is failed

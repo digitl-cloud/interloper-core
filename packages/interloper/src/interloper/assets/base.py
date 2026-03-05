@@ -97,6 +97,12 @@ class AssetDefinition:
             default_io_key: Default IO key for multi-IO setups.
             materializable: Whether the asset can be materialized.
             strategy: Override the materialization strategy.
+
+        Returns:
+            A new Asset instance with the given overrides applied.
+
+        Raises:
+            ConfigError: If the provided config does not match the expected type.
         """
         if name is not None:
             validate_name(name)
@@ -240,6 +246,10 @@ class Asset(Serializable[AssetSpec]):
 
         Returns:
             The raw execution result.
+
+        Raises:
+            AssetError: If schema validation or normalizer reconciliation fails.
+            PartitionError: If partitioning requirements are not met.
         """
         # Warn if partition provided for non-partitioned asset
         if self.partitioning is None and partition_or_window is not None:
@@ -418,6 +428,7 @@ class Asset(Serializable[AssetSpec]):
 
         Raises:
             AssetError: If a dependency cannot be resolved or read.
+            DependencyNotFoundError: If a dependency key is not present in the DAG.
         """
         kwargs: dict[str, Any] = {}
         sig = inspect.signature(self.func)
@@ -510,7 +521,11 @@ class Asset(Serializable[AssetSpec]):
             validate_schema(data, self.schema)
 
     def to_spec(self) -> AssetSpec:
-        """Convert to serializable spec."""
+        """Convert to serializable spec.
+
+        Returns:
+            An AssetSpec representing this asset.
+        """
         # Serialize IO if present
         io_spec = None
         if isinstance(self.io, dict):

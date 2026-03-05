@@ -50,7 +50,11 @@ class RunExecutionInfo:
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dict with partition, status, timing, and error fields.
+        """
         return {
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
             "status": self.status.value,
@@ -80,7 +84,11 @@ class BackfillResult:
         return [partition for partition, run in self.run_executions.items() if run.status == ExecutionStatus.FAILED]
 
     def __str__(self) -> str:
-        """Human-friendly summary string."""
+        """Human-friendly summary string.
+
+        Returns:
+            Formatted string with status, counts, and timing.
+        """
         parts: list[str] = [
             f"status={self.status.value}",
             f"completed={len(self.completed_partitions)}",

@@ -258,7 +258,11 @@ class OAuth2RefreshTokenAuth(OAuth2Auth):
 
     @property
     def auth_data(self) -> dict[str, str]:
-        """The authentication data."""
+        """The authentication data.
+
+        Raises:
+            AuthenticationError: If no refresh token is available.
+        """
         if self._refresh_token is None:
             raise AuthenticationError("Refresh token is required")
         auth_data = super().auth_data.copy()
