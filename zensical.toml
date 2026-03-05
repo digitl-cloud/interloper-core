@@ -40,23 +40,22 @@ Copyright &copy; 2026 Digitl Cloud
 """
 
 nav = [
-  { "Home" = "index.md" },
-  { "Getting started" = "getting-started.md" },
-  { "Tutorial" = "tutorial.md" },
-  { "Features" = [
-      { "Assets & Sources" = "features/basic.md" },
-      { "IO" = "features/io.md" },
-      { "Runners" = "features/runners.md" },
-      { "Schema & Normalizer" = "features/schema.md" },
-      { "Upstream Assets" = "features/upstream-assets.md" },
-      { "Data Validation" = "features/data-validation.md" },
-      { "Partitioning" = "features/partitioning.md" },
-      { "Backfilling" = "features/backfilling.md" },
-      { "Configuration" = "features/config.md" },
-      { "Events" = "features/events.md" },
-      { "CLI" = "features/cli.md" }
-    ]
-  }
+    { "Home" = "index.md" },
+    { "Getting started" = "getting-started.md" },
+    { "Tutorial" = "tutorial.md" },
+    { "Features" = [
+        { "Assets & Sources" = "features/basic.md" },
+        { "IO" = "features/io.md" },
+        { "Runners" = "features/runners.md" },
+        { "Schema & Normalizer" = "features/schema.md" },
+        { "Upstream Assets" = "features/upstream-assets.md" },
+        { "Data Validation" = "features/data-validation.md" },
+        { "Partitioning" = "features/partitioning.md" },
+        { "Backfilling" = "features/backfilling.md" },
+        { "Configuration" = "features/config.md" },
+        { "Events" = "features/events.md" },
+        { "CLI" = "features/cli.md" },
+    ] },
 ]
 
 # Zensical supports both implicit navigation and explicitly defined navigation.
