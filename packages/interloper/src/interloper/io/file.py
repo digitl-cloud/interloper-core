@@ -110,6 +110,37 @@ class FileIO(IO):
             with file_path.open("rb") as f:
                 return pickle.load(f)
 
+    def partition_row_counts(self, context: IOContext) -> dict[str, int]:
+        """Return row counts grouped by partition from the filesystem.
+
+        Scans partition subdirectories (``{column}={value}/data.pkl``),
+        unpickles each file, and counts items (``len(data)`` for lists,
+        ``1`` otherwise).
+
+        Args:
+            context: IO context with asset and partition information.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+        """
+        assert context.asset.partitioning is not None
+        column = context.asset.partitioning.column
+        base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
+
+        counts: dict[str, int] = {}
+        if not base_path.exists():
+            return counts
+
+        for entry in sorted(base_path.iterdir()):
+            if entry.is_dir() and entry.name.startswith(f"{column}="):
+                partition_value = entry.name.split("=", 1)[1]
+                data_file = entry / "data.pkl"
+                if data_file.exists():
+                    with data_file.open("rb") as f:
+                        data = pickle.load(f)
+                    counts[partition_value] = len(data) if isinstance(data, list) else 1
+        return counts
+
     def to_spec(self) -> IOSpec:
         """Convert to a serializable spec.
 

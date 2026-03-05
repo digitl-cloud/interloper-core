@@ -107,6 +107,31 @@ class MemoryIO(IO):
 
         return "/".join(parts)
 
+    def partition_row_counts(self, context: IOContext) -> dict[str, int]:
+        """Return row counts grouped by partition from in-memory storage.
+
+        Scans ``_storage`` keys matching the asset and partition column prefix,
+        counts items in each stored value (``len(data)`` for lists, ``1``
+        otherwise).
+
+        Args:
+            context: IO context with asset and partition information.
+
+        Returns:
+            Mapping from partition value (as string) to row count.
+        """
+        assert context.asset.partitioning is not None
+        column = context.asset.partitioning.column
+        prefix = self._build_key(context.asset.name, context.asset.dataset, None, None)
+        partition_prefix = f"{prefix}/{column}="
+
+        counts: dict[str, int] = {}
+        for key, data in self._storage.items():
+            if key.startswith(partition_prefix):
+                partition_value = key[len(partition_prefix):]
+                counts[partition_value] = len(data) if isinstance(data, list) else 1
+        return counts
+
     def to_spec(self) -> IOSpec:
         """Convert to a serializable spec.
 
