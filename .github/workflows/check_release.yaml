@@ -1,7 +1,6 @@
 name: Check & Release
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - "**"
@@ -9,6 +8,15 @@ on:
       - "docs/**"
       - "*.md"
       - ".github/workflows/docs.yaml"
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: "Release type"
+        type: choice
+        options:
+          - stable
+          - rc
+        default: stable
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,8 +28,10 @@ jobs:
 
   release:
     uses: ./.github/workflows/_release.yaml
-    if: github.ref_name == 'main' || github.ref_name == 'rc' || github.ref_name == 'dev'
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main'
     needs: checks
+    with:
+      release_type: ${{ inputs.release_type }}
     secrets:
       SEMANTIC_RELEASE_APP_ID: ${{ vars.SEMANTIC_RELEASE_APP_ID }}
       SEMANTIC_RELEASE_APP_KEY: ${{ secrets.SEMANTIC_RELEASE_APP_KEY }}

@@ -1,5 +1,10 @@
 on:
   workflow_call:
+    inputs:
+      release_type:
+        description: "Release type (stable or rc)"
+        type: string
+        required: true
     secrets:
       SEMANTIC_RELEASE_APP_ID:
         required: true
@@ -8,7 +13,7 @@ on:
 
 jobs:
   release:
-    name: Release
+    name: Release (${{ inputs.release_type }})
     runs-on: ubuntu-latest
 
     permissions:
@@ -16,46 +21,6 @@ jobs:
       id-token: "write"
 
     steps:
-      - name: Set release variables
-        id: set-vars
-        run: |
-          BRANCH="${GITHUB_REF#refs/heads/}"
-
-          case "$BRANCH" in
-            main)
-              echo "CHANGELOG=true" >> $GITHUB_OUTPUT
-              echo "COMMIT=true" >> $GITHUB_OUTPUT
-              echo "SUFFIX=" >> $GITHUB_OUTPUT
-              echo "TAG=true" >> $GITHUB_OUTPUT
-              echo "VCS_RELEASE=true" >> $GITHUB_OUTPUT
-              echo "PUBLISH=true" >> $GITHUB_OUTPUT
-              ;;
-            rc)
-              echo "CHANGELOG=false" >> $GITHUB_OUTPUT
-              echo "COMMIT=true" >> $GITHUB_OUTPUT
-              echo "SUFFIX=" >> $GITHUB_OUTPUT
-              echo "TAG=true" >> $GITHUB_OUTPUT
-              echo "VCS_RELEASE=true" >> $GITHUB_OUTPUT
-              echo "PUBLISH=true" >> $GITHUB_OUTPUT
-              ;;
-            dev)
-              echo "CHANGELOG=false" >> $GITHUB_OUTPUT
-              echo "COMMIT=true" >> $GITHUB_OUTPUT
-              echo "SUFFIX=" >> $GITHUB_OUTPUT
-              echo "TAG=true" >> $GITHUB_OUTPUT
-              echo "VCS_RELEASE=false" >> $GITHUB_OUTPUT
-              echo "PUBLISH=false" >> $GITHUB_OUTPUT
-              ;;
-            *)
-              echo "CHANGELOG=false" >> $GITHUB_OUTPUT
-              echo "COMMIT=false" >> $GITHUB_OUTPUT
-              echo "SUFFIX=$(git branch --show-current | sed 's/[^a-zA-Z0-9-]/-/g')" >> $GITHUB_OUTPUT
-              echo "TAG=false" >> $GITHUB_OUTPUT
-              echo "VCS_RELEASE=false" >> $GITHUB_OUTPUT
-              echo "PUBLISH=false" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -90,18 +55,19 @@ jobs:
         id: release
         uses: python-semantic-release/python-semantic-release@v10
         with:
-          build_metadata: ${{ steps.set-vars.outputs.SUFFIX }}
+          prerelease: ${{ inputs.release_type == 'rc' }}
+          prerelease_token: rc
           build: false
-          changelog: ${{ steps.set-vars.outputs.CHANGELOG == 'true' }}
-          commit: ${{ steps.set-vars.outputs.COMMIT == 'true' }}
+          changelog: ${{ inputs.release_type == 'stable' }}
+          commit: true
+          tag: true
+          vcs_release: true
           github_token: ${{ steps.app-token.outputs.token }}
-          tag: ${{ steps.set-vars.outputs.TAG == 'true' }}
-          vcs_release: ${{ steps.set-vars.outputs.VCS_RELEASE == 'true' }}
           git_committer_email: "${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git_committer_name: "Semantic Release"
 
       - name: UV setup
-        if: ${{ steps.set-vars.outputs.PUBLISH == 'true' && steps.release.outputs.released == 'true' }}
+        if: steps.release.outputs.released == 'true'
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -109,11 +75,11 @@ jobs:
           cache-suffix: "3.10"
 
       - name: UV sync
-        if: ${{ steps.set-vars.outputs.PUBLISH == 'true' && steps.release.outputs.released == 'true' }}
+        if: steps.release.outputs.released == 'true'
         run: uv sync --all-packages --all-extras
 
       - name: Build & Publish
-        if: ${{ steps.set-vars.outputs.PUBLISH == 'true' && steps.release.outputs.released == 'true' }}
+        if: steps.release.outputs.released == 'true'
         run: |
           uv build --all-packages
           uv publish --index dc-int-connectors-prd --username oauth2accesstoken --password ${{ env.ACCESS_TOKEN }} --keyring-provider subprocess
