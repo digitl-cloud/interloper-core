@@ -45,7 +45,6 @@ dag.materialize()
 | `interloper-core`   | Core: assets, sources, DAG, runners, IO, partitioning |
 | `interloper-sql`    | SQL IO backends (Postgres, MySQL, SQLite)             |
 | `interloper-assets` | Pre-built source definitions and registry             |
-| `interloper-argo`   | Argo Workflows integration                            |
 | `interloper-dbos`   | DBOS durable execution                                |
 | `interloper-docker` | Docker runner and backfiller                          |
 | `interloper-k8s`    | Kubernetes runner and backfiller                      |

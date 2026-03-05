@@ -8,7 +8,7 @@ on:
         type: choice
         options:
           - stable
-          - rc
+          - release-candidate
         default: stable
 
 jobs:
@@ -64,7 +64,7 @@ jobs:
         id: release
         uses: python-semantic-release/python-semantic-release@v10
         with:
-          prerelease: ${{ inputs.release_type == 'rc' }}
+          prerelease: ${{ inputs.release_type == 'release-candidate' }}
           prerelease_token: rc
           build: false
           changelog: ${{ inputs.release_type == 'stable' }}

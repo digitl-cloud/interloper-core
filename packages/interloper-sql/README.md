@@ -1,3 +1,3 @@
 # interloper-sql
 
-SQLAlchemy IO managers for the Interloper framework.
+SQLAlchemy IO managers for Interloper.

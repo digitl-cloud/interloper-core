@@ -1,3 +1,3 @@
 # interloper-google-cloud
 
-Google Cloud IO managers for the Interloper framework.
+Google Cloud IO managers for Interloper.
