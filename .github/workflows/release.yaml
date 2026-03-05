@@ -1,19 +1,20 @@
+name: Release
+
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       release_type:
-        description: "Release type (stable or rc)"
-        type: string
-        required: true
-    secrets:
-      SEMANTIC_RELEASE_APP_ID:
-        required: true
-      SEMANTIC_RELEASE_APP_KEY:
-        required: true
+        description: "Release type"
+        type: choice
+        options:
+          - stable
+          - rc
+        default: stable
 
 jobs:
   release:
     name: Release (${{ inputs.release_type }})
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
 
     permissions:
@@ -51,6 +52,25 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
+      - name: UV setup
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.10"
+          cache-suffix: "3.10"
+
+      - name: UV sync
+        run: uv sync --all-packages --all-extras
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Pyright
+        run: uv run pyright
+
+      - name: Pytest
+        run: uv run pytest
+
       - name: Release
         id: release
         uses: python-semantic-release/python-semantic-release@v10
@@ -65,18 +85,6 @@ jobs:
           github_token: ${{ steps.app-token.outputs.token }}
           git_committer_email: "${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
           git_committer_name: "Semantic Release"
-
-      - name: UV setup
-        if: steps.release.outputs.released == 'true'
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          python-version: "3.10"
-          cache-suffix: "3.10"
-
-      - name: UV sync
-        if: steps.release.outputs.released == 'true'
-        run: uv sync --all-packages --all-extras
 
       - name: Build & Publish
         if: steps.release.outputs.released == 'true'

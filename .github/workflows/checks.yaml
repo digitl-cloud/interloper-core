@@ -1,5 +1,18 @@
+name: Checks
+
 on:
-  workflow_call:
+  push:
+    branches:
+      - "**"
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - ".github/workflows/docs.yaml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
