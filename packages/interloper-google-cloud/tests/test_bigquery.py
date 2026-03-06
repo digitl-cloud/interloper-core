@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from interloper.errors import ConfigError
 from interloper.io.database import WriteDisposition
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 
 from interloper_google_cloud.io.bigquery import BigQueryIO, _bq_param_type, _infer_bq_type
 
@@ -207,14 +207,14 @@ class TestTableRef:
 
 
 class TestToSpec:
-    """Serialization of BigQueryIO to IOSpec."""
+    """Serialization of BigQueryIO to IOInstanceSpec."""
 
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
     def test_minimal_spec(self, _mock):
         io = BigQueryIO(project="proj")
         spec = io.to_spec()
 
-        assert isinstance(spec, IOSpec)
+        assert isinstance(spec, IOInstanceSpec)
         assert spec.path == "interloper_google_cloud.io.bigquery.BigQueryIO"
         assert spec.init["project"] == "proj"
         assert spec.init["location"] == "EU"

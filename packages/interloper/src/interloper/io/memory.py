@@ -8,7 +8,7 @@ from interloper.errors import DataNotFoundError
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 
 
 class MemoryIO(IO):
@@ -132,13 +132,13 @@ class MemoryIO(IO):
                 counts[partition_value] = len(data) if isinstance(data, list) else 1
         return counts
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to a serializable spec.
 
         Returns:
             The IOSpec representation of this MemoryIO.
         """
-        return IOSpec(
+        return IOInstanceSpec(
             path=self.path,
             init={},
         )

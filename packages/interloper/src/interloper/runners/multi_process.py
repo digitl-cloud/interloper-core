@@ -11,9 +11,9 @@ from interloper.errors import RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.asset import AssetSpec
-from interloper.serialization.dag import DAGSpec
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.asset import AssetInstanceSpec
+from interloper.serialization.dag import DAGInstanceSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class MultiProcessRunner(Runner[Future[Any]]):
@@ -110,13 +110,13 @@ class MultiProcessRunner(Runner[Future[Any]]):
             except Exception:  # noqa: BLE001, S110
                 pass
 
-    def to_spec(self) -> RunnerSpec:
+    def to_spec(self) -> RunnerInstanceSpec:
         """Serialize to a RunnerSpec.
 
         Returns:
             A RunnerSpec for this multi-process runner.
         """
-        return RunnerSpec(
+        return RunnerInstanceSpec(
             path=self.path,
             init={
                 "max_workers": self._max_workers,
@@ -127,8 +127,8 @@ class MultiProcessRunner(Runner[Future[Any]]):
 
 
 def execute_in_process(
-    asset_spec: AssetSpec,
-    dag_spec: DAGSpec,
+    asset_spec: AssetInstanceSpec,
+    dag_spec: DAGInstanceSpec,
     partition_or_window: Partition | PartitionWindow | None,
 ) -> tuple[str, bool, str | None]:
     """Execute a single asset in a worker process.

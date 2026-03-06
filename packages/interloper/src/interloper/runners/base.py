@@ -17,12 +17,12 @@ from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.runners.state import RunState
 from interloper.serialization.base import Serializable
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 HandleT = TypeVar("HandleT")
 
 
-class Runner(Serializable[RunnerSpec], Generic[HandleT]):
+class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
     """Abstract base class for all runners.
 
     Runners differ only in their orchestration strategy (sequential vs parallel).

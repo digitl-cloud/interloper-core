@@ -14,7 +14,7 @@ from interloper.assets.base import Asset, AssetDefinition
 from interloper.errors import ConfigError, SourceError
 from interloper.io.base import IO
 from interloper.serialization.base import Serializable
-from interloper.serialization.source import SourceSpec
+from interloper.serialization.source import SourceInstanceSpec
 from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
@@ -296,7 +296,7 @@ class SourceDefinition:
 
 
 @dataclass
-class Source(Serializable[SourceSpec]):
+class Source(Serializable[SourceInstanceSpec]):
     """Runtime instance of a source containing multiple assets."""
 
     definition: SourceDefinition
@@ -365,7 +365,7 @@ class Source(Serializable[SourceSpec]):
         except KeyError:
             raise SourceError(f"Source has no asset named '{name}'")
 
-    def to_spec(self) -> SourceSpec:
+    def to_spec(self) -> SourceInstanceSpec:
         """Convert to serializable spec.
 
         Returns:
@@ -381,7 +381,7 @@ class Source(Serializable[SourceSpec]):
 
         materializable_assets = [asset.name for asset in self.assets.values() if asset.materializable]
 
-        return SourceSpec(
+        return SourceInstanceSpec(
             path=self.path,
             io=io_spec,
             assets=materializable_assets,

@@ -11,7 +11,7 @@ from interloper.errors import AssetNotFoundError, CircularDependencyError, DAGEr
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.serialization.base import Serializable
-from interloper.serialization.dag import DAGSpec
+from interloper.serialization.dag import DAGInstanceSpec
 from interloper.source.base import Source, SourceDefinition
 
 if TYPE_CHECKING:
@@ -376,13 +376,13 @@ class DAG(Serializable):
         """
         return DAG(*self.assets)
 
-    def to_spec(self) -> DAGSpec:
+    def to_spec(self) -> DAGInstanceSpec:
         """Convert to serializable spec.
 
         Returns:
             The DAG as a serializable DAGSpec.
         """
-        return DAGSpec(assets=[asset.to_spec() for asset in self.assets])
+        return DAGInstanceSpec(assets=[asset.to_spec() for asset in self.assets])
 
     @classmethod
     def from_failed_state(cls, state: RunState) -> DAG:

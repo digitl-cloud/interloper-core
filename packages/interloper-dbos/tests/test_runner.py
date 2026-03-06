@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from interloper.errors import RunnerError
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 from interloper_dbos.runner import DBOSRunner
 
@@ -95,9 +95,9 @@ class TestDBOSRunnerToSpec:
     """Tests for to_spec() serialization."""
 
     def test_returns_runner_spec(self, runner):
-        """to_spec() returns a RunnerSpec instance."""
+        """to_spec() returns a RunnerInstanceSpec instance."""
         spec = runner.to_spec()
-        assert isinstance(spec, RunnerSpec)
+        assert isinstance(spec, RunnerInstanceSpec)
 
     def test_spec_path(self, runner):
         """Spec path is 'dbos'."""
@@ -118,7 +118,7 @@ class TestDBOSRunnerToSpec:
         """Spec can be serialized to JSON and deserialized back."""
         spec = runner.to_spec()
         json_str = spec.model_dump_json()
-        restored = RunnerSpec.model_validate_json(json_str)
+        restored = RunnerInstanceSpec.model_validate_json(json_str)
         assert restored.path == spec.path
         assert restored.init == spec.init
 
@@ -126,7 +126,7 @@ class TestDBOSRunnerToSpec:
         """Spec can be converted to dict and back."""
         spec = runner_custom.to_spec()
         data = spec.model_dump()
-        restored = RunnerSpec.model_validate(data)
+        restored = RunnerInstanceSpec.model_validate(data)
         assert restored.path == "dbos"
         assert restored.init == {"concurrency": 25}
 

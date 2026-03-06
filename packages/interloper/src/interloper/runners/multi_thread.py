@@ -11,7 +11,7 @@ from interloper.errors import RunnerError
 from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class MultiThreadRunner(Runner[Future[Any]]):
@@ -84,13 +84,13 @@ class MultiThreadRunner(Runner[Future[Any]]):
             except Exception:  # noqa: BLE001, S110
                 pass
 
-    def to_spec(self) -> RunnerSpec:
+    def to_spec(self) -> RunnerInstanceSpec:
         """Serialize to a RunnerSpec.
 
         Returns:
             A RunnerSpec for this multi-thread runner.
         """
-        return RunnerSpec(
+        return RunnerInstanceSpec(
             path=self.path,
             init={
                 "max_workers": self._max_workers,

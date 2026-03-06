@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from interloper.io.database import WriteDisposition
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 
 from interloper_sql.io.base import SqlIO
 
@@ -38,8 +38,8 @@ class SqliteIO(SqlIO):
         url = f"sqlite:///{database}"
         super().__init__(url, write_disposition, chunk_size, adapter)
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""
         init = self._base_init_kwargs()
         init["database"] = self.database
-        return IOSpec(path=self.path, init=init)
+        return IOInstanceSpec(path=self.path, init=init)

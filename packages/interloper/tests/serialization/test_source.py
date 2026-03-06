@@ -1,10 +1,10 @@
-"""Tests for SourceSpec serialization and reconstruction."""
+"""Tests for SourceInstanceSpec serialization and reconstruction."""
 
 import pytest
 
 import interloper as il
-from interloper.serialization.io import IOSpec
-from interloper.serialization.source import SourceSpec
+from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.source import SourceInstanceSpec
 from interloper.source.base import Source
 
 
@@ -23,7 +23,7 @@ class TestSerSource:
 
 
 class TestSourceSpec:
-    """Test SourceSpec creation, serialization, reconstruction, and asset filtering."""
+    """Test SourceInstanceSpec creation, serialization, reconstruction, and asset filtering."""
 
     @pytest.fixture()
     def source_path(self) -> str:
@@ -35,32 +35,32 @@ class TestSourceSpec:
         return TestSerSource.path
 
     @pytest.fixture()
-    def spec(self, source_path: str) -> SourceSpec:
+    def spec(self, source_path: str) -> SourceInstanceSpec:
         """A SourceSpec pointing at TestSerSource.
 
         Returns:
-            SourceSpec fixture.
+            SourceInstanceSpec fixture.
         """
-        return SourceSpec(path=source_path)
+        return SourceInstanceSpec(path=source_path)
 
     # -- type field ----------------------------------------------------------
 
-    def test_type_field_is_source(self, spec: SourceSpec):
+    def test_type_field_is_source(self, spec: SourceInstanceSpec):
         """The type discriminator is always 'source'."""
         assert spec.type == "source"
 
-    def test_type_field_in_json(self, spec: SourceSpec):
+    def test_type_field_in_json(self, spec: SourceInstanceSpec):
         """Type field is included in JSON output."""
         data = spec.model_dump()
         assert data["type"] == "source"
 
     # -- creation ------------------------------------------------------------
 
-    def test_creation_with_path(self, spec: SourceSpec, source_path: str):
+    def test_creation_with_path(self, spec: SourceInstanceSpec, source_path: str):
         """SourceSpec stores the import path."""
         assert spec.path == source_path
 
-    def test_optional_fields_default_to_none(self, spec: SourceSpec):
+    def test_optional_fields_default_to_none(self, spec: SourceInstanceSpec):
         """io, config, and assets default to None."""
         assert spec.io is None
         assert spec.config is None
@@ -68,10 +68,10 @@ class TestSourceSpec:
 
     # -- JSON roundtrip ------------------------------------------------------
 
-    def test_json_roundtrip(self, spec: SourceSpec):
+    def test_json_roundtrip(self, spec: SourceInstanceSpec):
         """SourceSpec survives JSON serialization and deserialization."""
         json_str = spec.model_dump_json()
-        parsed = SourceSpec.model_validate_json(json_str)
+        parsed = SourceInstanceSpec.model_validate_json(json_str)
         assert parsed.path == spec.path
         assert parsed.type == "source"
         assert parsed.io is None
@@ -79,15 +79,15 @@ class TestSourceSpec:
         assert parsed.assets is None
 
     def test_json_roundtrip_with_assets(self, source_path: str):
-        """SourceSpec with an assets list survives JSON roundtrip."""
-        spec = SourceSpec(path=source_path, assets=["asset_a"])
+        """SourceInstanceSpec with an assets list survives JSON roundtrip."""
+        spec = SourceInstanceSpec(path=source_path, assets=["asset_a"])
         json_str = spec.model_dump_json()
-        parsed = SourceSpec.model_validate_json(json_str)
+        parsed = SourceInstanceSpec.model_validate_json(json_str)
         assert parsed.assets == ["asset_a"]
 
     # -- reconstruct ---------------------------------------------------------
 
-    def test_reconstruct_creates_source(self, spec: SourceSpec):
+    def test_reconstruct_creates_source(self, spec: SourceInstanceSpec):
         """reconstruct() produces a Source with the expected assets."""
         source = spec.reconstruct()
         assert isinstance(source, Source)
@@ -98,35 +98,35 @@ class TestSourceSpec:
 
     def test_assets_filtering_materializable(self, source_path: str):
         """Only listed assets are marked materializable when assets is set."""
-        spec = SourceSpec(path=source_path, assets=["asset_a"])
+        spec = SourceInstanceSpec(path=source_path, assets=["asset_a"])
         source = spec.reconstruct()
         assert source.assets["asset_a"].materializable is True
         assert source.assets["asset_b"].materializable is False
 
     def test_assets_filtering_all(self, source_path: str):
         """All assets are materializable when assets is None."""
-        spec = SourceSpec(path=source_path)
+        spec = SourceInstanceSpec(path=source_path)
         source = spec.reconstruct()
         assert source.assets["asset_a"].materializable is True
         assert source.assets["asset_b"].materializable is True
 
     # -- _reconstruct_io -----------------------------------------------------
 
-    def test_reconstruct_io_none(self, spec: SourceSpec):
+    def test_reconstruct_io_none(self, spec: SourceInstanceSpec):
         """_reconstruct_io returns None when io is None."""
         assert spec._reconstruct_io(None) is None
 
-    def test_reconstruct_io_single(self, spec: SourceSpec):
-        """_reconstruct_io reconstructs a single IOSpec."""
-        io_spec = IOSpec(path="interloper.io.memory.MemoryIO")
+    def test_reconstruct_io_single(self, spec: SourceInstanceSpec):
+        """_reconstruct_io reconstructs a single IOInstanceSpec."""
+        io_spec = IOInstanceSpec(path="interloper.io.memory.MemoryIO")
         result = spec._reconstruct_io(io_spec)
         assert isinstance(result, il.MemoryIO)
 
-    def test_reconstruct_io_dict(self, spec: SourceSpec):
-        """_reconstruct_io reconstructs a dict of IOSpecs."""
+    def test_reconstruct_io_dict(self, spec: SourceInstanceSpec):
+        """_reconstruct_io reconstructs a dict of IOInstanceSpecs."""
         io_specs = {
-            "a": IOSpec(path="interloper.io.memory.MemoryIO"),
-            "b": IOSpec(path="interloper.io.memory.MemoryIO"),
+            "a": IOInstanceSpec(path="interloper.io.memory.MemoryIO"),
+            "b": IOInstanceSpec(path="interloper.io.memory.MemoryIO"),
         }
         result = spec._reconstruct_io(io_specs)
         assert isinstance(result, dict)

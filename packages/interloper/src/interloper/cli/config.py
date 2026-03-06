@@ -6,7 +6,7 @@ from interloper.backfillers.base import Backfiller
 from interloper.dag.base import DAG
 from interloper.io.base import IO
 from interloper.runners.base import Runner
-from interloper.serialization.config import ConfigSpec
+from interloper.serialization.config import ConfigInstanceSpec
 
 
 @dataclass(frozen=True)
@@ -18,13 +18,13 @@ class Config:
     runner: Runner | None = None
     io: dict[str, IO] = field(default_factory=dict)
 
-    def to_spec(self) -> ConfigSpec:
+    def to_spec(self) -> ConfigInstanceSpec:
         """Convert to a serializable ConfigSpec.
 
         Returns:
             The serializable ConfigSpec representation.
         """
-        return ConfigSpec(
+        return ConfigInstanceSpec(
             backfiller=self.backfiller.to_spec() if self.backfiller is not None else None,
             runner=self.runner.to_spec() if self.runner is not None else None,
             io={k: v.to_spec() for k, v in self.io.items()},
@@ -46,5 +46,5 @@ class Config:
         Returns:
             The reconstructed Config instance.
         """
-        spec = ConfigSpec.model_validate(data)
+        spec = ConfigInstanceSpec.model_validate(data)
         return spec.reconstruct()

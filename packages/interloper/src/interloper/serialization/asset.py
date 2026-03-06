@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import Field
 
 from interloper.errors import AssetError
-from interloper.serialization.base import Spec
-from interloper.serialization.io import IOSpec
+from interloper.serialization.base import InstanceSpec
+from interloper.serialization.io import IOInstanceSpec
 from interloper.utils.imports import import_from_path
 
 if TYPE_CHECKING:
@@ -18,8 +18,8 @@ if TYPE_CHECKING:
     from interloper.source.config import Config
 
 
-class AssetSpec(Spec):
-    """Spec for a single Asset.
+class AssetInstanceSpec(InstanceSpec):
+    """InstanceSpec for a single Asset.
 
     The ``path`` field supports two formats:
         - A dotted import path to an ``AssetDefinition``.
@@ -28,7 +28,7 @@ class AssetSpec(Spec):
 
     type: Literal["asset"] = Field(default="asset", init=False, frozen=True)
     path: str
-    io: IOSpec | dict[str, IOSpec] | None = None
+    io: IOInstanceSpec | dict[str, IOInstanceSpec] | None = None
     config: dict[str, Any] | None = None  # dict to initialize the config Pydantic model
     materializable: bool = True
 
@@ -45,8 +45,8 @@ class AssetSpec(Spec):
         else:
             return self._from_asset_def(io)
 
-    def _reconstruct_io(self, io: IOSpec | dict[str, IOSpec] | None) -> IO | dict[str, IO] | None:
-        if isinstance(io, IOSpec):
+    def _reconstruct_io(self, io: IOInstanceSpec | dict[str, IOInstanceSpec] | None) -> IO | dict[str, IO] | None:
+        if isinstance(io, IOInstanceSpec):
             return io.reconstruct()
         elif isinstance(io, dict):
             return {k: v.reconstruct() for k, v in io.items()}

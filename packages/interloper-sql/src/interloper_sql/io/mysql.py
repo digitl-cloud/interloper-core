@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from interloper.io.database import WriteDisposition
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 from sqlalchemy.engine import URL
 
 from interloper_sql.io.base import SqlIO
@@ -56,7 +56,7 @@ class MySQLIO(SqlIO):
         url = URL.create(drivername, user, password, host, port, database)
         super().__init__(url, write_disposition, chunk_size, adapter)
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""
         init = self._base_init_kwargs()
         init["host"] = self.host
@@ -67,4 +67,4 @@ class MySQLIO(SqlIO):
             init["password"] = self.password
         if self.driver is not None:
             init["driver"] = self.driver
-        return IOSpec(path=self.path, init=init)
+        return IOInstanceSpec(path=self.path, init=init)

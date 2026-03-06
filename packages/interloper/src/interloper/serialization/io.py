@@ -6,15 +6,15 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 
-from interloper.serialization.base import Spec
+from interloper.serialization.base import InstanceSpec
 from interloper.utils.imports import import_from_path
 
 if TYPE_CHECKING:
     from interloper.io.base import IO
 
 
-class IOSpec(Spec):
-    """Spec for an IO handler, storing its import path and constructor kwargs."""
+class IOInstanceSpec(InstanceSpec):
+    """InstanceSpec for an IO handler, storing its import path and constructor kwargs."""
 
     path: str
     init: dict[str, Any] = Field(default_factory=dict)

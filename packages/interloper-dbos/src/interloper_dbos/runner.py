@@ -14,9 +14,9 @@ from interloper.errors import RunnerError
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus
-from interloper.serialization.asset import AssetSpec
-from interloper.serialization.dag import DAGSpec
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.asset import AssetInstanceSpec
+from interloper.serialization.dag import DAGInstanceSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 
 @DBOS.dbos_class()
@@ -133,7 +133,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     @DBOS.workflow(name="materialize")
     def _materialize_workflow(
         self,
-        dag_spec: DAGSpec,
+        dag_spec: DAGInstanceSpec,
         partition_or_window: Partition | PartitionWindow | None = None,
     ) -> RunResult:
         """DBOS workflow to materialize the DAG.
@@ -155,7 +155,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     def _execute_asset_workflow(
         self,
         workflow_id: str,
-        asset_spec: AssetSpec,
+        asset_spec: AssetInstanceSpec,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> Any:
         """DBOS workflow to execute an asset.
@@ -177,7 +177,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     @DBOS.step(name="execute_asset")
     def _execute_asset_step(
         self,
-        asset_spec: AssetSpec,
+        asset_spec: AssetInstanceSpec,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> Any:
         asset = asset_spec.reconstruct()
@@ -208,8 +208,8 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     def get_first_failed_step(self) -> StepInfo | None:
         return next((step for step in self.list_failed_steps()), None)
 
-    def to_spec(self) -> RunnerSpec:
-        return RunnerSpec(
+    def to_spec(self) -> RunnerInstanceSpec:
+        return RunnerInstanceSpec(
             path="dbos",
             init={
                 "concurrency": self._concurrency,

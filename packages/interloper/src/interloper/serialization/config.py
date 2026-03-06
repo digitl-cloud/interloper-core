@@ -6,23 +6,23 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from interloper.serialization.backfiller import BackfillerSpec
-from interloper.serialization.base import Spec
-from interloper.serialization.dag import DAGSpec
-from interloper.serialization.io import IOSpec
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
+from interloper.serialization.base import InstanceSpec
+from interloper.serialization.dag import DAGInstanceSpec
+from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 if TYPE_CHECKING:
     from interloper.cli.config import Config
 
 
-class ConfigSpec(Spec):
-    """Top-level spec that bundles a DAG with its runner, IO, and backfiller settings."""
+class ConfigInstanceSpec(InstanceSpec):
+    """Top-level InstanceSpec that bundles a DAG with its runner, IO, and backfiller settings."""
 
-    backfiller: BackfillerSpec | None = None
-    runner: RunnerSpec | None = None
-    io: dict[str, IOSpec] = Field(default_factory=dict)
-    dag: DAGSpec
+    backfiller: BackfillerInstanceSpec | None = None
+    runner: RunnerInstanceSpec | None = None
+    io: dict[str, IOInstanceSpec] = Field(default_factory=dict)
+    dag: DAGInstanceSpec
 
     def reconstruct(self) -> Config:
         """Reconstruct the config from the spec.

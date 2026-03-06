@@ -1,10 +1,10 @@
-"""Tests for AssetSpec serialization and reconstruction."""
+"""Tests for AssetInstanceSpec serialization and reconstruction."""
 
 import pytest
 from pydantic import ValidationError
 
 import interloper as il
-from interloper.serialization import AssetSpec, IOSpec
+from interloper.serialization import AssetInstanceSpec, IOInstanceSpec
 
 # Module-level source for serialization roundtrip tests
 _closed_over_value = "secret_value"
@@ -20,10 +20,10 @@ class ClosureTestSource:
 
 
 class TestAssetSpec:
-    """Tests for AssetSpec serialization and reconstruction."""
+    """Tests for AssetInstanceSpec serialization and reconstruction."""
 
     def test_assetspec_simple_roundtrip(self):
-        """Test AssetSpec roundtrip with simple asset."""
+        """Test AssetInstanceSpec roundtrip with simple asset."""
 
         # Create a simple asset
         @il.asset
@@ -32,7 +32,7 @@ class TestAssetSpec:
 
         # Convert to spec
         spec = simple_asset().to_spec()
-        assert isinstance(spec, AssetSpec)
+        assert isinstance(spec, AssetInstanceSpec)
         # Module path may be prefixed (e.g., packages.interloper.tests...)
         assert spec.path.split(".")[-1] == "simple_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
@@ -42,12 +42,12 @@ class TestAssetSpec:
         assert isinstance(json_str, str)
 
         # Test that the spec can be parsed from JSON
-        parsed_spec = AssetSpec.model_validate_json(json_str)
+        parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
         assert parsed_spec.io == spec.io
 
     def test_assetspec_with_config_roundtrip(self):
-        """Test AssetSpec roundtrip with config."""
+        """Test AssetInstanceSpec roundtrip with config."""
 
         class TestConfig(il.Config):
             api_key: str = "default_key"
@@ -64,11 +64,11 @@ class TestAssetSpec:
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
-        parsed_spec = AssetSpec.model_validate_json(json_str)
+        parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
 
     def test_assetspec_with_io_roundtrip(self):
-        """Test AssetSpec roundtrip with IO."""
+        """Test AssetInstanceSpec roundtrip with IO."""
         file_io = il.FileIO(base_path="data")
 
         @il.asset
@@ -79,18 +79,18 @@ class TestAssetSpec:
         spec = io_asset(io=file_io).to_spec()
         assert spec.path.split(".")[-1] == "io_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
-        assert isinstance(spec.io, IOSpec)
+        assert isinstance(spec.io, IOInstanceSpec)
         assert spec.io.path == "interloper.io.file.FileIO"
         assert spec.io.init["base_path"] == "data"
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
-        parsed_spec = AssetSpec.model_validate_json(json_str)
+        parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert isinstance(parsed_spec.io, IOSpec)
+        assert isinstance(parsed_spec.io, IOInstanceSpec)
 
     def test_assetspec_with_multiple_io_roundtrip(self):
-        """Test AssetSpec roundtrip with multiple IOs."""
+        """Test AssetInstanceSpec roundtrip with multiple IOs."""
         file_io1 = il.FileIO(base_path="data1")
         file_io2 = il.FileIO(base_path="data2")
 
@@ -105,42 +105,42 @@ class TestAssetSpec:
         assert isinstance(spec.io, dict)
         assert "io1" in spec.io
         assert "io2" in spec.io
-        assert isinstance(spec.io["io1"], IOSpec)
-        assert isinstance(spec.io["io2"], IOSpec)
+        assert isinstance(spec.io["io1"], IOInstanceSpec)
+        assert isinstance(spec.io["io2"], IOInstanceSpec)
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
-        parsed_spec = AssetSpec.model_validate_json(json_str)
+        parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
         assert isinstance(parsed_spec.io, dict)
         assert "io1" in parsed_spec.io
         assert "io2" in parsed_spec.io
 
     def test_assetspec_validation(self):
-        """Test AssetSpec Pydantic validation."""
+        """Test AssetInstanceSpec Pydantic validation."""
         # Valid spec
-        spec = AssetSpec(path="myapp.assets.my_asset")
+        spec = AssetInstanceSpec(path="myapp.assets.my_asset")
         assert spec.path == "myapp.assets.my_asset"
         assert spec.io is None
 
         # Invalid path (None should be invalid)
         with pytest.raises(ValidationError):
-            AssetSpec(path=None)  # type: ignore[arg-type]
+            AssetInstanceSpec(path=None)  # type: ignore[arg-type]
 
         # Missing required field
         with pytest.raises(ValidationError):
-            AssetSpec()  # type: ignore[call-arg]
+            AssetInstanceSpec()  # type: ignore[call-arg]
 
     def test_assetspec_json_serialization(self):
-        """Test AssetSpec JSON serialization."""
-        spec = AssetSpec(path="myapp.assets.my_asset")
+        """Test AssetInstanceSpec JSON serialization."""
+        spec = AssetInstanceSpec(path="myapp.assets.my_asset")
 
         # Convert to JSON
         json_str = spec.model_dump_json()
         assert isinstance(json_str, str)
 
         # Parse from JSON
-        parsed = AssetSpec.model_validate_json(json_str)
+        parsed = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed.path == spec.path
 
 

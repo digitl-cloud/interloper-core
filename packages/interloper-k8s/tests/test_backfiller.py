@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import interloper as il
 import pytest
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.backfiller import BackfillerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
 
 from interloper_k8s import KubernetesBackfiller
 
@@ -134,12 +134,12 @@ class TestCapacity:
 
 
 class TestToSpec:
-    """Serialization to BackfillerSpec and roundtrip reconstruction."""
+    """Serialization to BackfillerInstanceSpec and roundtrip reconstruction."""
 
     def test_to_spec_returns_backfiller_spec(self, default_backfiller):
-        """to_spec returns a BackfillerSpec."""
+        """to_spec returns a BackfillerInstanceSpec."""
         spec = default_backfiller.to_spec()
-        assert isinstance(spec, BackfillerSpec)
+        assert isinstance(spec, BackfillerInstanceSpec)
 
     def test_to_spec_path(self, default_backfiller):
         """Spec path points to the KubernetesBackfiller class."""

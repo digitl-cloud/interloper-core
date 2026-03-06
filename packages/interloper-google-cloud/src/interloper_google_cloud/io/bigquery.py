@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 from interloper.errors import ConfigError, TableNotFoundError
 from interloper.io.database import DatabaseIO, WriteDisposition
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 
 if TYPE_CHECKING:
     from interloper.io.adapter import DataAdapter
@@ -314,14 +314,14 @@ class BigQueryIO(DatabaseIO):
     # Serialization
     # ------------------------------------------------------------------
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""
         init = self._base_init_kwargs()
         init["project"] = self.project
         if self.default_dataset is not None:
             init["default_dataset"] = self.default_dataset
         init["location"] = self.location
-        return IOSpec(path=self.path, init=init)
+        return IOInstanceSpec(path=self.path, init=init)
 
     # ------------------------------------------------------------------
     # Lifecycle

@@ -21,7 +21,7 @@ from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 from kubernetes import client, config
 from kubernetes.client import V1Job
 
@@ -357,8 +357,8 @@ class KubernetesRunner(Runner[str]):
                     except Exception:
                         pass
 
-    def to_spec(self) -> RunnerSpec:
-        return RunnerSpec(
+    def to_spec(self) -> RunnerInstanceSpec:
+        return RunnerInstanceSpec(
             path=self.path,
             init=dict(
                 image=self._image,

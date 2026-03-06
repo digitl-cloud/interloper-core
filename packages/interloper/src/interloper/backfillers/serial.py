@@ -3,7 +3,7 @@
 from interloper.backfillers.base import Backfiller
 from interloper.dag.base import DAG
 from interloper.partitioning.base import Partition, PartitionWindow
-from interloper.serialization.backfiller import BackfillerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
 
 
 class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
@@ -29,10 +29,10 @@ class SerialBackfiller(Backfiller[Partition | PartitionWindow | None]):
     def _cancel_all(self, handles: list[Partition | PartitionWindow | None]) -> None:
         raise NotImplementedError("Not supported for serial backfiller")
 
-    def to_spec(self) -> BackfillerSpec:
+    def to_spec(self) -> BackfillerInstanceSpec:
         """Convert to a serializable spec.
 
         Returns:
             A BackfillerSpec representing this backfiller.
         """
-        return BackfillerSpec(path=self.path)
+        return BackfillerInstanceSpec(path=self.path)

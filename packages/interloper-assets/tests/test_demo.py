@@ -2,7 +2,7 @@
 
 import interloper as il
 import pytest
-from interloper.serialization.source import SourceSpec
+from interloper.serialization.source import SourceInstanceSpec
 
 from interloper_assets.demo.source import DemoConfig, DemoSchema, DemoSource, partitioning
 
@@ -193,17 +193,17 @@ class TestDemoSourceInstantiation:
 
 
 class TestDemoSourceToSpec:
-    """Serialization of DemoSource to a SourceSpec."""
+    """Serialization of DemoSource to a SourceInstanceSpec."""
 
     @pytest.fixture()
     def spec(self):
-        """SourceSpec from an instantiated demo source."""
+        """SourceInstanceSpec from an instantiated demo source."""
         source = DemoSource(config=DemoConfig())
         return source.to_spec()
 
     def test_spec_type(self, spec):
-        """Spec is a SourceSpec."""
-        assert isinstance(spec, SourceSpec)
+        """Spec is a SourceInstanceSpec."""
+        assert isinstance(spec, SourceInstanceSpec)
 
     def test_spec_has_path(self, spec):
         """Spec contains a non-empty import path."""

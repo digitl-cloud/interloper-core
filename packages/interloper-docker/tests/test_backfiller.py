@@ -10,7 +10,7 @@ import pytest
 from interloper.cli.config import Config
 from interloper.errors import PartitionError
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.backfiller import BackfillerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
 
 from interloper_docker import DockerBackfiller
 
@@ -133,9 +133,9 @@ class TestDockerBackfillerToSpec:
     """Tests for the to_spec() serialization roundtrip."""
 
     def test_to_spec_returns_backfiller_spec(self, backfiller):
-        """to_spec() returns a BackfillerSpec instance."""
+        """to_spec() returns a BackfillerInstanceSpec instance."""
         spec = backfiller.to_spec()
-        assert isinstance(spec, BackfillerSpec)
+        assert isinstance(spec, BackfillerInstanceSpec)
 
     def test_to_spec_default_values(self, backfiller):
         """Spec captures default init kwargs."""

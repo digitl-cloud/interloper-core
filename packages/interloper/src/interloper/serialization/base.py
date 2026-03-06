@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from interloper.utils.imports import get_object_path
 
 
-class Spec(BaseModel, ABC):
+class InstanceSpec(BaseModel, ABC):
     """Pydantic model that captures the state needed to reconstruct a framework object.
 
     Subclasses store constructor arguments and import paths as plain data,
@@ -23,13 +23,13 @@ class Spec(BaseModel, ABC):
         """Reconstruct the live framework object from this spec."""
 
 
-T = TypeVar("T", bound=Spec)
+T = TypeVar("T", bound=InstanceSpec)
 
 
 class Serializable(ABC, Generic[T]):
-    """Mixin for framework objects that can produce a Spec of themselves.
+    """Mixin for framework objects that can produce a InstanceSpec of themselves.
 
-    Implementors define ``to_spec()`` to return a ``Spec`` subclass capturing
+    Implementors define ``to_spec()`` to return a ``InstanceSpec`` subclass capturing
     whatever state is needed to later ``reconstruct()`` the object.
     """
 
@@ -40,4 +40,4 @@ class Serializable(ABC, Generic[T]):
 
     @abstractmethod
     def to_spec(self) -> T:
-        """Convert this object into a serializable Spec."""
+        """Convert this object into a serializable InstanceSpec."""

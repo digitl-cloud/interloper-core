@@ -54,7 +54,14 @@ from interloper.rest import HTTPBearerAuth, OAuth2Auth, OAuth2ClientCredentialsA
 from interloper.runners import MultiProcessRunner, MultiThreadRunner, Runner, SerialRunner
 from interloper.runners.results import AssetExecutionInfo, ExecutionStatus, RunResult
 from interloper.schema import AssetSchema
-from interloper.serialization import AssetSpec, BackfillerSpec, ConfigSpec, DAGSpec, IOSpec, RunnerSpec
+from interloper.serialization import (
+    AssetInstanceSpec,
+    BackfillerInstanceSpec,
+    ConfigInstanceSpec,
+    DAGInstanceSpec,
+    IOInstanceSpec,
+    RunnerInstanceSpec,
+)
 from interloper.source import Source, SourceDefinition, source
 from interloper.source.config import Config
 
@@ -70,21 +77,21 @@ __all__ = [
     "AssetError",
     "AssetExecutionInfo",
     "AssetInstanceKey",
+    "AssetInstanceSpec",
     "AssetNotFoundError",
     "AssetSchema",
-    "AssetSpec",
     "AuthenticationError",
     "BackfillError",
     "BackfillResult",
     "Backfiller",
-    "BackfillerSpec",
+    "BackfillerInstanceSpec",
     "CircularDependencyError",
     "Config",
     "ConfigError",
-    "ConfigSpec",
+    "ConfigInstanceSpec",
     "CsvIO",
     "DAGError",
-    "DAGSpec",
+    "DAGInstanceSpec",
     "DataNotFoundError",
     "DependencyNotFoundError",
     "Event",
@@ -97,7 +104,7 @@ __all__ = [
     "FileIO",
     "HTTPBearerAuth",
     "IOContext",
-    "IOSpec",
+    "IOInstanceSpec",
     "InterloperError",
     "InterloperIOError",
     "LogLevel",
@@ -118,7 +125,7 @@ __all__ = [
     "RunResult",
     "Runner",
     "RunnerError",
-    "RunnerSpec",
+    "RunnerInstanceSpec",
     "SchemaError",
     "ScriptLoadError",
     "SerialBackfiller",

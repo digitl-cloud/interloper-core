@@ -16,7 +16,7 @@ from interloper.events.base import enable_event_forwarding, flush, subscribe
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.serial import SerialRunner
-from interloper.serialization.config import ConfigSpec
+from interloper.serialization.config import ConfigInstanceSpec
 from interloper.utils.imports import require_import
 
 
@@ -68,7 +68,7 @@ def _config_from_yaml(path: str) -> Config:
     import yaml
 
     with open(path) as f:
-        spec = ConfigSpec.model_validate(yaml.safe_load(f))
+        spec = ConfigInstanceSpec.model_validate(yaml.safe_load(f))
         return spec.reconstruct()
 
 
@@ -79,7 +79,7 @@ def _config_from_json(path: str) -> Config:
         The parsed Config.
     """
     with open(path) as f:
-        spec = ConfigSpec.model_validate(json.load(f))
+        spec = ConfigInstanceSpec.model_validate(json.load(f))
         return spec.reconstruct()
 
 

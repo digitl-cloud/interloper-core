@@ -21,13 +21,13 @@ from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.backfiller import BackfillerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
 from interloper.serialization.base import Serializable
 
 HandleT = TypeVar("HandleT")
 
 
-class Backfiller(Serializable[BackfillerSpec], Generic[HandleT]):
+class Backfiller(Serializable[BackfillerInstanceSpec], Generic[HandleT]):
     """Abstract base class for all backfillers.
 
     A backfiller is responsible for orchestrating the entire run (process/host/container),

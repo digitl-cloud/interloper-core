@@ -2,7 +2,7 @@
 
 import interloper as il
 from interloper.cli.config import Config
-from interloper.serialization.config import ConfigSpec
+from interloper.serialization.config import ConfigInstanceSpec
 
 
 class TestConfig:
@@ -46,7 +46,7 @@ class TestConfig:
         dag = il.DAG(a())
         config = Config(dag=dag)
         spec = config.to_spec()
-        assert isinstance(spec, ConfigSpec)
+        assert isinstance(spec, ConfigInstanceSpec)
         assert spec.dag is not None
         assert spec.backfiller is None
         assert spec.runner is None

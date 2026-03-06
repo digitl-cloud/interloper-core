@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import interloper as il
 import pytest
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 from interloper_k8s import KubernetesRunner
 
@@ -141,12 +141,12 @@ class TestCapacity:
 
 
 class TestToSpec:
-    """Serialization to RunnerSpec and roundtrip reconstruction."""
+    """Serialization to RunnerInstanceSpec and roundtrip reconstruction."""
 
     def test_to_spec_returns_runner_spec(self, default_runner):
-        """to_spec returns a RunnerSpec."""
+        """to_spec returns a RunnerInstanceSpec."""
         spec = default_runner.to_spec()
-        assert isinstance(spec, RunnerSpec)
+        assert isinstance(spec, RunnerInstanceSpec)
 
     def test_to_spec_path(self, default_runner):
         """Spec path points to the KubernetesRunner class."""

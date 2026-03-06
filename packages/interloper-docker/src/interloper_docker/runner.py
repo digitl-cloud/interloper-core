@@ -21,7 +21,7 @@ from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class DockerRunner(Runner[Container]):
@@ -239,8 +239,8 @@ class DockerRunner(Runner[Container]):
                 asset = self.state.dag.asset_map[asset_key]
                 self.state.mark_asset_cancelled(asset)
 
-    def to_spec(self) -> RunnerSpec:
-        return RunnerSpec(
+    def to_spec(self) -> RunnerInstanceSpec:
+        return RunnerInstanceSpec(
             path=self.path,
             init=dict(
                 image=self._image,

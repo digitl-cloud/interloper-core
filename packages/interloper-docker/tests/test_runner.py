@@ -10,7 +10,7 @@ import pytest
 from interloper.cli.config import Config
 from interloper.errors import PartitionError
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 from interloper_docker import DockerRunner
 
@@ -112,9 +112,9 @@ class TestDockerRunnerToSpec:
     """Tests for the to_spec() serialization roundtrip."""
 
     def test_to_spec_returns_runner_spec(self, runner):
-        """to_spec() returns a RunnerSpec instance."""
+        """to_spec() returns a RunnerInstanceSpec instance."""
         spec = runner.to_spec()
-        assert isinstance(spec, RunnerSpec)
+        assert isinstance(spec, RunnerInstanceSpec)
 
     def test_to_spec_default_values(self, runner):
         """Spec captures default init kwargs."""

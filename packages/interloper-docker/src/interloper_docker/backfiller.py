@@ -23,7 +23,7 @@ from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.backfiller import BackfillerSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
 
 
 class DockerBackfiller(Backfiller[Container]):
@@ -322,9 +322,9 @@ class DockerBackfiller(Backfiller[Container]):
                 if partition is not None:
                     self.state.mark_run_cancelled(partition)
 
-    def to_spec(self) -> BackfillerSpec:
+    def to_spec(self) -> BackfillerInstanceSpec:
         """Convert to serializable spec."""
-        return BackfillerSpec(
+        return BackfillerInstanceSpec(
             path=self.path,
             init=dict(
                 image=self._image,

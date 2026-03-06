@@ -4,18 +4,18 @@ Each Spec can reconstruct the original object from its serialized form,
 enabling cross-process transport and persistent configuration.
 """
 
-from interloper.serialization.asset import AssetSpec
-from interloper.serialization.backfiller import BackfillerSpec
-from interloper.serialization.config import ConfigSpec
-from interloper.serialization.dag import DAGSpec
-from interloper.serialization.io import IOSpec
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.asset import AssetInstanceSpec
+from interloper.serialization.backfiller import BackfillerInstanceSpec
+from interloper.serialization.config import ConfigInstanceSpec
+from interloper.serialization.dag import DAGInstanceSpec
+from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 __all__ = [
-    "AssetSpec",
-    "BackfillerSpec",
-    "ConfigSpec",
-    "DAGSpec",
-    "IOSpec",
-    "RunnerSpec",
+    "AssetInstanceSpec",
+    "BackfillerInstanceSpec",
+    "ConfigInstanceSpec",
+    "DAGInstanceSpec",
+    "IOInstanceSpec",
+    "RunnerInstanceSpec",
 ]

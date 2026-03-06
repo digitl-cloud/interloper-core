@@ -9,7 +9,7 @@ from interloper.io.context import IOContext
 from interloper.serialization.base import Serializable
 
 if TYPE_CHECKING:
-    from interloper.serialization.io import IOSpec
+    from interloper.serialization.io import IOInstanceSpec
 
 
 class IO(Serializable):
@@ -69,5 +69,5 @@ class IO(Serializable):
         """
 
     @abstractmethod
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""

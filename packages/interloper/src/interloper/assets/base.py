@@ -21,7 +21,7 @@ from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.io.memory import MemoryIO
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
-from interloper.serialization.asset import AssetSpec
+from interloper.serialization.asset import AssetInstanceSpec
 from interloper.serialization.base import Serializable
 from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
@@ -152,7 +152,7 @@ class AssetDefinition:
 
 
 @dataclass
-class Asset(Serializable[AssetSpec]):
+class Asset(Serializable[AssetInstanceSpec]):
     """Runtime instance of an asset."""
 
     func: Callable
@@ -573,7 +573,7 @@ class Asset(Serializable[AssetSpec]):
 
             validate_schema(data, self.schema)
 
-    def to_spec(self) -> AssetSpec:
+    def to_spec(self) -> AssetInstanceSpec:
         """Convert to serializable spec.
 
         Returns:
@@ -586,7 +586,7 @@ class Asset(Serializable[AssetSpec]):
         elif self.io is not None:
             io_spec = self.io.to_spec()
 
-        return AssetSpec(
+        return AssetInstanceSpec(
             path=self.path,
             io=io_spec,
             materializable=self.materializable,

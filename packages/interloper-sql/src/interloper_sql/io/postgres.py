@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from interloper.io.database import WriteDisposition
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 from sqlalchemy import text
 from sqlalchemy.engine import URL
 
@@ -73,7 +73,7 @@ class PostgresIO(SqlIO):
             return
         self._conn.execute(text(f"TRUNCATE TABLE {sa_table.fullname}"))
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""
         init = self._base_init_kwargs()
         init["host"] = self.host
@@ -84,4 +84,4 @@ class PostgresIO(SqlIO):
             init["password"] = self.password
         if self.driver is not None:
             init["driver"] = self.driver
-        return IOSpec(path=self.path, init=init)
+        return IOInstanceSpec(path=self.path, init=init)

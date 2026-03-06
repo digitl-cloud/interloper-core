@@ -5,7 +5,7 @@ from __future__ import annotations
 from interloper.assets.base import Asset
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerSpec
+from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class SerialRunner(Runner[str]):
@@ -33,10 +33,10 @@ class SerialRunner(Runner[str]):
     def _cancel_all(self, handles: list[str]) -> None:
         raise NotImplementedError("Not supported for serial runner")
 
-    def to_spec(self) -> RunnerSpec:
+    def to_spec(self) -> RunnerInstanceSpec:
         """Serialize to a RunnerSpec.
 
         Returns:
             A RunnerSpec for this serial runner.
         """
-        return RunnerSpec(path=self.path)
+        return RunnerInstanceSpec(path=self.path)

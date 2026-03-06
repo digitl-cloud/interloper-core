@@ -9,7 +9,7 @@ from typing import Any
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionWindow
-from interloper.serialization.io import IOSpec
+from interloper.serialization.io import IOInstanceSpec
 
 
 class FileIO(IO):
@@ -141,13 +141,13 @@ class FileIO(IO):
                     counts[partition_value] = len(data) if isinstance(data, list) else 1
         return counts
 
-    def to_spec(self) -> IOSpec:
+    def to_spec(self) -> IOInstanceSpec:
         """Convert to a serializable spec.
 
         Returns:
             The IOSpec representation of this FileIO.
         """
-        return IOSpec(
+        return IOInstanceSpec(
             path=self.path,
             init={"base_path": self.base_path},
         )
