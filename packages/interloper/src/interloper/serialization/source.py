@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
-from interloper.serialization.base import InstanceSpec
+from interloper.serialization.asset import AssetDefinitionSpec
+from interloper.serialization.base import DefinitionSpec, InstanceSpec
 from interloper.serialization.io import IOInstanceSpec
 from interloper.utils.imports import import_from_path
 
@@ -15,6 +16,20 @@ if TYPE_CHECKING:
     from interloper.io.base import IO
     from interloper.source.base import Source, SourceDefinition
     from interloper.source.config import Config
+
+
+class SourceDefinitionSpec(DefinitionSpec):
+    """Spec describing a source definition's metadata.
+
+    Used for API responses, frontend display, and introspection —
+    not for reconstruction.
+    """
+
+    key: str
+    label: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    assets: list[AssetDefinitionSpec] = Field(default_factory=list)
 
 
 class SourceInstanceSpec(InstanceSpec):

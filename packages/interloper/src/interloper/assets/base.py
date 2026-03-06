@@ -21,8 +21,9 @@ from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.io.memory import MemoryIO
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
-from interloper.serialization.asset import AssetInstanceSpec
+from interloper.serialization.asset import AssetDefinitionSpec, AssetInstanceSpec
 from interloper.serialization.base import Serializable
+from interloper.serialization.schema import extract_schema_fields
 from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
 
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class AssetDefinition:
+class AssetDefinition(Serializable[AssetDefinitionSpec]):
     """Definition of an asset created by the @asset decorator."""
 
     func: Callable[..., Any]
@@ -62,6 +63,22 @@ class AssetDefinition:
 
         if not self.label:
             object.__setattr__(self, "label", to_label(self.name))
+
+    def to_spec(self) -> AssetDefinitionSpec:
+        """Convert to a definition spec describing this asset's metadata.
+
+        Returns:
+            An AssetDefinitionSpec capturing key, label, description,
+            tags, dependencies, and schema fields.
+        """
+        return AssetDefinitionSpec(
+            key=self.definition_key,
+            label=self.label,
+            description=self.func.__doc__ or "",
+            tags=list(self.tags),
+            requires=dict(self.requires) if self.requires else None,
+            schema_fields=extract_schema_fields(self.schema),
+        )
 
     @property
     def definition_key(self) -> AssetDefinitionKey:

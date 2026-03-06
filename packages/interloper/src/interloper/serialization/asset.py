@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any, Literal
 from pydantic import Field
 
 from interloper.errors import AssetError
-from interloper.serialization.base import InstanceSpec
+from interloper.serialization.base import DefinitionSpec, InstanceSpec
 from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.schema import SchemaFieldSpec
 from interloper.utils.imports import import_from_path
 
 if TYPE_CHECKING:
@@ -16,6 +17,21 @@ if TYPE_CHECKING:
     from interloper.io.base import IO
     from interloper.source.base import SourceDefinition
     from interloper.source.config import Config
+
+
+class AssetDefinitionSpec(DefinitionSpec):
+    """Spec describing an asset definition's metadata.
+
+    Used for API responses, frontend display, and introspection —
+    not for reconstruction.
+    """
+
+    key: str
+    label: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    requires: dict[str, str] | None = None
+    schema_fields: list[SchemaFieldSpec] | None = None
 
 
 class AssetInstanceSpec(InstanceSpec):

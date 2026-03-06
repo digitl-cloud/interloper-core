@@ -14,7 +14,7 @@ from interloper.assets.base import Asset, AssetDefinition
 from interloper.errors import ConfigError, SourceError
 from interloper.io.base import IO
 from interloper.serialization.base import Serializable
-from interloper.serialization.source import SourceInstanceSpec
+from interloper.serialization.source import SourceDefinitionSpec, SourceInstanceSpec
 from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
 from interloper.utils.text import to_label, validate_name
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class SourceDefinition:
+class SourceDefinition(Serializable[SourceDefinitionSpec]):
     """Definition of a source created by the @source class decorator."""
 
     cls: type
@@ -67,6 +67,21 @@ class SourceDefinition:
                     continue
                 if param_name in self.asset_defs and param_name != asset_def.name:
                     asset_def.requires[param_name] = self.asset_defs[param_name].definition_key
+
+    def to_spec(self) -> SourceDefinitionSpec:
+        """Convert to a definition spec describing this source's metadata.
+
+        Returns:
+            A SourceDefinitionSpec capturing key, label, description,
+            tags, and nested asset definition specs.
+        """
+        return SourceDefinitionSpec(
+            key=self.name,
+            label=self.label,
+            description=self.cls.__doc__ or "",
+            tags=list(self.tags),
+            assets=[ad.to_spec() for ad in self.asset_defs.values()],
+        )
 
     @property
     def path(self) -> str:
