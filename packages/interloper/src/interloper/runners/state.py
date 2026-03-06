@@ -114,10 +114,11 @@ class RunState:
         """Check whether every asset has reached a terminal state.
 
         Returns:
-            True if all assets are completed, failed, or skipped.
+            True if all assets are completed, failed, cancelled, or skipped.
         """
         return all(
-            exec_info.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.SKIPPED)
+            exec_info.status
+            in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED, ExecutionStatus.SKIPPED)
             for exec_info in self.asset_executions.values()
         )
 
@@ -176,7 +177,7 @@ class RunState:
         self._update_dependent_assets(asset.instance_key)
 
     def mark_asset_failed(self, asset: Asset, error: str, tb: str | None = None) -> None:
-        """Transition an asset to FAILED, emit event, and propagate failure to dependents.
+        """Transition an asset to FAILED, emit event, and mark downstream dependents as CANCELLED.
 
         Args:
             asset: The asset that failed.
@@ -216,14 +217,19 @@ class RunState:
                 self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
 
     def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
-        """Recursively mark all downstream dependents as FAILED."""
+        """Recursively mark all downstream dependents as CANCELLED."""
         # Use successors to get all assets that depend on the failed one
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]
+            exec_info = self.asset_executions[asset.instance_key]
 
-            if self.asset_executions[asset.instance_key].status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED):
+            if exec_info.status in (
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.CANCELLED,
+            ):
                 continue
 
-            self.asset_executions[asset.instance_key].status = ExecutionStatus.FAILED
-            # Recursively propagate failure down the graph
+            exec_info.mark_cancelled()
+            # Recursively propagate cancellation down the graph
             self._propagate_failure(successor)

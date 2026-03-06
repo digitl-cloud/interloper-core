@@ -95,6 +95,11 @@ class RunResult:
         """List of asset keys that failed."""
         return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.FAILED]
 
+    @property
+    def cancelled_assets(self) -> list[AssetInstanceKey]:
+        """List of asset keys that were cancelled (e.g. downstream of a failure)."""
+        return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.CANCELLED]
+
     def __str__(self) -> str:
         """Human-friendly summary string when printed.
 
@@ -114,12 +119,14 @@ class RunResult:
 
         completed_count = len(self.completed_assets)
         failed_count = len(self.failed_assets)
+        cancelled_count = len(self.cancelled_assets)
 
         parts: list[str] = [
             f"status={self.status.value}",
             identifier,
             f"completed={completed_count}",
             f"failed={failed_count}",
+            f"cancelled={cancelled_count}",
             f"time={self.execution_time:.2f}s",
         ]
 
@@ -130,6 +137,13 @@ class RunResult:
             if failed_count > 5:
                 failed_preview += f" +{failed_count - 5} more"
             parts.append(f"failed_assets=[{failed_preview}]")
+
+        # If there are cancelled assets, include a short list
+        if cancelled_count > 0:
+            cancelled_preview = ", ".join(self.cancelled_assets[:5])
+            if cancelled_count > 5:
+                cancelled_preview += f" +{cancelled_count - 5} more"
+            parts.append(f"cancelled_assets=[{cancelled_preview}]")
 
         return "RunResult(" + ", ".join(parts) + ")"
 

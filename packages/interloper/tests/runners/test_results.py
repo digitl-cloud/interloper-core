@@ -110,6 +110,17 @@ class TestRunResult:
         }
         assert result.failed_assets == ["asset2"]
 
+    def test_cancelled_assets(self):
+        """Test cancelled_assets property."""
+        result = il.RunResult()
+        result.asset_executions = {
+            "asset1": il.AssetExecutionInfo("asset1", il.ExecutionStatus.COMPLETED),
+            "asset2": il.AssetExecutionInfo("asset2", il.ExecutionStatus.CANCELLED),
+            "asset3": il.AssetExecutionInfo("asset3", il.ExecutionStatus.FAILED),
+            "asset4": il.AssetExecutionInfo("asset4", il.ExecutionStatus.CANCELLED),
+        }
+        assert result.cancelled_assets == ["asset2", "asset4"]
+
 
 class TestAssetExecutionInfoMarkCancelled:
     """Tests for AssetExecutionInfo.mark_cancelled."""

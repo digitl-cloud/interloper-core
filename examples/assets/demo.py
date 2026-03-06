@@ -7,12 +7,8 @@ il.subscribe(print)
 
 demo = DemoSource()
 dag = il.DAG(demo)
-backfiller = il.SerialBackfiller(runner=il.SerialRunner())
-result = backfiller.backfill(
-    dag=dag,
-    partition_or_window=il.TimePartitionWindow(
-        start=dt.date(2025, 1, 1),
-        end=dt.date(2025, 1, 3),
-    ),
-    windowed=False,
-)
+
+with il.MultiThreadRunner() as runner:
+    result = runner.run(dag, il.TimePartition(dt.date(2025, 1, 1)))
+
+print(result)
