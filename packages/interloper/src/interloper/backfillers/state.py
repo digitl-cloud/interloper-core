@@ -133,9 +133,9 @@ class BackfillState:
         """Mark a run as failed with an error message."""
         self.run_executions[partition_or_window].mark_failed(error, run_result)
 
-    def mark_run_cancelled(
+    def mark_run_canceled(
         self,
         partition_or_window: Partition | PartitionWindow | None,
     ) -> None:
-        """Mark a run as cancelled."""
-        self.run_executions[partition_or_window].mark_cancelled()
+        """Mark a run as canceled."""
+        self.run_executions[partition_or_window].mark_canceled()

@@ -353,7 +353,7 @@ class KubernetesRunner(Runner[str]):
                         asset_key = job.metadata.annotations.get("interloper.asset_key")
                         if asset_key and asset_key in self.state.dag.asset_map:
                             asset = self.state.dag.asset_map[asset_key]
-                            self.state.mark_asset_cancelled(asset)
+                            self.state.mark_asset_canceled(asset)
                     except Exception:
                         pass
 

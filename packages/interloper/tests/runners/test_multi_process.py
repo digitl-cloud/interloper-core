@@ -95,7 +95,7 @@ class TestMultiProcessRunnerCancel:
         f1.cancel.side_effect = RuntimeError("already done")
         f2 = MagicMock(spec=Future)
         runner._cancel_all([f1, f2])
-        # f2 should still be cancelled despite f1 raising
+        # f2 should still be canceled despite f1 raising
         f2.cancel.assert_called_once()
 
 
@@ -128,7 +128,7 @@ class TestMultiProcessRunnerWaitAny:
             with pytest.raises(RunnerError, match="Asset asset_x failed: boom"):
                 runner._wait_any([failed, other])
 
-        # Other future should be cancelled (called twice: once from the
+        # Other future should be canceled (called twice: once from the
         # if-block inside try, once from the except block)
         assert other.cancel.call_count == 2
 

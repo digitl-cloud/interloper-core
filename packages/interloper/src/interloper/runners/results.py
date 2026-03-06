@@ -18,7 +18,7 @@ class ExecutionStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     SKIPPED = "skipped"
-    CANCELLED = "cancelled"
+    CANCELED = "canceled"
 
 
 @dataclass
@@ -54,9 +54,9 @@ class AssetExecutionInfo:
         self.end_time = dt.datetime.now(dt.timezone.utc)
         self.error = error
 
-    def mark_cancelled(self) -> None:
-        """Mark the asset as cancelled."""
-        self.status = ExecutionStatus.CANCELLED
+    def mark_canceled(self) -> None:
+        """Mark the asset as canceled."""
+        self.status = ExecutionStatus.CANCELED
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:
@@ -96,9 +96,9 @@ class RunResult:
         return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.FAILED]
 
     @property
-    def cancelled_assets(self) -> list[AssetInstanceKey]:
-        """List of asset keys that were cancelled (e.g. downstream of a failure)."""
-        return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.CANCELLED]
+    def canceled_assets(self) -> list[AssetInstanceKey]:
+        """List of asset keys that were canceled (e.g. downstream of a failure)."""
+        return [k for k, v in self.asset_executions.items() if v.status == ExecutionStatus.CANCELED]
 
     def __str__(self) -> str:
         """Human-friendly summary string when printed.
@@ -119,14 +119,14 @@ class RunResult:
 
         completed_count = len(self.completed_assets)
         failed_count = len(self.failed_assets)
-        cancelled_count = len(self.cancelled_assets)
+        canceled_count = len(self.canceled_assets)
 
         parts: list[str] = [
             f"status={self.status.value}",
             identifier,
             f"completed={completed_count}",
             f"failed={failed_count}",
-            f"cancelled={cancelled_count}",
+            f"canceled={canceled_count}",
             f"time={self.execution_time:.2f}s",
         ]
 
@@ -138,12 +138,12 @@ class RunResult:
                 failed_preview += f" +{failed_count - 5} more"
             parts.append(f"failed_assets=[{failed_preview}]")
 
-        # If there are cancelled assets, include a short list
-        if cancelled_count > 0:
-            cancelled_preview = ", ".join(self.cancelled_assets[:5])
-            if cancelled_count > 5:
-                cancelled_preview += f" +{cancelled_count - 5} more"
-            parts.append(f"cancelled_assets=[{cancelled_preview}]")
+        # If there are canceled assets, include a short list
+        if canceled_count > 0:
+            canceled_preview = ", ".join(self.canceled_assets[:5])
+            if canceled_count > 5:
+                canceled_preview += f" +{canceled_count - 5} more"
+            parts.append(f"canceled_assets=[{canceled_preview}]")
 
         return "RunResult(" + ", ".join(parts) + ")"
 

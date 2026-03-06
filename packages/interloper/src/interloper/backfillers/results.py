@@ -44,9 +44,9 @@ class RunExecutionInfo:
         self.error = error
         self.result = run_result
 
-    def mark_cancelled(self) -> None:
-        """Mark the run as cancelled."""
-        self.status = ExecutionStatus.CANCELLED
+    def mark_canceled(self) -> None:
+        """Mark the run as canceled."""
+        self.status = ExecutionStatus.CANCELED
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
     def to_dict(self) -> dict[str, Any]:

@@ -114,11 +114,11 @@ class RunState:
         """Check whether every asset has reached a terminal state.
 
         Returns:
-            True if all assets are completed, failed, cancelled, or skipped.
+            True if all assets are completed, failed, canceled, or skipped.
         """
         return all(
             exec_info.status
-            in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED, ExecutionStatus.SKIPPED)
+            in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELED, ExecutionStatus.SKIPPED)
             for exec_info in self.asset_executions.values()
         )
 
@@ -177,7 +177,7 @@ class RunState:
         self._update_dependent_assets(asset.instance_key)
 
     def mark_asset_failed(self, asset: Asset, error: str, tb: str | None = None) -> None:
-        """Transition an asset to FAILED, emit event, and mark downstream dependents as CANCELLED.
+        """Transition an asset to FAILED, emit event, and mark downstream dependents as CANCELED.
 
         Args:
             asset: The asset that failed.
@@ -198,9 +198,9 @@ class RunState:
 
         self._propagate_failure(asset.instance_key)
 
-    def mark_asset_cancelled(self, asset: Asset) -> None:
-        """Transition an asset to CANCELLED."""
-        self.asset_executions[asset.instance_key].mark_cancelled()
+    def mark_asset_canceled(self, asset: Asset) -> None:
+        """Transition an asset to CANCELED."""
+        self.asset_executions[asset.instance_key].mark_canceled()
 
     def _update_dependent_assets(self, completed_asset: AssetInstanceKey) -> None:
         """Promote queued successors to READY if all their dependencies are met."""
@@ -217,7 +217,7 @@ class RunState:
                 self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
 
     def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
-        """Recursively mark all downstream dependents as CANCELLED."""
+        """Recursively mark all downstream dependents as CANCELED."""
         # Use successors to get all assets that depend on the failed one
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]
@@ -226,10 +226,10 @@ class RunState:
             if exec_info.status in (
                 ExecutionStatus.COMPLETED,
                 ExecutionStatus.FAILED,
-                ExecutionStatus.CANCELLED,
+                ExecutionStatus.CANCELED,
             ):
                 continue
 
-            exec_info.mark_cancelled()
+            exec_info.mark_canceled()
             # Recursively propagate cancellation down the graph
             self._propagate_failure(successor)

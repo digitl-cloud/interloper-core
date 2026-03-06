@@ -16,7 +16,7 @@ class TestExecutionStatus:
         assert il.ExecutionStatus.COMPLETED == "completed"
         assert il.ExecutionStatus.FAILED == "failed"
         assert il.ExecutionStatus.SKIPPED == "skipped"
-        assert il.ExecutionStatus.CANCELLED == "cancelled"
+        assert il.ExecutionStatus.CANCELED == "canceled"
 
 
 class TestAssetExecutionInfo:
@@ -110,29 +110,29 @@ class TestRunResult:
         }
         assert result.failed_assets == ["asset2"]
 
-    def test_cancelled_assets(self):
-        """Test cancelled_assets property."""
+    def test_canceled_assets(self):
+        """Test canceled_assets property."""
         result = il.RunResult()
         result.asset_executions = {
             "asset1": il.AssetExecutionInfo("asset1", il.ExecutionStatus.COMPLETED),
-            "asset2": il.AssetExecutionInfo("asset2", il.ExecutionStatus.CANCELLED),
+            "asset2": il.AssetExecutionInfo("asset2", il.ExecutionStatus.CANCELED),
             "asset3": il.AssetExecutionInfo("asset3", il.ExecutionStatus.FAILED),
-            "asset4": il.AssetExecutionInfo("asset4", il.ExecutionStatus.CANCELLED),
+            "asset4": il.AssetExecutionInfo("asset4", il.ExecutionStatus.CANCELED),
         }
-        assert result.cancelled_assets == ["asset2", "asset4"]
+        assert result.canceled_assets == ["asset2", "asset4"]
 
 
-class TestAssetExecutionInfoMarkCancelled:
-    """Tests for AssetExecutionInfo.mark_cancelled."""
+class TestAssetExecutionInfoMarkCanceled:
+    """Tests for AssetExecutionInfo.mark_canceled."""
 
-    def test_mark_cancelled_sets_status_and_end_time(self):
-        """Test that mark_cancelled sets status to CANCELLED and records end_time."""
+    def test_mark_canceled_sets_status_and_end_time(self):
+        """Test that mark_canceled sets status to CANCELED and records end_time."""
         info = il.AssetExecutionInfo(
             asset_key="test_asset",
             status=il.ExecutionStatus.RUNNING,
         )
-        info.mark_cancelled()
-        assert info.status == il.ExecutionStatus.CANCELLED
+        info.mark_canceled()
+        assert info.status == il.ExecutionStatus.CANCELED
         assert info.end_time is not None
 
 

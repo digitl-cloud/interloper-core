@@ -237,7 +237,7 @@ class DockerRunner(Runner[Container]):
             finally:
                 asset_key = container.labels.get("interloper.asset_key")
                 asset = self.state.dag.asset_map[asset_key]
-                self.state.mark_asset_cancelled(asset)
+                self.state.mark_asset_canceled(asset)
 
     def to_spec(self) -> RunnerInstanceSpec:
         return RunnerInstanceSpec(

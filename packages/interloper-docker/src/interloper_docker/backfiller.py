@@ -306,21 +306,21 @@ class DockerBackfiller(Backfiller[Container]):
             try:
                 container.stop(timeout=5)
             except NotFound:
-                # Container already removed, mark as cancelled
+                # Container already removed, mark as canceled
                 if partition is not None:
-                    self.state.mark_run_cancelled(partition)
+                    self.state.mark_run_canceled(partition)
             except Exception:
                 try:
                     container.kill()
                 except NotFound:
                     # Container already removed
-                    self.state.mark_run_cancelled(partition)
+                    self.state.mark_run_canceled(partition)
                 except Exception:
                     pass
             else:
-                # Only mark as cancelled if we successfully stopped/killed
+                # Only mark as canceled if we successfully stopped/killed
                 if partition is not None:
-                    self.state.mark_run_cancelled(partition)
+                    self.state.mark_run_canceled(partition)
 
     def to_spec(self) -> BackfillerInstanceSpec:
         """Convert to serializable spec."""

@@ -478,7 +478,7 @@ class KubernetesBackfiller(Backfiller[str]):
                         # Find the matching partition from state
                         for p in self.state.partitions:
                             if str(p) == partition_str or (p is None and partition_str == ""):
-                                self.state.mark_run_cancelled(p)
+                                self.state.mark_run_canceled(p)
                                 break
                     except Exception:
                         pass
