@@ -6,19 +6,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-workspace \
-    --package interloper \
+    --package interloper-core --extra cli \
     --package interloper-assets \
-    --package interloper-docker \
-    --extra cli
+    --package interloper-docker
 
 COPY . /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable \
-    --package interloper \
+    --package interloper-core --extra cli \
     --package interloper-assets \
-    --package interloper-docker \
-    --extra cli
+    --package interloper-docker
 
 FROM python:3.10-alpine
 
