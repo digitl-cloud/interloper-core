@@ -12,10 +12,6 @@ from interloper_docker.runner import DockerRunner
 dotenv.load_dotenv()
 
 
-def on_event(event: il.Event) -> None:
-    print(event)
-
-
 data_path = os.path.abspath("./data")
 partitioning = il.TimePartitionConfig(column="date")
 io = il.FileIO("/tmp/data")
@@ -30,10 +26,10 @@ runner = DockerRunner(
 )
 
 with DockerBackfiller(
+    on_event=print,
     image="interloper",
     # dind=True,
     # runner=runner,
-    on_event=on_event,
 ) as backfiller:
     result = backfiller.backfill(dag, window)
 print(result)

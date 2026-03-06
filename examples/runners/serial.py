@@ -39,9 +39,6 @@ dag = il.DAG(a, b, c, d, e)
 
 if __name__ == "__main__":
 
-    def on_event(event: il.Event) -> None:
-        print(event.to_json())
-
-    with il.SerialRunner(on_event=on_event) as runner:
+    with il.SerialRunner(on_event=print) as runner:
         result = runner.run(dag=dag)
     print(result)

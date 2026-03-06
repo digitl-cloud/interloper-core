@@ -11,18 +11,14 @@ from interloper_docker.runner import DockerRunner
 dotenv.load_dotenv()
 
 
-def on_event(event: il.Event) -> None:
-    print(event)
-
-
 io = il.FileIO("/tmp/data")
 source = DemoSource(io=io)
 dag = il.DAG(source)
 partition = il.TimePartition(value=dt.date(2025, 1, 1))
 
 with DockerRunner(
+    on_event=print,
     image="interloper",
-    on_event=on_event,
     volumes=[f"{os.path.abspath('./data')}:/tmp/data:rw"],
 ) as runner:
     result = runner.run(dag, partition)

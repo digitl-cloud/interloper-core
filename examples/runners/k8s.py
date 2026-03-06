@@ -10,18 +10,14 @@ from interloper_k8s.runner import KubernetesRunner
 dotenv.load_dotenv()
 
 
-def on_event(event: il.Event) -> None:
-    print(event)
-
-
 source = Adup()
 dag = il.DAG(source)
 partition = il.TimePartition(value=dt.date(2025, 1, 1))
 
 with KubernetesRunner(
+    on_event=print,
     image="interloper",
     image_pull_policy="Never",  # when running locally
-    on_event=on_event,
     namespace="interloper",
 ) as runner:
     result = runner.run(dag, partition)

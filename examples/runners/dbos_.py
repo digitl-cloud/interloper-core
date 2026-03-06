@@ -15,16 +15,13 @@ if __name__ == "__main__":
     }
     DBOS(config=config)
 
-    def on_event(event: il.Event) -> None:
-        print(event)
-
     # Launching DBOS should happen after the runner class is instantiated
     DBOS.launch()
 
     partition = il.TimePartition(value=dt.date(2025, 1, 1))
     dag = il.DAG(DemoSource())
 
-    with DBOSRunner(on_event=on_event) as runner:
+    with DBOSRunner(on_event=print) as runner:
         result = runner.run(dag, partition)
 
     assert runner.handle
