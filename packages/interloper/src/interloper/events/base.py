@@ -36,6 +36,7 @@ class EventType(Enum):
     ASSET_STARTED = "asset_started"
     ASSET_COMPLETED = "asset_completed"
     ASSET_FAILED = "asset_failed"
+    ASSET_CANCELED = "asset_canceled"
     ASSET_EXEC_STARTED = "asset_exec_started"
     ASSET_EXEC_COMPLETED = "asset_exec_completed"
     ASSET_EXEC_FAILED = "asset_exec_failed"

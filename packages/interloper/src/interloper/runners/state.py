@@ -199,8 +199,15 @@ class RunState:
         self._propagate_failure(asset.instance_key)
 
     def mark_asset_canceled(self, asset: Asset) -> None:
-        """Transition an asset to CANCELED."""
+        """Transition an asset to CANCELED and emit ASSET_CANCELED."""
         self.asset_executions[asset.instance_key].mark_canceled()
+
+        metadata = {
+            **self.metadata,
+            **get_asset_event_metadata(asset),
+            "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+        }
+        emit(EventType.ASSET_CANCELED, metadata=metadata)
 
     def _update_dependent_assets(self, completed_asset: AssetInstanceKey) -> None:
         """Promote queued successors to READY if all their dependencies are met."""
@@ -218,7 +225,6 @@ class RunState:
 
     def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
         """Recursively mark all downstream dependents as CANCELED."""
-        # Use successors to get all assets that depend on the failed one
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]
             exec_info = self.asset_executions[asset.instance_key]
@@ -230,6 +236,5 @@ class RunState:
             ):
                 continue
 
-            exec_info.mark_canceled()
-            # Recursively propagate cancellation down the graph
+            self.mark_asset_canceled(asset)
             self._propagate_failure(successor)
