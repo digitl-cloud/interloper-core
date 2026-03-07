@@ -20,6 +20,10 @@ class MemoryIO(IO):
 
     _storage: ClassVar[dict[str, Any]] = {}
 
+    def __str__(self) -> str:
+        """Return a human-readable label."""
+        return "MemoryIO"
+
     def write(self, context: IOContext, data: Any) -> None:
         """Store data in memory under a path-style key.
 

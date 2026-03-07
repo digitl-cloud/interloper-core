@@ -687,12 +687,6 @@ class TestRichViewStateUpdate:
         """_active_run returns None before any run starts."""
         assert view._active_run() is None
 
-    def test_find_asset_readonly_returns_none(self, view, ts):
-        """_find_asset_readonly returns None for unknown asset."""
-        view._update_state(_make_event(EventType.RUN_STARTED, ts))
-        result = view._find_asset_readonly({"run_id": "run-1", "asset_key": "missing"})
-        assert result is None
-
     def test_render_dispatches_to_run(self, ts):
         """_render returns run view when mode is 'run'."""
 

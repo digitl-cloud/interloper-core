@@ -58,6 +58,9 @@ class PostgresIO(SqlIO):
         url = URL.create(drivername, user, password, host, port, database)
         super().__init__(url, write_disposition, chunk_size, adapter)
 
+    def __str__(self) -> str:
+        return f"PostgresIO({self.host}:{self.port}/{self.database})"
+
     def _delete_all(self, table: str, schema: str | None) -> None:
         """Use TRUNCATE for full-table deletes (transactional in PostgreSQL).
 

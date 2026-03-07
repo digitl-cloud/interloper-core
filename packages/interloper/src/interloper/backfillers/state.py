@@ -89,7 +89,10 @@ class BackfillState:
         self.start_time = dt.datetime.now(dt.timezone.utc)
         self.end_time = None
 
-        emit(EventType.BACKFILL_STARTED, metadata={**self.metadata})
+        emit(EventType.BACKFILL_STARTED, metadata={
+            **self.metadata,
+            "message": f"Backfill started ({len(self.partitions)} partitions)",
+        })
 
     def end_backfill(
         self,
@@ -108,7 +111,11 @@ class BackfillState:
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
         event_type = EventType.BACKFILL_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.BACKFILL_FAILED
-        emit(event_type, metadata={**self.metadata, "error": error})
+        if status == ExecutionStatus.COMPLETED:
+            message = f"Backfill completed ({len(self.completed_runs)}/{len(self.partitions)} succeeded)"
+        else:
+            message = f"Backfill failed: {error}" if error else "Backfill failed"
+        emit(event_type, metadata={**self.metadata, "error": error, "message": message})
 
         return self.run_executions.copy()
 

@@ -302,10 +302,12 @@ class Asset(Serializable[AssetInstanceSpec]):
             **get_asset_event_metadata(self),
             "partition_or_window": str(partition_or_window) if partition_or_window else None,
         }
-        emit(EventType.ASSET_EXEC_STARTED, metadata=exec_metadata)
+        msg = f"Executing '{self.instance_key}'"
+        emit(EventType.ASSET_EXEC_STARTED, metadata={**exec_metadata, "message": msg})
         try:
             result = self.func(**kwargs)
-            emit(EventType.ASSET_EXEC_COMPLETED, metadata=exec_metadata)
+            msg = f"Executed '{self.instance_key}'"
+            emit(EventType.ASSET_EXEC_COMPLETED, metadata={**exec_metadata, "message": msg})
         except Exception as e:
             emit(
                 EventType.ASSET_EXEC_FAILED,
@@ -313,6 +315,7 @@ class Asset(Serializable[AssetInstanceSpec]):
                     **exec_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
+                    "message": f"Execution of '{self.instance_key}' failed: {e}",
                 },
             )
             raise
@@ -402,16 +405,19 @@ class Asset(Serializable[AssetInstanceSpec]):
         partition_str = str(partition_or_window) if partition_or_window else None
 
         for io_key, io in ios:
+            io_label = f"{io}[{io_key}]" if io_key else str(io)
             io_metadata = {
                 **metadata,
                 **get_asset_event_metadata(self),
                 "partition_or_window": partition_str,
                 "io_key": io_key,
             }
-            emit(EventType.IO_WRITE_STARTED, metadata=io_metadata)
+            msg = f"Writing '{self.instance_key}' to {io_label}"
+            emit(EventType.IO_WRITE_STARTED, metadata={**io_metadata, "message": msg})
             try:
                 io.write(io_context, result)
-                emit(EventType.IO_WRITE_COMPLETED, metadata=io_metadata)
+                msg = f"Wrote '{self.instance_key}' to {io_label}"
+                emit(EventType.IO_WRITE_COMPLETED, metadata={**io_metadata, "message": msg})
             except Exception as e:
                 emit(
                     EventType.IO_WRITE_FAILED,
@@ -419,9 +425,81 @@ class Asset(Serializable[AssetInstanceSpec]):
                         **io_metadata,
                         "error": str(e),
                         "traceback": traceback.format_exc(),
+                        "message": f"Failed to write '{self.instance_key}' to {io_label}: {e}",
                     },
                 )
                 raise
+
+    def _io_read(
+        self,
+        upstream_asset: Asset,
+        partition_or_window: Partition | PartitionWindow | None,
+        metadata: dict[str, Any],
+    ) -> Any:
+        """Read data from an upstream asset's IO.
+
+        Args:
+            upstream_asset: The upstream asset to read from.
+            partition_or_window: Partition or PartitionWindow for this run.
+            metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
+
+        Returns:
+            The data read from the upstream asset's IO.
+
+        Raises:
+            AssetError: If no IO is found or the read fails.
+        """
+        read_io = None
+        read_io_key = None
+        if isinstance(upstream_asset.io, dict):
+            io_dict = cast(dict[str, IO], upstream_asset.io)
+            read_io_key = upstream_asset.default_io_key
+            if read_io_key:
+                read_io = io_dict[read_io_key]
+        else:
+            read_io = upstream_asset.io
+
+        if read_io is None:
+            raise AssetError(f"No IO found for upstream asset '{upstream_asset.name}'")
+
+        if upstream_asset.partitioning is not None:
+            effective_partition_or_window = partition_or_window
+        else:
+            effective_partition_or_window = None
+
+        io_context = IOContext(
+            asset=upstream_asset,
+            partition_or_window=effective_partition_or_window,
+            metadata=metadata,
+        )
+
+        partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
+        io_label = f"{read_io}[{read_io_key}]" if read_io_key else str(read_io)
+        io_metadata = {
+            **metadata,
+            **get_asset_event_metadata(self),
+            "partition_or_window": partition_str,
+            "io_key": read_io_key,
+        }
+        msg = f"Reading '{upstream_asset.instance_key}' from {io_label}"
+        emit(EventType.IO_READ_STARTED, metadata={**io_metadata, "message": msg})
+        try:
+            result = read_io.read(io_context)
+            msg = f"Read '{upstream_asset.instance_key}' from {io_label}"
+            emit(EventType.IO_READ_COMPLETED, metadata={**io_metadata, "message": msg})
+        except Exception as e:
+            emit(
+                EventType.IO_READ_FAILED,
+                metadata={
+                    **io_metadata,
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "message": f"Failed to read '{upstream_asset.instance_key}' from {io_label}: {e}",
+                },
+            )
+            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
+
+        return result
 
     def _build_kwargs(
         self,
@@ -471,55 +549,7 @@ class Asset(Serializable[AssetInstanceSpec]):
                     )
 
                 upstream_asset = dag.asset_map[upstream_key]
-
-                # Determine which IO to read from
-                read_io = None
-                read_io_key = None
-                if isinstance(upstream_asset.io, dict):
-                    # Use default_io_key
-                    io_dict = cast(dict[str, IO], upstream_asset.io)
-                    read_io_key = upstream_asset.default_io_key
-                    if read_io_key:
-                        read_io = io_dict[read_io_key]
-                else:
-                    read_io = upstream_asset.io
-
-                if read_io is None:
-                    raise AssetError(f"No IO found for upstream asset '{upstream_asset.name}'")
-
-                # Load data from IO using upstream's partitioning rules
-                if upstream_asset.partitioning is not None:
-                    effective_partition_or_window = partition_or_window
-                else:
-                    effective_partition_or_window = None
-
-                io_context = IOContext(
-                    asset=upstream_asset,
-                    partition_or_window=effective_partition_or_window,
-                    metadata=context.metadata,
-                )
-
-                partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
-                io_metadata = {
-                    **context.metadata,
-                    **get_asset_event_metadata(self),
-                    "partition_or_window": partition_str,
-                    "io_key": read_io_key,
-                }
-                emit(EventType.IO_READ_STARTED, metadata=io_metadata)
-                try:
-                    kwargs[param_name] = read_io.read(io_context)
-                    emit(EventType.IO_READ_COMPLETED, metadata=io_metadata)
-                except Exception as e:
-                    emit(
-                        EventType.IO_READ_FAILED,
-                        metadata={
-                            **io_metadata,
-                            "error": str(e),
-                            "traceback": traceback.format_exc(),
-                        },
-                    )
-                    raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
+                kwargs[param_name] = self._io_read(upstream_asset, partition_or_window, context.metadata)
 
         return kwargs
 

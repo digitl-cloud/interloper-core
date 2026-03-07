@@ -28,6 +28,10 @@ class FileIO(IO):
         """
         self.base_path = base_path
 
+    def __str__(self) -> str:
+        """Return a human-readable label including the base path."""
+        return f"FileIO({self.base_path})"
+
     def write(self, context: IOContext, data: Any) -> None:
         """Pickle data to a file, creating partition subdirectories as needed.
 

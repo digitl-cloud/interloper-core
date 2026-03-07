@@ -31,6 +31,10 @@ class CsvIO(IO):
         """
         self.base_path = base_path
 
+    def __str__(self) -> str:
+        """Return a human-readable label including the base path."""
+        return f"CsvIO({self.base_path})"
+
     def _asset_path(self, context: IOContext) -> Path:
         """Return the base directory for an asset."""
         return Path(self.base_path) / (context.asset.dataset or "") / context.asset.name

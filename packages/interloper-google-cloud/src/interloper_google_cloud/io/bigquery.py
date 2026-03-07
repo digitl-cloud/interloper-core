@@ -84,6 +84,11 @@ class BigQueryIO(DatabaseIO):
         self.location = location
         self._client = bigquery.Client(project=project, credentials=credentials, location=location)
 
+    def __str__(self) -> str:
+        if self.default_dataset:
+            return f"BigQueryIO({self.project}.{self.default_dataset})"
+        return f"BigQueryIO({self.project})"
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------

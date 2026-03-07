@@ -38,6 +38,9 @@ class SqliteIO(SqlIO):
         url = f"sqlite:///{database}"
         super().__init__(url, write_disposition, chunk_size, adapter)
 
+    def __str__(self) -> str:
+        return f"SqliteIO({self.database})"
+
     def to_spec(self) -> IOInstanceSpec:
         """Convert to serializable spec."""
         init = self._base_init_kwargs()

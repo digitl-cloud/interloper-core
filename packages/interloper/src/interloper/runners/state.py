@@ -131,6 +131,7 @@ class RunState:
         metadata = {
             **self.metadata,
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            "message": f"Run started ({len(self.dag.assets)} assets)",
         }
         emit(EventType.RUN_STARTED, metadata=metadata)
 
@@ -143,10 +144,15 @@ class RunState:
         self.end_time = dt.datetime.now(dt.timezone.utc)
 
         event_type = EventType.RUN_COMPLETED if status == ExecutionStatus.COMPLETED else EventType.RUN_FAILED
+        if status == ExecutionStatus.COMPLETED:
+            message = f"Run completed ({len(self.completed_assets)}/{len(self.dag.assets)} succeeded)"
+        else:
+            message = f"Run failed: {error}" if error else "Run failed"
         metadata = {
             **self.metadata,
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
             "error": error,
+            "message": message,
         }
         emit(event_type, metadata=metadata)
 
@@ -160,6 +166,7 @@ class RunState:
             **self.metadata,
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            "message": f"Asset '{asset.instance_key}' started",
         }
         emit(EventType.ASSET_STARTED, metadata=metadata)
 
@@ -171,6 +178,7 @@ class RunState:
             **self.metadata,
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            "message": f"Asset '{asset.instance_key}' completed",
         }
         emit(EventType.ASSET_COMPLETED, metadata=metadata)
 
@@ -191,6 +199,7 @@ class RunState:
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
             "error": error,
+            "message": f"Asset '{asset.instance_key}' failed: {error}",
         }
         if tb:
             metadata["traceback"] = tb
@@ -206,6 +215,7 @@ class RunState:
             **self.metadata,
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            "message": f"Asset '{asset.instance_key}' canceled (upstream failure)",
         }
         emit(EventType.ASSET_CANCELED, metadata=metadata)
 

@@ -428,105 +428,32 @@ class RichView:
     def _log_event(self, event: Event) -> None:
         """Log every event above the live panel.
 
-        Uses ``console.print()`` with an explicit timestamp so every line
-        gets its own time (unlike ``console.log()`` which deduplicates).
-        Live's render hook repositions the output above the fixed panel.
+        Format: ``timestamp  EVENT_TYPE  asset_key  message``
+
+        Failed events additionally render the traceback (if available).
+        LOG events apply level-based styling to the message.
         """
         m = event.metadata
-        etype = event.type
-        event_label = etype.value.upper()
-        asset_key = str(m.get("asset_key") or "-")
-        error = m.get("error", "")
-        tb = m.get("traceback", "")
         ts = _fmt_ts(event.timestamp)
+        event_label = event.type.value.upper()
+        asset_key = str(m.get("asset_key") or "-")
+        message = m.get("message", "")
+        tb = m.get("traceback", "")
 
-        # --- Backfill lifecycle ---
-        if etype == EventType.BACKFILL_STARTED:
-            self._emit_log(
-                ts,
-                event_label,
-                asset_key,
-                f"[dim]id={_short_id(m.get('backfill_id'))}[/dim]",
-            )
-        elif etype == EventType.BACKFILL_COMPLETED:
-            self._emit_log(ts, event_label, asset_key, "")
-        elif etype == EventType.BACKFILL_FAILED:
-            self._emit_log(ts, event_label, asset_key, "")
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-
-        # --- Run lifecycle ---
-        elif etype == EventType.RUN_STARTED:
-            partition = f"  [dim]{m['partition_or_window']}[/dim]" if m.get("partition_or_window") else ""
-            self._emit_log(
-                ts,
-                event_label,
-                asset_key,
-                f"[dim]run={_short_id(m.get('run_id'))}[/dim]{partition}",
-            )
-        elif etype == EventType.RUN_COMPLETED:
-            self._emit_log(
-                ts,
-                event_label,
-                asset_key,
-                f"[dim]run={_short_id(m.get('run_id'))}[/dim]",
-            )
-        elif etype == EventType.RUN_FAILED:
-            self._emit_log(
-                ts,
-                event_label,
-                asset_key,
-                f"[dim]run={_short_id(m.get('run_id'))}[/dim]",
-            )
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-
-        # --- Asset lifecycle ---
-        elif etype == EventType.ASSET_STARTED:
-            self._emit_log(ts, event_label, asset_key, "")
-        elif etype == EventType.ASSET_COMPLETED:
-            asset = self._find_asset_readonly(m)
-            parts: list[str] = []
-            if asset and asset.elapsed:
-                parts.append(_fmt_time(asset.elapsed))
-            if asset and asset.io_reads:
-                parts.append(f"R:{asset.io_reads}")
-            if asset and asset.io_writes:
-                parts.append(f"W:{asset.io_writes}")
-            detail = f"[dim]{' '.join(parts)}[/dim]" if parts else ""
-            self._emit_log(ts, event_label, asset_key, detail)
-        elif etype == EventType.ASSET_FAILED:
-            self._emit_log(ts, event_label, asset_key, "")
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-
-        # --- Asset exec lifecycle ---
-        elif etype in (EventType.ASSET_EXEC_STARTED, EventType.ASSET_EXEC_COMPLETED):
-            self._emit_log(ts, event_label, asset_key, "")
-        elif etype == EventType.ASSET_EXEC_FAILED:
-            self._emit_log(ts, event_label, asset_key, "")
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-
-        # --- IO lifecycle ---
-        elif etype in (EventType.IO_READ_STARTED, EventType.IO_READ_COMPLETED):
-            self._emit_log(ts, event_label, asset_key, "")
-        elif etype == EventType.IO_READ_FAILED:
-            self._emit_log(ts, event_label, asset_key, "")
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-        elif etype in (EventType.IO_WRITE_STARTED, EventType.IO_WRITE_COMPLETED):
-            self._emit_log(ts, event_label, asset_key, "")
-        elif etype == EventType.IO_WRITE_FAILED:
-            self._emit_log(ts, event_label, asset_key, "")
-            self._emit_error_detail(ts, error, tb, event_label, asset_key)
-
-        # --- User log ---
-        elif etype == EventType.LOG:
-            level = m.get("level", LogLevel.INFO.value)
-            message = m.get("message", "")
+        # Apply level styling for user LOG events
+        if event.type == EventType.LOG:
             level_style = {
                 LogLevel.ERROR.value: "bold red",
                 LogLevel.WARNING.value: "yellow",
                 LogLevel.DEBUG.value: "dim",
-            }.get(level, "")
-            styled_msg = f"[{level_style}]{message}[/{level_style}]" if level_style else message
-            self._emit_log(ts, event_label, asset_key, styled_msg)
+            }.get(m.get("level", ""), "")
+            if level_style:
+                message = f"[{level_style}]{message}[/{level_style}]"
+
+        self._emit_log(ts, event_label, asset_key, message)
+
+        if tb:
+            self._emit_traceback(ts, tb, event_label, asset_key)
 
     def _emit_log(self, ts: str, event_type: str, asset_key: str, message: str) -> None:
         """Print a timestamped log line above the live panel."""
@@ -542,20 +469,6 @@ class RichView:
         """Render a traceback with Rich syntax highlighting above the live panel."""
         self._emit_log(ts, event_type, asset_key, "[dim]traceback:[/dim]")
         self._console.print(Syntax(tb_str.rstrip(), "pytb", theme="monokai", padding=1))
-
-    def _emit_error_detail(
-        self,
-        ts: str,
-        error: str,
-        traceback_text: str,
-        event_type: str,
-        asset_key: str,
-    ) -> None:
-        """Render failure details preferring traceback over plain error text."""
-        if traceback_text:
-            self._emit_traceback(ts, traceback_text, event_type, asset_key)
-        elif error:
-            self._emit_log(ts, event_type, asset_key, f"[red]{error}[/red]")
 
     def _update_state(self, event: Event) -> None:
         """Map an event to internal display state. Caller holds ``_lock``."""
@@ -740,17 +653,6 @@ class RichView:
             )
             run.assets[asset_key] = asset
         return asset
-
-    def _find_asset_readonly(self, metadata: dict[str, Any]) -> AssetState | None:
-        """Look up an asset without creating it. Used for logging after state update.
-
-        Returns:
-            The matching AssetState, or None if not found.
-        """
-        run = self._find_run(metadata.get("run_id", "?"))
-        if run is None:
-            return None
-        return run.assets.get(AssetInstanceKey(metadata.get("asset_key", "?")))
 
     def _active_run(self) -> PartitionRun | None:
         """Return the currently executing partition run, if any."""
