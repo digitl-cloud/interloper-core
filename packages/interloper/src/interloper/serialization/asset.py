@@ -31,6 +31,8 @@ class AssetDefinitionSpec(ComponentDefinitionSpec):
 
     requires: dict[str, str] | None = None
     schema_fields: list[SchemaFieldSpec] | None = None
+    partitioned: bool = False
+    partition_column: str | None = None
 
 
 class AssetInstanceSpec(InstanceSpec):

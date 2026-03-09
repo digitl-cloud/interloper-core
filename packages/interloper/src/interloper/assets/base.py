@@ -84,6 +84,8 @@ class AssetDefinition(Serializable):
             config_schema=config_schema,
             requires=dict(self.requires) if self.requires else None,
             schema_fields=extract_schema_fields(self.schema),
+            partitioned=self.partitioning is not None,
+            partition_column=self.partitioning.column if self.partitioning else None,
         )
 
     @property
