@@ -309,6 +309,19 @@ class DatabaseIO(IO):
         if not rows:
             return
 
+        if context.partition_or_window is not None and context.asset.partitioning is not None:
+            col = context.asset.partitioning.column
+            if col not in rows[0]:
+                import warnings
+
+                warnings.warn(
+                    f"Partition column '{col}' not found in data for asset "
+                    f"'{context.asset.key}'. Columns present: {sorted(rows[0].keys())}. "
+                    f"Downstream reads by partition will fail.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         replacing = self.write_disposition is WriteDisposition.REPLACE
 
         with self._transaction():

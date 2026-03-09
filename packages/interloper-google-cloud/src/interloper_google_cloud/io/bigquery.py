@@ -2,14 +2,40 @@
 
 from __future__ import annotations
 
+import datetime
+import json
+from decimal import Decimal
 from typing import Any
 
+import google.auth
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 from google.oauth2 import service_account
 from interloper.errors import ConfigError, TableNotFoundError
 from interloper.io.database import DatabaseIO
 from pydantic import PrivateAttr
+
+
+def _json_default(o: Any) -> Any:
+    """JSON serializer for types not handled by the default encoder.
+
+    Used by :meth:`BigQueryIO._insert` to convert rows to JSON-safe dicts
+    before passing them to ``load_table_from_json``.
+
+    Args:
+        o: Object to serialize.
+
+    Returns:
+        A JSON-serializable representation.
+
+    Raises:
+        TypeError: If the object type is not supported.
+    """
+    if isinstance(o, (datetime.date, datetime.datetime)):
+        return o.isoformat()
+    if isinstance(o, Decimal):
+        return str(o)
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
 def _infer_bq_type(value: Any) -> str:
@@ -61,21 +87,18 @@ class BigQueryIO(DatabaseIO):
 
     def model_post_init(self, context: Any, /) -> None:
         super().model_post_init(context)
-        if self.service_account_key is not None:
-            import json
 
+        if self.service_account_key is not None:
             key_info = json.loads(self.service_account_key)
             credentials = service_account.Credentials.from_service_account_info(key_info)
-            self._client = bigquery.Client(
-                project=self.project,
-                credentials=credentials,
-                location=self.location,
-            )
         else:
-            self._client = bigquery.Client(
-                project=self.project,
-                location=self.location,
-            )
+            credentials, _ = google.auth.default()
+
+        self._client = bigquery.Client(
+            project=self.project,
+            credentials=credentials,
+            location=self.location,
+        )
 
     def __str__(self) -> str:
         if self.default_dataset:
@@ -193,8 +216,11 @@ class BigQueryIO(DatabaseIO):
             source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
         )
-        job = self._client.load_table_from_json(rows, ref, job_config=job_config)
-        job.result()  # Wait for completion
+        # Serialize non-JSON-native types (date, datetime, Decimal) before
+        # passing to load_table_from_json, which calls json.dumps internally.
+        safe_rows = [json.loads(json.dumps(row, default=_json_default)) for row in rows]
+        job = self._client.load_table_from_json(safe_rows, ref, job_config=job_config)
+        job.result()
 
     def _delete_all(self, table: str, schema: str | None) -> None:
         """Truncate all rows from the BigQuery table.
@@ -281,7 +307,10 @@ class BigQueryIO(DatabaseIO):
     # ------------------------------------------------------------------
 
     def _count_by_partition(
-        self, table: str, schema: str | None, column: str,
+        self,
+        table: str,
+        schema: str | None,
+        column: str,
     ) -> dict[str, int]:
         """Return row counts grouped by partition column via BigQuery SQL.
 
@@ -301,10 +330,7 @@ class BigQueryIO(DatabaseIO):
             raise TableNotFoundError(f"Table '{ref}' does not exist. Has the asset been materialized?")
 
         ref = self._table_ref(table, schema)
-        query = (
-            f"SELECT CAST(`{column}` AS STRING) AS partition_value, "
-            f"COUNT(*) AS cnt FROM `{ref}` GROUP BY 1"
-        )
+        query = f"SELECT CAST(`{column}` AS STRING) AS partition_value, COUNT(*) AS cnt FROM `{ref}` GROUP BY 1"
         rows = self._client.query(query).result()
         return {row["partition_value"]: row["cnt"] for row in rows}
 

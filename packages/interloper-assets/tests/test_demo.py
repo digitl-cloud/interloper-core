@@ -1,5 +1,7 @@
 """Tests for the DemoSource."""
 
+import datetime as dt
+
 import interloper as il
 import pytest
 from interloper.serialization.source import SourceInstanceSpec
@@ -30,8 +32,13 @@ class TestDemoSchema:
 
     def test_has_hello_field(self):
         """Schema declares a 'hello' string field."""
-        schema = DemoSchema(hello="value")
+        schema = DemoSchema(date="2025-01-01", hello="value")
         assert schema.hello == "value"
+
+    def test_has_date_field(self):
+        """Schema declares a 'date' field for partitioning."""
+        schema = DemoSchema(date="2025-01-01", hello="value")
+        assert schema.date == dt.date(2025, 1, 1)
 
     def test_is_asset_schema(self):
         """DemoSchema inherits from il.AssetSchema."""

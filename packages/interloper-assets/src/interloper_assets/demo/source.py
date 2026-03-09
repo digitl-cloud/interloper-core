@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 
 import interloper as il
@@ -8,11 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 class DemoSchema(il.AssetSchema):
+    date: dt.date
     hello: str
 
 
 class DemoConfig(il.Config):
     hello: str = "world"
+    random_failure_probability: float = 0.0
 
     model_config = SettingsConfigDict(env_prefix="Demo_")
 
@@ -27,15 +30,23 @@ partitioning = il.TimePartitionConfig(column="date", allow_window=False)
 class DemoSource:
     """Demo source. Defines a small DAG (a -> b,c,d -> e) with time partitioning."""
 
+    #    ↗ b ↘
+    #  a → c → e
+    #    ↘ d ↗
+
     config: DemoConfig
 
-    def do(self) -> None:
+    def do(self, context: il.ExecutionContext, name: str) -> pd.DataFrame:
         import random
         import time
 
+        context.logger.info(f"Hello {self.config.hello} from {name}")
+
         time.sleep(random.uniform(0.5, 1.5))
-        if random.random() < 0.15:
+        if random.random() < self.config.random_failure_probability:
             raise RuntimeError("Random failure in demo source")
+
+        return pd.DataFrame([{"date": context.partition_date, "hello": self.config.hello}])
 
     @il.asset(
         schema=DemoSchema,
@@ -48,8 +59,7 @@ class DemoSource:
     ) -> pd.DataFrame:
         """Root asset. Returns a single row with the configured greeting."""
         context.logger.info(f"Hello {self.config.hello} from A")
-        self.do()
-        return pd.DataFrame([{"hello": self.config.hello}])
+        return self.do(context, "A")
 
     @il.asset(
         schema=DemoSchema,
@@ -63,8 +73,7 @@ class DemoSource:
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> b -> e)."""
         context.logger.info(f"Hello {self.config.hello} from B")
-        self.do()
-        return pd.DataFrame([{"hello": self.config.hello}])
+        return self.do(context, "B")
 
     @il.asset(
         schema=DemoSchema,
@@ -78,8 +87,7 @@ class DemoSource:
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> c -> e)."""
         context.logger.info(f"Hello {self.config.hello} from C")
-        self.do()
-        return pd.DataFrame([{"hello": self.config.hello}])
+        return self.do(context, "C")
 
     @il.asset(
         schema=DemoSchema,
@@ -93,8 +101,7 @@ class DemoSource:
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> d -> e)."""
         context.logger.info(f"Hello {self.config.hello} from D")
-        self.do()
-        return pd.DataFrame([{"hello": self.config.hello}])
+        return self.do(context, "D")
 
     @il.asset(
         schema=DemoSchema,
@@ -110,10 +117,4 @@ class DemoSource:
     ) -> pd.DataFrame:
         """Depends on B, C, and D. Sink asset of the example DAG."""
         context.logger.info(f"Hello {self.config.hello} from E")
-        self.do()
-        return pd.DataFrame([{"hello": self.config.hello}])
-
-
-#    ↗ b ↘
-#  a → c → e
-#    ↘ d ↗
+        return self.do(context, "E")

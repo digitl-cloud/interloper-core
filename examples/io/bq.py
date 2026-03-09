@@ -2,12 +2,14 @@ from typing import Any
 
 import interloper as il
 from interloper_google_cloud import BigQueryIO
+from interloper_pandas import DataFrameAdapter
 
 il.subscribe(print)
 
 io = BigQueryIO(
-    # project="dc-int-connectors-prd",
-    # default_dataset="interloper",
+    project="dc-int-connectors-prd",
+    adapter=DataFrameAdapter(),
+    default_dataset="interloper",
 )
 
 

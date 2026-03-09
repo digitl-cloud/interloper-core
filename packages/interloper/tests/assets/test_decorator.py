@@ -1,6 +1,7 @@
 """Tests for @asset decorator."""
 
 import datetime as dt
+import warnings
 
 from pydantic import BaseModel
 
@@ -129,3 +130,86 @@ class TestAssetDecorator:
         assert my_asset.config == SampleConfig
         assert my_asset.partitioning == partitioning
         assert my_asset.dataset == "data"
+
+
+class TestPartitionColumnSchemaWarning:
+    """Warn at instantiation when partition column is missing from the asset schema."""
+
+    def test_warns_when_partition_column_not_in_schema(self):
+        """A warning is emitted when the asset is instantiated with a missing partition column."""
+
+        class MySchema(BaseModel):
+            value: int
+
+        @il.asset(schema=MySchema, partitioning=il.PartitionConfig(column="date"))
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return []
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            my_asset()  # instantiate Asset from AssetDefinition
+
+        assert len(w) == 1
+        assert "partition column 'date'" in str(w[0].message)
+        assert "['value']" in str(w[0].message)
+
+    def test_no_warning_when_partition_column_in_schema(self):
+        """No warning when the partition column is present in the schema."""
+
+        class MySchema(BaseModel):
+            date: str
+            value: int
+
+        @il.asset(schema=MySchema, partitioning=il.PartitionConfig(column="date"))
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return []
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            my_asset()
+
+        assert len(w) == 0
+
+    def test_no_warning_when_no_schema(self):
+        """No warning when schema is None (can't validate)."""
+
+        @il.asset(partitioning=il.PartitionConfig(column="date"))
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return []
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            my_asset()
+
+        assert len(w) == 0
+
+    def test_no_warning_when_no_partitioning(self):
+        """No warning when partitioning is None."""
+
+        class MySchema(BaseModel):
+            value: int
+
+        @il.asset(schema=MySchema)
+        def my_asset(context: il.ExecutionContext) -> list[dict]:
+            return []
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            my_asset()
+
+        assert len(w) == 0
+
+    def test_no_warning_at_definition_time(self):
+        """No warning is emitted when the @asset decorator is applied (only at instantiation)."""
+
+        class MySchema(BaseModel):
+            value: int
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            @il.asset(schema=MySchema, partitioning=il.PartitionConfig(column="date"))
+            def my_asset(context: il.ExecutionContext) -> list[dict]:
+                return []
+
+        assert len(w) == 0

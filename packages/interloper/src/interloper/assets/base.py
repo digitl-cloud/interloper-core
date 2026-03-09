@@ -224,6 +224,18 @@ class Asset(Component):
                     f"for asset '{self.key}'. Available keys: {available}"
                 )
 
+        if self.partitioning is not None and self.schema is not None:
+            schema_fields = set(self.schema.model_fields.keys())
+            if self.partitioning.column not in schema_fields:
+                import warnings
+
+                warnings.warn(
+                    f"Asset '{self.key}': partition column '{self.partitioning.column}' "
+                    f"not found in schema fields {sorted(schema_fields)}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
     @property
     def local_key(self) -> str:
         """Return the local (unqualified) key, stripping the source prefix if present."""

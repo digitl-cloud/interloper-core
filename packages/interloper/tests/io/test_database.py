@@ -1,6 +1,7 @@
 """Tests for DatabaseIO and WriteDisposition."""
 
 import datetime as dt
+import warnings
 from unittest.mock import MagicMock
 
 import pytest
@@ -330,3 +331,49 @@ class TestAdapterChain:
         """DatabaseIO key derivation works even with adapter set (super() called)."""
         db = StubDatabaseIO(adapter=RowAdapter())
         assert db.key == "stubdatabase"
+
+
+class TestPartitionColumnWriteWarning:
+    """Warn at write-time when partition column is missing from row data."""
+
+    def test_warns_when_partition_column_missing(self):
+        """A warning is emitted when writing partitioned data without the partition column."""
+        db = StubDatabaseIO()
+        partitioning = TimePartitionConfig(column="date")
+        asset = _make_asset(partitioning=partitioning)
+        partition = TimePartition(dt.date(2025, 1, 1))
+        ctx = IOContext(asset=asset, partition_or_window=partition)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            db.write(ctx, [{"value": 1}])
+
+        assert len(w) == 1
+        assert "Partition column 'date'" in str(w[0].message)
+        assert "['value']" in str(w[0].message)
+
+    def test_no_warning_when_partition_column_present(self):
+        """No warning when the partition column is included in the row data."""
+        db = StubDatabaseIO()
+        partitioning = TimePartitionConfig(column="date")
+        asset = _make_asset(partitioning=partitioning)
+        partition = TimePartition(dt.date(2025, 1, 1))
+        ctx = IOContext(asset=asset, partition_or_window=partition)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            db.write(ctx, [{"date": "2025-01-01", "value": 1}])
+
+        assert len(w) == 0
+
+    def test_no_warning_for_unpartitioned_write(self):
+        """No warning when writing without partitioning."""
+        db = StubDatabaseIO()
+        asset = _make_asset()
+        ctx = IOContext(asset=asset)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            db.write(ctx, [{"value": 1}])
+
+        assert len(w) == 0
