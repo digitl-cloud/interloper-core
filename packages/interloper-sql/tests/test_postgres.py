@@ -37,15 +37,15 @@ class TestPostgresIOInit:
         io = PostgresIO(host="localhost", database="mydb")
         assert io.database == "mydb"
 
-    def test_default_user(self):
-        """Default user is 'postgres'."""
+    def test_default_username(self):
+        """Default username is 'postgres'."""
         io = PostgresIO(host="localhost")
-        assert io.user == "postgres"
+        assert io.username == "postgres"
 
-    def test_custom_user(self):
-        """Custom user is preserved."""
-        io = PostgresIO(host="localhost", user="admin")
-        assert io.user == "admin"
+    def test_custom_username(self):
+        """Custom username is preserved."""
+        io = PostgresIO(host="localhost", username="admin")
+        assert io.username == "admin"
 
     def test_password_none_by_default(self):
         """Password is None by default."""
@@ -68,9 +68,9 @@ class TestPostgresIOInit:
         assert io.driver == "psycopg2"
 
     def test_default_write_disposition(self):
-        """Default write disposition is REPLACE."""
+        """Default write disposition is APPEND."""
         io = PostgresIO(host="localhost")
-        assert io.write_disposition is WriteDisposition.REPLACE
+        assert io.write_disposition is WriteDisposition.APPEND
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""
@@ -97,12 +97,12 @@ class TestPostgresIOSpec:
         spec = io.to_spec()
 
         assert spec.path == "interloper_sql.io.postgres.PostgresIO"
-        assert spec.init["host"] == "db.example.com"
-        assert spec.init["port"] == 5432
-        assert spec.init["database"] == "postgres"
-        assert spec.init["user"] == "postgres"
-        assert "password" not in spec.init
-        assert "driver" not in spec.init
+        assert spec.config["host"] == "db.example.com"
+        assert spec.config["port"] == 5432
+        assert spec.config["database"] == "postgres"
+        assert spec.config["username"] == "postgres"
+        assert "password" not in spec.config
+        assert "driver" not in spec.config
 
     def test_to_spec_full(self):
         """Spec with all parameters set."""
@@ -110,7 +110,7 @@ class TestPostgresIOSpec:
             host="db.example.com",
             port=6543,
             database="mydb",
-            user="admin",
+            username="admin",
             password="secret",
             driver="psycopg2",
             write_disposition=WriteDisposition.APPEND,
@@ -118,26 +118,26 @@ class TestPostgresIOSpec:
         )
         spec = io.to_spec()
 
-        assert spec.init["host"] == "db.example.com"
-        assert spec.init["port"] == 6543
-        assert spec.init["database"] == "mydb"
-        assert spec.init["user"] == "admin"
-        assert spec.init["password"] == "secret"
-        assert spec.init["driver"] == "psycopg2"
-        assert spec.init["write_disposition"] == "append"
-        assert spec.init["chunk_size"] == 500
+        assert spec.config["host"] == "db.example.com"
+        assert spec.config["port"] == 6543
+        assert spec.config["database"] == "mydb"
+        assert spec.config["username"] == "admin"
+        assert spec.config["password"] == "secret"
+        assert spec.config["driver"] == "psycopg2"
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 500
 
     def test_to_spec_omits_none_password(self):
         """Password is omitted from spec when None."""
         io = PostgresIO(host="localhost")
         spec = io.to_spec()
-        assert "password" not in spec.init
+        assert "password" not in spec.config
 
     def test_to_spec_omits_none_driver(self):
         """Driver is omitted from spec when None."""
         io = PostgresIO(host="localhost")
         spec = io.to_spec()
-        assert "driver" not in spec.init
+        assert "driver" not in spec.config
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ class TestPostgresIOUrl:
 
     def test_url_without_driver(self):
         """URL uses 'postgresql' drivername when no driver specified."""
-        io = PostgresIO(host="localhost", database="testdb", user="me", password="pw")
+        io = PostgresIO(host="localhost", database="testdb", username="me", password="pw")
         url = io._engine.url
 
         assert url.get_backend_name() == "postgresql"

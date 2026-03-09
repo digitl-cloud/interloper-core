@@ -8,29 +8,30 @@ import inspect
 import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
+
+from pydantic import Field
 
 from interloper.assets.base import Asset, AssetDefinition
+from interloper.assets.keys import AssetInstanceKey
 from interloper.errors import ConfigError, SourceError
-from interloper.io.base import IO
-from interloper.serialization.base import Serializable
+from interloper.io.base import IO, validate_io_keys
+from interloper.normalizer.base import Normalizer
+from interloper.normalizer.strategy import MaterializationStrategy
+from interloper.serialization.base import Component, Serializable
 from interloper.serialization.source import SourceDefinitionSpec, SourceInstanceSpec
 from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
-from interloper.utils.text import to_label, validate_name
-
-if TYPE_CHECKING:
-    from interloper.normalizer.base import Normalizer
-    from interloper.normalizer.strategy import MaterializationStrategy
+from interloper.utils.text import to_label, validate_key
 
 
 @dataclass(frozen=True)
-class SourceDefinition(Serializable[SourceDefinitionSpec]):
+class SourceDefinition(Serializable):
     """Definition of a source created by the @source class decorator."""
 
     cls: type
     asset_defs: dict[str, AssetDefinition] = field(default_factory=dict)
-    name: str = ""
+    key: str = ""
     label: str = ""
     dataset: str | None = None
     config: type[Config] | None = None
@@ -40,14 +41,14 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
     strategy: MaterializationStrategy | None = None
 
     def __post_init__(self):
-        """Set name to class name if not provided, validate."""
-        if not self.name:
-            object.__setattr__(self, "name", self.cls.__name__)
+        """Set key to class name if not provided, validate."""
+        if not self.key:
+            object.__setattr__(self, "key", self.cls.__name__)
 
-        validate_name(self.name)
+        validate_key(self.key)
 
         if not self.label:
-            object.__setattr__(self, "label", to_label(self.name))
+            object.__setattr__(self, "label", to_label(self.key))
 
         self._wire_asset_defs()
         self._infer_requires()
@@ -65,21 +66,26 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
                     continue
                 if param_name in asset_def.requires:
                     continue
-                if param_name in self.asset_defs and param_name != asset_def.name:
-                    asset_def.requires[param_name] = self.asset_defs[param_name].definition_key
+                if param_name in self.asset_defs and param_name != asset_def.key:
+                    asset_def.requires[param_name] = self.asset_defs[param_name].qualified_key
 
     def to_spec(self) -> SourceDefinitionSpec:
         """Convert to a definition spec describing this source's metadata.
 
         Returns:
             A SourceDefinitionSpec capturing key, label, description,
-            tags, and nested asset definition specs.
+            tags, config_schema, and nested asset definition specs.
         """
+        config_schema = None
+        if self.config is not None:
+            config_schema = self.config.model_json_schema()
+
         return SourceDefinitionSpec(
-            key=self.name,
+            key=self.key,
             label=self.label,
             description=self.cls.__doc__ or "",
             tags=list(self.tags),
+            config_schema=config_schema,
             assets=[ad.to_spec() for ad in self.asset_defs.values()],
         )
 
@@ -91,10 +97,11 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
     def __call__(
         self,
         *,
-        name: str | None = None,
+        key: str | None = None,
         dataset: str | None = None,
         config: Config | None = None,
-        io: IO | dict[str, IO] | None = None,
+        io: IO | list[IO] | None = None,
+        default_io_key: str | None = None,
         assets: Sequence[str] | dict[str, str] | None = None,
         strategy: MaterializationStrategy | None = None,
     ) -> Source:
@@ -118,7 +125,7 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
                 if config is None:
                     raise ConfigError(
                         f"Source class '{self.cls.__name__}' accepts a 'config' parameter in __init__, "
-                        f"but no config is configured for source '{self.name}'. "
+                        f"but no config is configured for source '{self.key}'. "
                         f"Define a config type on the @source decorator or provide one at instantiation time."
                     )
                 instance = self.cls(config=config)
@@ -139,13 +146,13 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
             """
             if config is not None and self.config is not None and not issubclass(type(config), self.config):
                 raise ConfigError(
-                    f"Config provided to source '{self.name}' must be of type {self.config.__name__}, "
+                    f"Config provided to source '{self.key}' must be of type {self.config.__name__}, "
                     f"got {type(config).__name__}."
                 )
 
             if config is not None and self.config is None:
                 warnings.warn(
-                    f"Config provided to source '{self.name}' but no config type is configured "
+                    f"Config provided to source '{self.key}' but no config type is configured "
                     f"on the @source decorator. The config will be used but cannot be type-checked.",
                     UserWarning,
                     stacklevel=2,
@@ -177,8 +184,8 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
             """
             if config is not None and asset_def.config is not None and not issubclass(type(config), asset_def.config):
                 print(
-                    f"Warning: Config provided to source '{self.name}' is not of compatible with asset "
-                    f"'{asset_def.name}' (Expecting {asset_def.config.__name__}, got {type(config).__name__}). "
+                    f"Warning: Config provided to source '{self.key}' is not of compatible with asset "
+                    f"'{asset_def.key}' (Expecting {asset_def.config.__name__}, got {type(config).__name__}). "
                     "Ignoring config override for this asset."
                 )
                 return None
@@ -219,17 +226,15 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
                 selected = list(cast(Sequence[str], assets))
                 rename_map = {}
 
-            names = {d.name for d in defs}
-            invalid = set(selected) - names
+            keys = {d.key for d in defs}
+            invalid = set(selected) - keys
             if invalid:
-                raise SourceError(f"Invalid asset names: {sorted(invalid)}. Valid asset names are: {sorted(names)}.")
-            renamed = [rename_map.get(n, n) for n in selected]
+                raise SourceError(f"Invalid asset keys: {sorted(invalid)}. Valid asset keys are: {sorted(keys)}.")
+            renamed = [rename_map.get(k, k) for k in selected]
             if len(set(renamed)) != len(renamed):
-                raise SourceError(
-                    f"Renamed asset names must be unique. Got duplicates after rename: {sorted(renamed)}."
-                )
+                raise SourceError(f"Renamed asset keys must be unique. Got duplicates after rename: {sorted(renamed)}.")
 
-            return [d for d in defs if d.name in selected], rename_map
+            return [d for d in defs if d.key in selected], rename_map
 
         def bind_asset_method(func: Callable, instance: Any) -> Callable:
             """Bind an unbound method to an instance, removing ``self`` from the signature.
@@ -247,8 +252,8 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
             bound.__signature__ = original_sig.replace(parameters=new_params)  # type: ignore[attr-defined]
             return bound
 
-        if name is not None:
-            validate_name(name)
+        if key is not None:
+            validate_key(key)
 
         resolved_config = resolve_source_config()
 
@@ -261,19 +266,20 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
         asset_instances: dict[str, Asset] = {}
         for asset_def in filtered_defs:
             asset_config = resolve_asset_config(asset_def, resolved_config)
-            asset_name = rename_map.get(asset_def.name, asset_def.name)
+            asset_key = rename_map.get(asset_def.key, asset_def.key)
 
             asset_instance = asset_def(
-                name=asset_name,
+                key=asset_key,
                 config=asset_config,
                 io=io,
+                default_io_key=default_io_key,
                 dataset=self.dataset if asset_def.dataset is None else None,
             )
 
             # Bind the unbound method to the class instance
             asset_instance.func = bind_asset_method(asset_def.func, cls_instance)
-            if asset_def.name != asset_name:
-                asset_instance.metadata["source_original_name"] = asset_def.name
+            if asset_def.key != asset_key:
+                asset_instance.metadata["source_original_key"] = asset_def.key
 
             # Inherit source-level normalizer if asset doesn't have its own
             if asset_instance.normalizer is None and self.normalizer is not None:
@@ -284,63 +290,63 @@ class SourceDefinition(Serializable[SourceDefinitionSpec]):
             if asset_instance.strategy is None and resolved_strategy is not None:
                 asset_instance.strategy = resolved_strategy
 
-            asset_instances[asset_instance.name] = asset_instance
+            asset_instances[asset_instance.key] = asset_instance
 
         return Source(
             definition=self,
-            name=name or self.name,
-            dataset=dataset or name or self.dataset or self.name,
+            key=key or self.key,
+            dataset=dataset or key or self.dataset or self.key,
             config=resolved_config,
             io=io,
+            default_io_key=default_io_key,
             assets=asset_instances,
         )
 
     def __getattr__(self, name: str) -> AssetDefinition:
-        """Access assets by name as attributes.
+        """Access asset definitions by key as attributes.
 
         Returns:
             The matching AssetDefinition.
 
         Raises:
-            SourceError: If no asset definition with the given name exists.
+            SourceError: If no asset definition with the given key exists.
         """
         try:
             return self.asset_defs[name]
         except KeyError:
-            raise SourceError(f"Source {self.name} has no asset definition named '{name}'")
+            raise SourceError(f"Source '{self.key}' has no asset definition with key '{name}'")
 
 
-@dataclass
-class Source(Serializable[SourceInstanceSpec]):
+class Source(Component):
     """Runtime instance of a source containing multiple assets."""
 
     definition: SourceDefinition
-    name: str
+    key: str = ""
     label: str = ""
     dataset: str | None = None
     config: Config | None = None
-    io: IO | dict[str, IO] | None = None
-    assets: dict[str, Asset] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    io: IO | list[IO] | None = None
+    default_io_key: str | None = None
+    assets: dict[str, Asset] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
-    def __post_init__(self):
-        """Link assets back to this source."""
+    def model_post_init(self, __context: Any, /) -> None:
+        """Link assets back to this source and set composite keys."""
         if not self.label:
-            object.__setattr__(self, "label", self.definition.label)
+            self.label = self.definition.label
+
+        if isinstance(self.io, list):
+            validate_io_keys(self.io, self.key)
 
         for asset in self.assets.values():
             asset.source = self
-            asset.dataset = asset.dataset or self.dataset or self.name
-
-    @property
-    def instance_key(self) -> str:
-        """Return the source instance key (the source name)."""
-        return self.name
+            asset.key = AssetInstanceKey(f"{self.key}:{asset.key}")
+            asset.dataset = asset.dataset or self.dataset or self.key
 
     def copy(
         self,
         config: Config | None = None,
-        io: IO | dict[str, IO] | None = None,
+        io: IO | list[IO] | None = None,
     ) -> Source:
         """Create an independent copy of this source with optional overrides.
 
@@ -354,31 +360,31 @@ class Source(Serializable[SourceInstanceSpec]):
             source.io = io
 
         # Deep-copy assets so the new source is fully independent
-        source.assets = {name: copy.copy(asset) for name, asset in self.assets.items()}
+        source.assets = {k: copy.copy(asset) for k, asset in self.assets.items()}
         for asset in source.assets.values():
             asset.source = source
 
         return source
 
     def __getattr__(self, name: str) -> Asset:
-        """Access assets by name as attributes.
+        """Access assets by key as attributes.
 
         Returns:
             The matching Asset instance.
 
         Raises:
-            AttributeError: If the name is a dunder attribute.
-            SourceError: If no asset with the given name exists.
+            AttributeError: If the name starts with ``_`` (Pydantic internals).
+            SourceError: If no asset with the given key exists.
         """
-        # Let Python handle dunder lookups normally (required for copy, pickle, etc.)
-        if name.startswith("__") and name.endswith("__"):
+        # Let Python/Pydantic handle private and dunder lookups normally
+        if name.startswith("_"):
             raise AttributeError(name)
         # Use object.__getattribute__ to avoid recursion when accessing self.assets
         try:
             assets = object.__getattribute__(self, "assets")
             return assets[name]
         except KeyError:
-            raise SourceError(f"Source has no asset named '{name}'")
+            raise SourceError(f"Source has no asset with key '{name}'")
 
     def to_spec(self) -> SourceInstanceSpec:
         """Convert to serializable spec.
@@ -389,16 +395,36 @@ class Source(Serializable[SourceInstanceSpec]):
         # TODO: serialize assets by setting the source spec `assets` field
 
         io_spec = None
-        if isinstance(self.io, dict):
-            io_spec = {k: v.to_spec() for k, v in self.io.items()}  # type: ignore[unresolved-attribute]
+        if isinstance(self.io, list):
+            io_spec = [io.to_spec() for io in self.io]
         elif self.io is not None:
             io_spec = self.io.to_spec()
 
-        materializable_assets = [asset.name for asset in self.assets.values() if asset.materializable]
+        materializable_assets = [asset.local_key for asset in self.assets.values() if asset.materializable]
 
         return SourceInstanceSpec(
             path=self.path,
             io=io_spec,
             assets=materializable_assets,
             config=self.config.model_dump() if self.config is not None else None,
+            default_io_key=self.default_io_key,
         )
+
+
+# ---------------------------------------------------------------------------
+# Deferred model resolution
+# ---------------------------------------------------------------------------
+# Asset and Source reference each other's types behind TYPE_CHECKING to avoid
+# circular imports.  Now that both classes are fully defined we can rebuild
+# their Pydantic schemas, supplying the missing names via _types_namespace.
+
+Source.model_rebuild()
+Asset.model_rebuild(
+    _types_namespace={
+        "Source": Source,
+        "SourceDefinition": SourceDefinition,
+        "Config": Config,
+        "Normalizer": Normalizer,
+        "MaterializationStrategy": MaterializationStrategy,
+    }
+)

@@ -1,62 +1,62 @@
-"""Tests for RunnerInstanceSpec serialization and reconstruction."""
+"""Tests for runner ComponentInstanceSpec serialization and reconstruction."""
 
 import pytest
 
 from interloper.runners.serial import SerialRunner
-from interloper.serialization.runner import RunnerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 
 class TestRunnerSpec:
-    """Test RunnerInstanceSpec creation, serialization, and reconstruction."""
+    """Test ComponentInstanceSpec creation, serialization, and reconstruction for runners."""
 
     @pytest.fixture()
-    def spec(self) -> RunnerInstanceSpec:
-        """A RunnerInstanceSpec pointing at SerialRunner.
+    def spec(self) -> ComponentInstanceSpec:
+        """A ComponentInstanceSpec pointing at SerialRunner.
 
         Returns:
-            RunnerInstanceSpec fixture.
+            ComponentInstanceSpec fixture.
         """
-        return RunnerInstanceSpec(path="interloper.runners.serial.SerialRunner")
+        return ComponentInstanceSpec(path="interloper.runners.serial.SerialRunner")
 
     @pytest.fixture()
-    def spec_with_init(self) -> RunnerInstanceSpec:
-        """A RunnerInstanceSpec with init kwargs.
+    def spec_with_init(self) -> ComponentInstanceSpec:
+        """A ComponentInstanceSpec with init kwargs.
 
         Returns:
-            RunnerInstanceSpec fixture with init kwargs.
+            ComponentInstanceSpec fixture with init kwargs.
         """
-        return RunnerInstanceSpec(
+        return ComponentInstanceSpec(
             path="interloper.runners.serial.SerialRunner",
             init={"key": "value"},
         )
 
-    def test_creation_with_path(self, spec: RunnerInstanceSpec):
-        """RunnerInstanceSpec stores the import path."""
+    def test_creation_with_path(self, spec: ComponentInstanceSpec):
+        """ComponentInstanceSpec stores the import path."""
         assert spec.path == "interloper.runners.serial.SerialRunner"
 
-    def test_creation_defaults_init_to_empty_dict(self, spec: RunnerInstanceSpec):
-        """RunnerInstanceSpec defaults init to an empty dict."""
+    def test_creation_defaults_init_to_empty_dict(self, spec: ComponentInstanceSpec):
+        """ComponentInstanceSpec defaults init to an empty dict."""
         assert spec.init == {}
 
-    def test_creation_with_init(self, spec_with_init: RunnerInstanceSpec):
-        """RunnerInstanceSpec stores init kwargs."""
+    def test_creation_with_init(self, spec_with_init: ComponentInstanceSpec):
+        """ComponentInstanceSpec stores init kwargs."""
         assert spec_with_init.init == {"key": "value"}
 
-    def test_json_roundtrip(self, spec: RunnerInstanceSpec):
-        """RunnerInstanceSpec survives JSON serialization and deserialization."""
+    def test_json_roundtrip(self, spec: ComponentInstanceSpec):
+        """ComponentInstanceSpec survives JSON serialization and deserialization."""
         json_str = spec.model_dump_json()
-        parsed = RunnerInstanceSpec.model_validate_json(json_str)
+        parsed = ComponentInstanceSpec.model_validate_json(json_str)
         assert parsed.path == spec.path
         assert parsed.init == spec.init
 
-    def test_json_roundtrip_with_init(self, spec_with_init: RunnerInstanceSpec):
-        """RunnerInstanceSpec with init kwargs survives JSON roundtrip."""
+    def test_json_roundtrip_with_init(self, spec_with_init: ComponentInstanceSpec):
+        """ComponentInstanceSpec with init kwargs survives JSON roundtrip."""
         json_str = spec_with_init.model_dump_json()
-        parsed = RunnerInstanceSpec.model_validate_json(json_str)
+        parsed = ComponentInstanceSpec.model_validate_json(json_str)
         assert parsed.path == spec_with_init.path
         assert parsed.init == spec_with_init.init
 
-    def test_reconstruct_creates_instance(self, spec: RunnerInstanceSpec):
+    def test_reconstruct_creates_instance(self, spec: ComponentInstanceSpec):
         """reconstruct() creates a SerialRunner instance from the spec."""
         result = spec.reconstruct()
         assert isinstance(result, SerialRunner)

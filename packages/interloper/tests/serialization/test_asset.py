@@ -4,7 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 import interloper as il
-from interloper.serialization import AssetInstanceSpec, IOInstanceSpec
+from interloper.serialization import AssetInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 # Module-level source for serialization roundtrip tests
 _closed_over_value = "secret_value"
@@ -79,42 +80,42 @@ class TestAssetSpec:
         spec = io_asset(io=file_io).to_spec()
         assert spec.path.split(".")[-1] == "io_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
-        assert isinstance(spec.io, IOInstanceSpec)
+        assert isinstance(spec.io, ComponentInstanceSpec)
         assert spec.io.path == "interloper.io.file.FileIO"
-        assert spec.io.init["base_path"] == "data"
+        assert spec.io.config["base_path"] == "data"
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert isinstance(parsed_spec.io, IOInstanceSpec)
+        assert isinstance(parsed_spec.io, ComponentInstanceSpec)
 
     def test_assetspec_with_multiple_io_roundtrip(self):
         """Test AssetInstanceSpec roundtrip with multiple IOs."""
-        file_io1 = il.FileIO(base_path="data1")
-        file_io2 = il.FileIO(base_path="data2")
+        file_io1 = il.FileIO(key="io1", base_path="data1")
+        file_io2 = il.FileIO(key="io2", base_path="data2")
 
         @il.asset
         def multi_io_asset():
             return "value"
 
         # Convert to spec
-        spec = multi_io_asset(io={"io1": file_io1, "io2": file_io2}, default_io_key="io1").to_spec()
+        spec = multi_io_asset(io=[file_io1, file_io2], default_io_key="io1").to_spec()
         assert spec.path.split(".")[-1] == "multi_io_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
-        assert isinstance(spec.io, dict)
-        assert "io1" in spec.io
-        assert "io2" in spec.io
-        assert isinstance(spec.io["io1"], IOInstanceSpec)
-        assert isinstance(spec.io["io2"], IOInstanceSpec)
+        assert isinstance(spec.io, list)
+        assert len(spec.io) == 2
+        assert isinstance(spec.io[0], ComponentInstanceSpec)
+        assert isinstance(spec.io[1], ComponentInstanceSpec)
+        assert spec.io[0].init.get("key") == "io1"
+        assert spec.io[1].init.get("key") == "io2"
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert isinstance(parsed_spec.io, dict)
-        assert "io1" in parsed_spec.io
-        assert "io2" in parsed_spec.io
+        assert isinstance(parsed_spec.io, list)
+        assert len(parsed_spec.io) == 2
 
     def test_assetspec_validation(self):
         """Test AssetInstanceSpec Pydantic validation."""

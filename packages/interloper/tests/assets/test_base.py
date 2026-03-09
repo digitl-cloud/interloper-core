@@ -26,7 +26,7 @@ class TestAssetDefinition:
 
         asset_def = il.AssetDefinition(func)
         assert asset_def.func == func
-        assert asset_def.name == "func"
+        assert asset_def.key == "func"
         assert asset_def.dataset is None
         assert asset_def.schema is None
         assert asset_def.config is None
@@ -78,8 +78,8 @@ class TestAssetDefinition:
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_def = il.AssetDefinition(func, name="custom_name")
-        assert asset_def.name == "custom_name"
+        asset_def = il.AssetDefinition(func, key="custom_name")
+        assert asset_def.key == "custom_name"
 
     def test_invalid_name_rejected(self):
         """Test that invalid names are rejected at definition time."""
@@ -88,32 +88,32 @@ class TestAssetDefinition:
             return "value"
 
         with pytest.raises(ValueError, match="invalid"):
-            il.AssetDefinition(func, name="my-asset")
+            il.AssetDefinition(func, key="my-asset")
 
         with pytest.raises(ValueError, match="invalid"):
-            il.AssetDefinition(func, name="123")
+            il.AssetDefinition(func, key="123")
 
     def test_invalid_name_rejected_at_instantiation(self):
-        """Test that invalid name overrides are rejected when calling a definition."""
+        """Test that invalid key overrides are rejected when calling a definition."""
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
         with pytest.raises(ValueError, match="invalid"):
-            my_asset(name="bad-name")
+            my_asset(key="bad-name")
 
-    def test_definition_key_standalone(self):
-        """Standalone asset definition_key equals the asset name."""
+    def test_qualified_key_standalone(self):
+        """Standalone asset qualified_key equals the asset key."""
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        assert my_asset.definition_key == "my_asset"
+        assert my_asset.qualified_key == "my_asset"
 
-    def test_definition_key_source_bound(self):
-        """Source-bound asset definition_key is source_name:asset_name."""
+    def test_qualified_key_source_bound(self):
+        """Source-bound asset qualified_key is source_key:asset_key."""
 
         @il.source
         class MySource:
@@ -123,7 +123,7 @@ class TestAssetDefinition:
 
         asset_def = MySource.my_asset
         assert asset_def.source_definition is MySource
-        assert asset_def.definition_key == "MySource:my_asset"
+        assert asset_def.qualified_key == "MySource:my_asset"
 
     def test_source_definition_wired_by_decorator(self):
         """The @source decorator wires source_definition on collected asset defs."""
@@ -159,13 +159,13 @@ class TestAssetDefinition:
 
         asset_def = il.AssetDefinition(
             func,
-            name="test",
+            key="test",
             schema=SampleSchema,
             partitioning=partitioning,
             dataset="data",
         )
 
-        assert asset_def.name == "test"
+        assert asset_def.key == "test"
         assert asset_def.schema == SampleSchema
         assert asset_def.partitioning == partitioning
         assert asset_def.dataset == "data"
@@ -201,7 +201,7 @@ class TestAssetDefinition:
             return "value"
 
         asset_def = il.AssetDefinition(func)
-        new_io = il.FileIO("override/")
+        new_io = il.FileIO(base_path="override/")
         asset_instance = asset_def(io=new_io)
         assert isinstance(asset_instance, il.Asset)
         assert asset_instance.io == new_io
@@ -220,7 +220,7 @@ class TestAsset:
         asset_instance = my_asset()
         assert isinstance(asset_instance, il.Asset)
         assert asset_instance.definition == my_asset
-        assert asset_instance.name == "my_asset"
+        assert asset_instance.key == "my_asset"
         assert asset_instance.schema is None
         assert asset_instance.config is None
         assert asset_instance.dataset is None
@@ -237,19 +237,19 @@ class TestAsset:
 
         source_instance = MySource()
 
-        assert source_instance.my_asset.instance_key == "MySource:my_asset"
+        assert source_instance.my_asset.key == "MySource:my_asset"
 
-    def test_key_with_source_name_override(self):
-        """Test key property with source name override."""
+    def test_key_with_source_key_override(self):
+        """Test key property with source key override."""
 
-        @il.source(name="new_source_name")
+        @il.source(key="new_source_name")
         class MySource:
             @il.asset
             def my_asset(self, context: il.ExecutionContext) -> str:
                 return "value"
 
         source_instance = MySource()
-        assert source_instance.my_asset.instance_key == "new_source_name:my_asset"
+        assert source_instance.my_asset.key == "new_source_name:my_asset"
 
     def test_key_with_multiple_sources_same_name(self):
         """Test that assets from different sources with same name get different keys."""
@@ -272,16 +272,16 @@ class TestAsset:
         asset1 = source1_instance.assets["my_asset"]
         asset2 = source2_instance.assets["my_asset"]
 
-        # Both assets have the same name but different keys
-        assert asset1.name == asset2.name == "my_asset"
-        assert asset1.instance_key == "Source1:my_asset"
-        assert asset2.instance_key == "Source2:my_asset"
-        assert asset1.instance_key != asset2.instance_key
+        # Both assets have the same local_key but different keys
+        assert asset1.local_key == asset2.local_key == "my_asset"
+        assert asset1.key == "Source1:my_asset"
+        assert asset2.key == "Source2:my_asset"
+        assert asset1.key != asset2.key
 
-    def test_key_with_custom_source_name(self):
-        """Test key property with custom source name."""
+    def test_key_with_custom_source_key(self):
+        """Test key property with custom source key."""
 
-        @il.source(name="custom_source_name")
+        @il.source(key="custom_source_name")
         class MySource:
             @il.asset
             def my_asset(self, context: il.ExecutionContext) -> str:
@@ -290,12 +290,12 @@ class TestAsset:
         source_instance = MySource()
         asset_instance = source_instance.assets["my_asset"]
 
-        # Asset should have source context with custom name
+        # Asset should have source context with custom key
         assert asset_instance.source is not None
-        assert asset_instance.source.name == "custom_source_name"
+        assert asset_instance.source.key == "custom_source_name"
 
-        # Key should include custom source name
-        assert asset_instance.instance_key == "custom_source_name:my_asset"
+        # Key should include custom source key
+        assert asset_instance.key == "custom_source_name:my_asset"
 
     def test_with_dataset(self):
         """Test dataset property."""
@@ -393,7 +393,7 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        io = il.FileIO(tmp_path)
+        io = il.FileIO(base_path=str(tmp_path))
         asset_instance = my_asset(io=io)
         assert isinstance(asset_instance, il.Asset)
         assert asset_instance.io is io
@@ -454,7 +454,7 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset(io=il.FileIO(tmp_path))
+        asset_instance = my_asset(io=il.FileIO(base_path=str(tmp_path)))
         value = asset_instance.materialize()
         assert value == "value"
 
@@ -465,7 +465,7 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        asset_instance = my_asset(io=il.FileIO(tmp_path))
+        asset_instance = my_asset(io=il.FileIO(base_path=str(tmp_path)))
         value = asset_instance.materialize(partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
         assert value == [{"date": dt.date(2025, 1, 1)}]
 
@@ -480,10 +480,10 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
         asset_instance = my_asset(io=ios, default_io_key="local")
         value = asset_instance.materialize()
         assert value == "value"
@@ -501,7 +501,7 @@ class TestAsset:
 
     def test_dependency_resolution(self, tmp_path):
         """Test asset with dependencies requires DAG."""
-        io = il.FileIO(tmp_path)
+        io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset
         def upstream(context: il.ExecutionContext) -> str:
@@ -529,10 +529,10 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext, config: Cfg) -> str:
             return "value"
 
-        original = my_asset(io=il.FileIO(tmp_path), deps={"a": "ds.up"})
+        original = my_asset(io=il.FileIO(base_path=str(tmp_path)), deps={"a": "ds.up"})
 
         new_cfg = Cfg(key="y")
-        new_io = il.FileIO(tmp_path / "other")
+        new_io = il.FileIO(base_path=str(tmp_path / "other"))
         new_deps = {"b": "ds2.other"}
 
         copied = original.copy(config=new_cfg, io=new_io, deps=new_deps, dataset="new_ds", materializable=False)
@@ -558,7 +558,7 @@ class TestAsset:
         """Asset.copy should retain the .source reference when the asset is part of a Source."""
         import interloper as il
 
-        io = il.FileIO(tmp_path)
+        io = il.FileIO(base_path=str(tmp_path))
 
         @il.source
         class Src:
@@ -573,7 +573,7 @@ class TestAsset:
 
         # The copied asset should still reference the original source
         assert copied.source is source_instance
-        assert copied.instance_key == asset_from_source.instance_key
+        assert copied.key == asset_from_source.key
 
 
 class TestConfigInference:

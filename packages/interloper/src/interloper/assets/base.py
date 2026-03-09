@@ -8,24 +8,24 @@ import traceback
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from interloper.assets.context import ExecutionContext
 from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
 from interloper.errors import AssetError, ConfigError, DependencyNotFoundError, PartitionError
 from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
-from interloper.io.base import IO
+from interloper.io.base import IO, validate_io_keys
 from interloper.io.context import IOContext
 from interloper.io.memory import MemoryIO
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
 from interloper.serialization.asset import AssetDefinitionSpec, AssetInstanceSpec
-from interloper.serialization.base import Serializable
+from interloper.serialization.base import Component, Serializable
 from interloper.serialization.schema import extract_schema_fields
 from interloper.utils.imports import get_object_path
-from interloper.utils.text import to_label, validate_name
+from interloper.utils.text import to_label, validate_key
 
 if TYPE_CHECKING:
     from interloper.dag.base import DAG
@@ -36,16 +36,17 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True)
-class AssetDefinition(Serializable[AssetDefinitionSpec]):
+class AssetDefinition(Serializable):
     """Definition of an asset created by the @asset decorator."""
 
     func: Callable[..., Any]
     source_definition: SourceDefinition | None = None
-    name: str = ""
+    key: str = ""
     label: str = ""
     schema: type[BaseModel] | None = None
     config: type[Config] | None = None
-    io: IO | None = None
+    io: IO | list[IO] | None = None
+    default_io_key: str | None = None
     normalizer: Normalizer | None = None
     strategy: MaterializationStrategy | None = None
     tags: tuple[str, ...] = ()
@@ -55,48 +56,53 @@ class AssetDefinition(Serializable[AssetDefinitionSpec]):
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Set name to function name if not provided, validate."""
-        if not self.name:
-            object.__setattr__(self, "name", getattr(self.func, "__name__", "unknown"))
+        """Set key to function name if not provided, validate."""
+        if not self.key:
+            object.__setattr__(self, "key", getattr(self.func, "__name__", "unknown"))
 
-        validate_name(self.name)
+        validate_key(self.key)
 
         if not self.label:
-            object.__setattr__(self, "label", to_label(self.name))
+            object.__setattr__(self, "label", to_label(self.key))
 
     def to_spec(self) -> AssetDefinitionSpec:
         """Convert to a definition spec describing this asset's metadata.
 
         Returns:
             An AssetDefinitionSpec capturing key, label, description,
-            tags, dependencies, and schema fields.
+            tags, config_schema, dependencies, and schema fields.
         """
+        config_schema = None
+        if self.config is not None:
+            config_schema = self.config.model_json_schema()
+
         return AssetDefinitionSpec(
-            key=self.definition_key,
+            key=self.qualified_key,
             label=self.label,
             description=self.func.__doc__ or "",
             tags=list(self.tags),
+            config_schema=config_schema,
             requires=dict(self.requires) if self.requires else None,
             schema_fields=extract_schema_fields(self.schema),
         )
 
     @property
-    def definition_key(self) -> AssetDefinitionKey:
-        """Return the asset definition key.
+    def qualified_key(self) -> AssetDefinitionKey:
+        """Return the fully qualified asset definition key.
 
-        Format: ``{source-definition-key}:{asset-name}`` for source-bound assets,
-        or just ``{asset-name}`` for standalone assets.
+        Format: ``{source-key}:{asset-key}`` for source-bound assets,
+        or just ``{asset-key}`` for standalone assets.
         """
         if self.source_definition:
-            return AssetDefinitionKey(f"{self.source_definition.name}:{self.name}")
-        return AssetDefinitionKey(self.name)
+            return AssetDefinitionKey(f"{self.source_definition.key}:{self.key}")
+        return AssetDefinitionKey(self.key)
 
     def __call__(
         self,
         *,
-        name: str | None = None,
+        key: str | None = None,
         config: Config | None = None,
-        io: IO | dict[str, IO] | None = None,
+        io: IO | list[IO] | None = None,
         deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
         default_io_key: str | None = None,
@@ -106,9 +112,9 @@ class AssetDefinition(Serializable[AssetDefinitionSpec]):
         """Instantiate an ``Asset`` from this definition with runtime overrides.
 
         Args:
-            name: Override the asset name.
+            key: Override the asset key.
             config: Override the config instance.
-            io: Override the IO backend (single or dict of named IOs).
+            io: Override the IO backend (single IO or list of IOs keyed by ``io.key``).
             deps: Explicit dependency mapping (param name to asset instance key).
             dataset: Override the dataset name.
             default_io_key: Default IO key for multi-IO setups.
@@ -121,19 +127,19 @@ class AssetDefinition(Serializable[AssetDefinitionSpec]):
         Raises:
             ConfigError: If the provided config does not match the expected type.
         """
-        if name is not None:
-            validate_name(name)
+        if key is not None:
+            validate_key(key)
 
         # If config is provided, check it's the correct type (if self.config is set)
         if config is not None and self.config is not None and not issubclass(type(config), self.config):
             raise ConfigError(
-                f"Config provided to asset '{self.name}' must be of type {self.config.__name__}, "
+                f"Config provided to asset '{self.key}' must be of type {self.config.__name__}, "
                 f"got {type(config).__name__}."
             )
 
         if config is not None and self.config is None and not self.source_definition:
             warnings.warn(
-                f"Config provided to asset '{self.name}' but no config type is configured "
+                f"Config provided to asset '{self.key}' but no config type is configured "
                 f"on the @asset decorator. The config will be used but cannot be type-checked.",
                 UserWarning,
                 stacklevel=2,
@@ -153,7 +159,7 @@ class AssetDefinition(Serializable[AssetDefinitionSpec]):
 
         return Asset(
             func=self.func,
-            name=name or self.name,
+            key=AssetInstanceKey(key or self.key),
             schema=self.schema,
             config=resolved_config,
             io=io or self.io,
@@ -161,58 +167,74 @@ class AssetDefinition(Serializable[AssetDefinitionSpec]):
             strategy=strategy or self.strategy,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
-            default_io_key=default_io_key,
+            default_io_key=default_io_key or self.default_io_key,
             deps=deps or {},
             definition=self,
             materializable=materializable,
         )
 
 
-@dataclass
-class Asset(Serializable[AssetInstanceSpec]):
+class Asset(Component):
     """Runtime instance of an asset."""
 
     func: Callable
     definition: AssetDefinition
-    name: str
+    key: AssetInstanceKey = AssetInstanceKey("")
     label: str = ""
     schema: type[BaseModel] | None = None
     config: Config | None = None
-    io: IO | dict[str, IO] | None = None
+    io: IO | list[IO] | None = None
     normalizer: Normalizer | None = None
     strategy: MaterializationStrategy | None = None
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
     default_io_key: str | None = None
-    deps: dict[str, AssetInstanceKey] = field(default_factory=dict)
-    source: Source | None = field(default=None, init=False, repr=False)
+    deps: dict[str, AssetInstanceKey] = Field(default_factory=dict)
+    source: Source | None = Field(default=None, init=False, exclude=True, repr=False)
     materializable: bool = True
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        """Apply defaults after initialization."""
+    def model_post_init(self, __context: Any, /) -> None:
+        """Apply defaults after initialization.
+
+        Raises:
+            ConfigError: If multiple IOs are configured without a valid
+                ``default_io_key``, or if IO keys collide.
+        """
         if not self.label:
-            object.__setattr__(self, "label", self.definition.label)
+            self.label = self.definition.label
 
         if self.io is None:
             self.io = MemoryIO.singleton()
 
-    @property
-    def instance_key(self) -> AssetInstanceKey:
-        """Return the unique key for this asset instance."""
-        if self.source:
-            return AssetInstanceKey(f"{self.source.instance_key}:{self.name}")
-        return AssetInstanceKey(self.name)
+        if isinstance(self.io, list):
+            validate_io_keys(self.io, self.key)
+            if not self.default_io_key:
+                raise ConfigError(
+                    f"Asset '{self.key}' has multiple IOs but no default_io_key. "
+                    "Set default_io_key to specify which IO to use for upstream reads."
+                )
+            if not any(io.key == self.default_io_key for io in self.io):
+                available = sorted(io.key for io in self.io)
+                raise ConfigError(
+                    f"default_io_key '{self.default_io_key}' not found in IO list "
+                    f"for asset '{self.key}'. Available keys: {available}"
+                )
 
     @property
-    def definition_key(self) -> AssetDefinitionKey:
+    def local_key(self) -> str:
+        """Return the local (unqualified) key, stripping the source prefix if present."""
+        return self.key.rsplit(":", 1)[-1]
+
+    @property
+    def qualified_key(self) -> AssetDefinitionKey:
         """Return the asset definition key."""
-        return self.definition.definition_key
+        return self.definition.qualified_key
 
     def copy(
         self,
         config: Config | None = None,
-        io: IO | dict[str, IO] | None = None,
+        io: IO | list[IO] | None = None,
         deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
         materializable: bool | None = None,
@@ -236,14 +258,43 @@ class Asset(Serializable[AssetInstanceSpec]):
     def path(self) -> str:
         """Return the fully-qualified path used to locate this asset.
 
-        For source-bound assets: ``{source-class-path}:{asset-name}``.
+        For source-bound assets: ``{source-class-path}:{asset-local-key}``.
         For standalone assets: the import path of the decorated function.
         """
         if self.source:
-            path = f"{get_object_path(self.source.definition.cls)}:{self.name}"
+            path = f"{get_object_path(self.source.definition.cls)}:{self.local_key}"
         else:
             path = get_object_path(self.func)  # Points to the actual function
         return path
+
+    def _event_metadata(
+        self,
+        metadata: dict[str, Any],
+        partition_or_window: Partition | PartitionWindow | None = None,
+        *,
+        io_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Build the base event metadata dict for this asset.
+
+        Merges run-level metadata with asset identity fields.  IO methods
+        pass ``io_key`` to include the IO key in the metadata.
+
+        Args:
+            metadata: Run-level metadata (e.g. run_id, backfill_id).
+            partition_or_window: Current partition scope.
+            io_key: IO key for IO read/write events.
+
+        Returns:
+            The merged metadata dict (without ``message``).
+        """
+        base: dict[str, Any] = {
+            **metadata,
+            **get_asset_event_metadata(self),
+            "partition_or_window": str(partition_or_window) if partition_or_window else None,
+        }
+        if io_key is not None:
+            base["io_key"] = io_key
+        return base
 
     def run(
         self,
@@ -270,10 +321,10 @@ class Asset(Serializable[AssetInstanceSpec]):
         """
         # Warn if partition provided for non-partitioned asset
         if self.partitioning is None and partition_or_window is not None:
-            warnings.warn(f"Asset '{self.name}' is not partitioned, partition/partition_window will be ignored")
+            warnings.warn(f"Asset '{self.key}' is not partitioned, partition/partition_window will be ignored")
 
         if self.partitioning is not None and partition_or_window is None:
-            raise PartitionError(f"Asset '{self.name}' is partitioned, but no partition/partition_window provided")
+            raise PartitionError(f"Asset '{self.key}' is partitioned, but no partition/partition_window provided")
 
         if (
             self.partitioning is not None
@@ -281,13 +332,13 @@ class Asset(Serializable[AssetInstanceSpec]):
             and not self.partitioning.allow_window
         ):
             raise PartitionError(
-                f"Asset '{self.instance_key}' does not support windowed runs (allow_window=False). "
+                f"Asset '{self.key}' does not support windowed runs (allow_window=False). "
                 "Use a partition window with backfill(windowed=False) to run one partition per run."
             )
 
         # Create context
         context = ExecutionContext(
-            asset_key=self.instance_key,
+            asset_key=self.key,
             partition_or_window=partition_or_window,
             partitioning=self.partitioning,
             metadata=metadata,
@@ -297,16 +348,12 @@ class Asset(Serializable[AssetInstanceSpec]):
         kwargs = self._build_kwargs(context, partition_or_window, dag)
 
         # Execute core function
-        exec_metadata = {
-            **(metadata or {}),
-            **get_asset_event_metadata(self),
-            "partition_or_window": str(partition_or_window) if partition_or_window else None,
-        }
-        msg = f"Executing '{self.instance_key}'"
+        exec_metadata = self._event_metadata(metadata or {}, partition_or_window)
+        msg = f"Executing '{self.key}'"
         emit(EventType.ASSET_EXEC_STARTED, metadata={**exec_metadata, "message": msg})
         try:
             result = self.func(**kwargs)
-            msg = f"Executed '{self.instance_key}'"
+            msg = f"Executed '{self.key}'"
             emit(EventType.ASSET_EXEC_COMPLETED, metadata={**exec_metadata, "message": msg})
         except Exception as e:
             emit(
@@ -315,7 +362,7 @@ class Asset(Serializable[AssetInstanceSpec]):
                     **exec_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": f"Execution of '{self.instance_key}' failed: {e}",
+                    "message": f"Execution of '{self.key}' failed: {e}",
                 },
             )
             raise
@@ -329,12 +376,12 @@ class Asset(Serializable[AssetInstanceSpec]):
 
             if strategy == MaterializationStrategy.RECONCILE:
                 if self.schema is None:
-                    raise AssetError(f"Asset '{self.name}': strategy='reconcile' requires a schema.")
+                    raise AssetError(f"Asset '{self.key}': strategy='reconcile' requires a schema.")
                 result = self.normalizer.reconcile(result, self.schema)
 
             elif strategy == MaterializationStrategy.STRICT:
                 if self.schema is None:
-                    raise AssetError(f"Asset '{self.name}': strategy='strict' requires a schema.")
+                    raise AssetError(f"Asset '{self.key}': strategy='strict' requires a schema.")
                 self.normalizer.validate_schema(result, self.schema, strict=True)
 
             else:
@@ -396,27 +443,18 @@ class Asset(Serializable[AssetInstanceSpec]):
             metadata=metadata,
         )
 
-        # Build list of (io_key, io) tuples
-        if isinstance(self.io, dict):
-            ios = list(self.io.items())
-        else:
-            ios = [(None, self.io)]
+        # Build list of IOs to write to
+        ios = self.io if isinstance(self.io, list) else [self.io]
 
-        partition_str = str(partition_or_window) if partition_or_window else None
-
-        for io_key, io in ios:
-            io_label = f"{io}[{io_key}]" if io_key else str(io)
-            io_metadata = {
-                **metadata,
-                **get_asset_event_metadata(self),
-                "partition_or_window": partition_str,
-                "io_key": io_key,
-            }
-            msg = f"Writing '{self.instance_key}' to {io_label}"
+        for io in ios:
+            io_key = io.key
+            io_label = f"{io}[{io_key}]"
+            io_metadata = self._event_metadata(metadata, partition_or_window, io_key=io_key)
+            msg = f"Writing '{self.key}' to {io_label}"
             emit(EventType.IO_WRITE_STARTED, metadata={**io_metadata, "message": msg})
             try:
                 io.write(io_context, result)
-                msg = f"Wrote '{self.instance_key}' to {io_label}"
+                msg = f"Wrote '{self.key}' to {io_label}"
                 emit(EventType.IO_WRITE_COMPLETED, metadata={**io_metadata, "message": msg})
             except Exception as e:
                 emit(
@@ -425,7 +463,7 @@ class Asset(Serializable[AssetInstanceSpec]):
                         **io_metadata,
                         "error": str(e),
                         "traceback": traceback.format_exc(),
-                        "message": f"Failed to write '{self.instance_key}' to {io_label}: {e}",
+                        "message": f"Failed to write '{self.key}' to {io_label}: {e}",
                     },
                 )
                 raise
@@ -449,18 +487,16 @@ class Asset(Serializable[AssetInstanceSpec]):
         Raises:
             AssetError: If no IO is found or the read fails.
         """
-        read_io = None
-        read_io_key = None
-        if isinstance(upstream_asset.io, dict):
-            io_dict = cast(dict[str, IO], upstream_asset.io)
+        if isinstance(upstream_asset.io, list):
+            # default_io_key is guaranteed non-None (validated in model_post_init)
             read_io_key = upstream_asset.default_io_key
-            if read_io_key:
-                read_io = io_dict[read_io_key]
+            read_io = next(io for io in upstream_asset.io if io.key == read_io_key)
         else:
+            read_io_key = None
             read_io = upstream_asset.io
 
         if read_io is None:
-            raise AssetError(f"No IO found for upstream asset '{upstream_asset.name}'")
+            raise AssetError(f"No IO found for upstream asset '{upstream_asset.key}'")
 
         if upstream_asset.partitioning is not None:
             effective_partition_or_window = partition_or_window
@@ -473,19 +509,13 @@ class Asset(Serializable[AssetInstanceSpec]):
             metadata=metadata,
         )
 
-        partition_str = str(effective_partition_or_window) if effective_partition_or_window else None
         io_label = f"{read_io}[{read_io_key}]" if read_io_key else str(read_io)
-        io_metadata = {
-            **metadata,
-            **get_asset_event_metadata(self),
-            "partition_or_window": partition_str,
-            "io_key": read_io_key,
-        }
-        msg = f"Reading '{upstream_asset.instance_key}' from {io_label}"
+        io_metadata = self._event_metadata(metadata, effective_partition_or_window, io_key=read_io_key)
+        msg = f"Reading '{upstream_asset.key}' from {io_label}"
         emit(EventType.IO_READ_STARTED, metadata={**io_metadata, "message": msg})
         try:
             result = read_io.read(io_context)
-            msg = f"Read '{upstream_asset.instance_key}' from {io_label}"
+            msg = f"Read '{upstream_asset.key}' from {io_label}"
             emit(EventType.IO_READ_COMPLETED, metadata={**io_metadata, "message": msg})
         except Exception as e:
             emit(
@@ -494,10 +524,10 @@ class Asset(Serializable[AssetInstanceSpec]):
                     **io_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": f"Failed to read '{upstream_asset.instance_key}' from {io_label}: {e}",
+                    "message": f"Failed to read '{upstream_asset.key}' from {io_label}: {e}",
                 },
             )
-            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.name}': {e}") from e
+            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.key}': {e}") from e
 
         return result
 
@@ -537,7 +567,7 @@ class Asset(Serializable[AssetInstanceSpec]):
                 # This is a dependency - load from IO via DAG
                 if dag is None:
                     raise AssetError(
-                        f"Asset '{self.name}' has dependencies but no DAG provided. "
+                        f"Asset '{self.key}' has dependencies but no DAG provided. "
                         "Pass a DAG to run() or materialize() for dependency resolution."
                     )
 
@@ -545,7 +575,7 @@ class Asset(Serializable[AssetInstanceSpec]):
 
                 if upstream_key not in dag.asset_map:
                     raise DependencyNotFoundError(
-                        f"Dependency '{upstream_key}' not found in DAG for asset '{self.name}'"
+                        f"Dependency '{upstream_key}' not found in DAG for asset '{self.key}'"
                     )
 
                 upstream_asset = dag.asset_map[upstream_key]
@@ -558,7 +588,7 @@ class Asset(Serializable[AssetInstanceSpec]):
 
         Args:
             io_key: For multi-IO assets, the key identifying which IO to use.
-                When ``None``, uses :attr:`default_io_key` or the first entry.
+                When ``None``, uses :attr:`default_io_key`.
 
         Returns:
             The resolved IO instance.
@@ -566,19 +596,17 @@ class Asset(Serializable[AssetInstanceSpec]):
         Raises:
             ConfigError: If *io_key* is not found or no IO is configured.
         """
-        if isinstance(self.io, dict):
-            if io_key is not None:
-                if io_key not in self.io:
-                    raise ConfigError(
-                        f"IO key '{io_key}' not found on asset '{self.name}'. Available keys: {sorted(self.io.keys())}"
-                    )
-                return self.io[io_key]
-            if self.default_io_key is not None and self.default_io_key in self.io:
-                return self.io[self.default_io_key]
-            return next(iter(self.io.values()))
+        if isinstance(self.io, list):
+            # default_io_key is guaranteed non-None (validated in model_post_init)
+            target_key = io_key or self.default_io_key
+            match = next((io for io in self.io if io.key == target_key), None)
+            if match is None:
+                available = sorted(io.key for io in self.io)
+                raise ConfigError(f"IO key '{target_key}' not found on asset '{self.key}'. Available keys: {available}")
+            return match
 
         if self.io is None:
-            raise ConfigError(f"Asset '{self.name}' has no IO configured.")
+            raise ConfigError(f"Asset '{self.key}' has no IO configured.")
 
         return self.io
 
@@ -598,7 +626,7 @@ class Asset(Serializable[AssetInstanceSpec]):
         """
         if self.partitioning is None:
             raise PartitionError(
-                f"Asset '{self.name}' is not partitioned. "
+                f"Asset '{self.key}' is not partitioned. "
                 "Cannot compute partition row counts without a partition column."
             )
 
@@ -628,8 +656,8 @@ class Asset(Serializable[AssetInstanceSpec]):
         """
         # Serialize IO if present
         io_spec = None
-        if isinstance(self.io, dict):
-            io_spec = {k: v.to_spec() for k, v in self.io.items()}  # type: ignore[unresolved-attribute]
+        if isinstance(self.io, list):
+            io_spec = [io.to_spec() for io in self.io]
         elif self.io is not None:
             io_spec = self.io.to_spec()
 
@@ -638,4 +666,5 @@ class Asset(Serializable[AssetInstanceSpec]):
             io=io_spec,
             materializable=self.materializable,
             config=self.config.model_dump() if self.config is not None else None,
+            default_io_key=self.default_io_key,
         )

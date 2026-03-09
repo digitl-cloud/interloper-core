@@ -114,7 +114,7 @@ Call the `SourceDefinition` to create a runtime `Source`:
 source = MySource()                                 # Default config from env
 source = MySource(io=il.FileIO("./data"))           # With IO
 source = MySource(config=MyConfig(api_key="..."))   # With explicit config
-source = MySource(name="renamed")                   # Override the name
+source = MySource(key="renamed")                     # Override the key
 source = MySource(assets=["users"])                  # Only include specific assets
 source = MySource(assets={"users": "all_users"})    # Rename assets
 ```

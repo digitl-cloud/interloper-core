@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import interloper as il
 import pytest
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.backfiller import BackfillerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_k8s import KubernetesBackfiller
 
@@ -57,7 +57,7 @@ def custom_backfiller(mock_runner):
 @pytest.fixture
 def partitioned_dag(tmp_path):
     """A partitioned DAG for backfiller tests."""
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset(partitioning=part)
@@ -78,37 +78,37 @@ class TestInit:
     def test_defaults(self, default_backfiller):
         """Default values are applied for all optional parameters."""
         b = default_backfiller
-        assert b._image == "my-image:latest"
-        assert b._namespace == "default"
-        assert b._max_jobs == 4
-        assert b._env_vars == {}
-        assert b._service_account is None
-        assert b._image_pull_policy is None
-        assert b._image_pull_secrets == []
-        assert b._resources is None
-        assert b._node_selector is None
-        assert b._tolerations == []
-        assert b._ttl_seconds_after_finished == 300
+        assert b.image == "my-image:latest"
+        assert b.namespace == "default"
+        assert b.max_jobs == 4
+        assert b.env_vars == {}
+        assert b.service_account is None
+        assert b.image_pull_policy is None
+        assert b.image_pull_secrets == []
+        assert b.resources is None
+        assert b.node_selector is None
+        assert b.tolerations == []
+        assert b.ttl_seconds_after_finished == 300
 
     def test_custom_params(self, custom_backfiller):
         """All custom parameters are stored correctly."""
         b = custom_backfiller
-        assert b._image == "registry.example.com/interloper:v2"
-        assert b._namespace == "staging"
-        assert b._max_jobs == 6
-        assert b._env_vars == {"API_KEY": "secret123", "STAGE": "staging"}
-        assert b._service_account == "backfiller-sa"
-        assert b._image_pull_policy == "IfNotPresent"
-        assert b._image_pull_secrets == ["registry-cred"]
-        assert b._resources["limits"]["memory"] == "4Gi"
-        assert b._node_selector == {"workload": "batch"}
-        assert len(b._tolerations) == 1
-        assert b._ttl_seconds_after_finished == 120
+        assert b.image == "registry.example.com/interloper:v2"
+        assert b.namespace == "staging"
+        assert b.max_jobs == 6
+        assert b.env_vars == {"API_KEY": "secret123", "STAGE": "staging"}
+        assert b.service_account == "backfiller-sa"
+        assert b.image_pull_policy == "IfNotPresent"
+        assert b.image_pull_secrets == ["registry-cred"]
+        assert b.resources["limits"]["memory"] == "4Gi"
+        assert b.node_selector == {"workload": "batch"}
+        assert len(b.tolerations) == 1
+        assert b.ttl_seconds_after_finished == 120
 
     def test_runner_reraise_forced(self, mock_runner):
         """The backfiller forces the runner to re-raise exceptions."""
         b = KubernetesBackfiller(image="img", runner=mock_runner)
-        assert b.runner._reraise is True
+        assert b.runner.reraise is True
 
     def test_k8s_clients_initially_none(self, default_backfiller):
         """Kubernetes API clients are not created until _on_start."""
@@ -134,71 +134,72 @@ class TestCapacity:
 
 
 class TestToSpec:
-    """Serialization to BackfillerInstanceSpec and roundtrip reconstruction."""
+    """Serialization to ComponentInstanceSpec and roundtrip reconstruction."""
 
     def test_to_spec_returns_backfiller_spec(self, default_backfiller):
-        """to_spec returns a BackfillerInstanceSpec."""
+        """to_spec returns a ComponentInstanceSpec."""
         spec = default_backfiller.to_spec()
-        assert isinstance(spec, BackfillerInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
 
     def test_to_spec_path(self, default_backfiller):
         """Spec path points to the KubernetesBackfiller class."""
         spec = default_backfiller.to_spec()
         assert spec.path == "interloper_k8s.backfiller.KubernetesBackfiller"
 
-    def test_to_spec_default_init(self, default_backfiller):
-        """Spec init dict captures all constructor kwargs."""
+    def test_to_spec_default_config(self, default_backfiller):
+        """Spec config dict captures all constructor kwargs."""
         spec = default_backfiller.to_spec()
-        init = spec.init
-        assert init["image"] == "my-image:latest"
-        assert init["namespace"] == "default"
-        assert init["max_jobs"] == 4
-        assert init["env_vars"] == {}
-        assert init["service_account"] is None
-        assert init["image_pull_policy"] is None
-        assert init["image_pull_secrets"] == []
-        assert init["resources"] is None
-        assert init["node_selector"] is None
-        assert init["tolerations"] == []
-        assert init["ttl_seconds_after_finished"] == 300
+        config = spec.config
+        assert config["image"] == "my-image:latest"
+        assert config["namespace"] == "default"
+        assert config["max_jobs"] == 4
+        assert config["env_vars"] == {}
+        # None-valued fields are excluded by model_dump(exclude_none=True)
+        assert "service_account" not in config
+        assert "image_pull_policy" not in config
+        assert config["image_pull_secrets"] == []
+        assert "resources" not in config
+        assert "node_selector" not in config
+        assert config["tolerations"] == []
+        assert config["ttl_seconds_after_finished"] == 300
 
-    def test_to_spec_custom_init(self, custom_backfiller):
-        """Spec init dict captures all custom constructor kwargs."""
+    def test_to_spec_custom_config(self, custom_backfiller):
+        """Spec config dict captures all custom constructor kwargs."""
         spec = custom_backfiller.to_spec()
-        init = spec.init
-        assert init["image"] == "registry.example.com/interloper:v2"
-        assert init["namespace"] == "staging"
-        assert init["max_jobs"] == 6
-        assert init["env_vars"] == {"API_KEY": "secret123", "STAGE": "staging"}
-        assert init["service_account"] == "backfiller-sa"
-        assert init["image_pull_policy"] == "IfNotPresent"
-        assert init["image_pull_secrets"] == ["registry-cred"]
-        assert init["resources"]["limits"]["memory"] == "4Gi"
-        assert init["node_selector"] == {"workload": "batch"}
-        assert init["tolerations"][0]["key"] == "batch"
-        assert init["ttl_seconds_after_finished"] == 120
+        config = spec.config
+        assert config["image"] == "registry.example.com/interloper:v2"
+        assert config["namespace"] == "staging"
+        assert config["max_jobs"] == 6
+        assert config["env_vars"] == {"API_KEY": "secret123", "STAGE": "staging"}
+        assert config["service_account"] == "backfiller-sa"
+        assert config["image_pull_policy"] == "IfNotPresent"
+        assert config["image_pull_secrets"] == ["registry-cred"]
+        assert config["resources"]["limits"]["memory"] == "4Gi"
+        assert config["node_selector"] == {"workload": "batch"}
+        assert config["tolerations"][0]["key"] == "batch"
+        assert config["ttl_seconds_after_finished"] == 120
 
     def test_to_spec_roundtrip(self, custom_backfiller):
         """Reconstructing from spec yields an equivalent backfiller."""
         spec = custom_backfiller.to_spec()
         reconstructed = spec.reconstruct()
         assert isinstance(reconstructed, KubernetesBackfiller)
-        assert reconstructed._image == custom_backfiller._image
-        assert reconstructed._namespace == custom_backfiller._namespace
-        assert reconstructed._max_jobs == custom_backfiller._max_jobs
-        assert reconstructed._env_vars == custom_backfiller._env_vars
-        assert reconstructed._service_account == custom_backfiller._service_account
-        assert reconstructed._image_pull_policy == custom_backfiller._image_pull_policy
-        assert reconstructed._image_pull_secrets == custom_backfiller._image_pull_secrets
-        assert reconstructed._resources == custom_backfiller._resources
-        assert reconstructed._node_selector == custom_backfiller._node_selector
-        assert reconstructed._tolerations == custom_backfiller._tolerations
-        assert reconstructed._ttl_seconds_after_finished == custom_backfiller._ttl_seconds_after_finished
+        assert reconstructed.image == custom_backfiller.image
+        assert reconstructed.namespace == custom_backfiller.namespace
+        assert reconstructed.max_jobs == custom_backfiller.max_jobs
+        assert reconstructed.env_vars == custom_backfiller.env_vars
+        assert reconstructed.service_account == custom_backfiller.service_account
+        assert reconstructed.image_pull_policy == custom_backfiller.image_pull_policy
+        assert reconstructed.image_pull_secrets == custom_backfiller.image_pull_secrets
+        assert reconstructed.resources == custom_backfiller.resources
+        assert reconstructed.node_selector == custom_backfiller.node_selector
+        assert reconstructed.tolerations == custom_backfiller.tolerations
+        assert reconstructed.ttl_seconds_after_finished == custom_backfiller.ttl_seconds_after_finished
 
     def test_to_spec_excludes_runner(self, default_backfiller):
-        """Spec init does not include the runner (it's separate)."""
+        """Spec config does not include the runner (it's separate)."""
         spec = default_backfiller.to_spec()
-        assert "runner" not in spec.init
+        assert "runner" not in spec.config
 
 
 class TestBuildEnv:

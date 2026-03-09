@@ -13,11 +13,13 @@ from interloper.events.base import (
     unsubscribe,
 )
 from interloper.events.server import EventHttpServer
+from interloper.events.subscriber import EventSubscriber
 
 __all__ = [
     "Event",
     "EventBus",
     "EventHttpServer",
+    "EventSubscriber",
     "EventType",
     "LogLevel",
     "disable_event_forwarding",

@@ -10,7 +10,7 @@ import pytest
 from interloper.cli.config import Config
 from interloper.errors import PartitionError
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.runner import RunnerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_docker import DockerRunner
 
@@ -46,7 +46,7 @@ def runner_custom(mock_docker_client):
 @pytest.fixture
 def simple_dag(tmp_path):
     """A minimal DAG with a single asset for command-building tests."""
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
 
     @il.asset(partitioning=il.TimePartitionConfig(column="date"))
     def my_asset(context: il.ExecutionContext) -> list[dict]:
@@ -60,35 +60,35 @@ class TestDockerRunnerInit:
 
     def test_default_params(self, runner):
         """Default values are applied correctly."""
-        assert runner._image == "test-image:latest"
-        assert runner._max_containers == 4
-        assert runner._env_vars == {}
-        assert runner._volumes == {}
-        assert runner._fail_fast is False
-        assert runner._reraise is False
+        assert runner.image == "test-image:latest"
+        assert runner.max_containers == 4
+        assert runner.env_vars == {}
+        assert runner.volumes == {}
+        assert runner.fail_fast is False
+        assert runner.reraise is False
 
     def test_custom_params(self, runner_custom):
         """Custom values are stored correctly."""
-        assert runner_custom._image == "custom-image:v2"
-        assert runner_custom._max_containers == 8
-        assert runner_custom._env_vars == {"DB_HOST": "localhost", "ENV": "test"}
-        assert runner_custom._volumes == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
-        assert runner_custom._fail_fast is True
-        assert runner_custom._reraise is True
+        assert runner_custom.image == "custom-image:v2"
+        assert runner_custom.max_containers == 8
+        assert runner_custom.env_vars == {"DB_HOST": "localhost", "ENV": "test"}
+        assert runner_custom.volumes == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
+        assert runner_custom.fail_fast is True
+        assert runner_custom.reraise is True
 
     def test_docker_client_initialized(self, mock_docker_client, runner):
         """Docker client is created via docker.from_env()."""
         assert runner._docker is mock_docker_client
 
-    def test_env_vars_none_becomes_empty_dict(self, mock_docker_client):
-        """Passing None for env_vars results in an empty dict."""
-        r = DockerRunner(image="img", env_vars=None)
-        assert r._env_vars == {}
+    def test_env_vars_default_is_empty_dict(self, mock_docker_client):
+        """Omitting env_vars results in an empty dict."""
+        r = DockerRunner(image="img")
+        assert r.env_vars == {}
 
-    def test_volumes_none_becomes_empty_dict(self, mock_docker_client):
-        """Passing None for volumes results in an empty dict."""
-        r = DockerRunner(image="img", volumes=None)
-        assert r._volumes == {}
+    def test_volumes_default_is_empty_dict(self, mock_docker_client):
+        """Omitting volumes results in an empty dict."""
+        r = DockerRunner(image="img")
+        assert r.volumes == {}
 
 
 class TestDockerRunnerCapacity:
@@ -112,29 +112,29 @@ class TestDockerRunnerToSpec:
     """Tests for the to_spec() serialization roundtrip."""
 
     def test_to_spec_returns_runner_spec(self, runner):
-        """to_spec() returns a RunnerInstanceSpec instance."""
+        """to_spec() returns a ComponentInstanceSpec instance."""
         spec = runner.to_spec()
-        assert isinstance(spec, RunnerInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
 
     def test_to_spec_default_values(self, runner):
-        """Spec captures default init kwargs."""
+        """Spec captures default config kwargs."""
         spec = runner.to_spec()
-        assert spec.init["image"] == "test-image:latest"
-        assert spec.init["max_containers"] == 4
-        assert spec.init["env_vars"] == {}
-        assert spec.init["volumes"] == {}
-        assert spec.init["fail_fast"] is False
-        assert spec.init["reraise"] is False
+        assert spec.config["image"] == "test-image:latest"
+        assert spec.config["max_containers"] == 4
+        assert spec.config["env_vars"] == {}
+        assert spec.config["volumes"] == {}
+        assert spec.config["fail_fast"] is False
+        assert spec.config["reraise"] is False
 
     def test_to_spec_custom_values(self, runner_custom):
-        """Spec captures custom init kwargs."""
+        """Spec captures custom config kwargs."""
         spec = runner_custom.to_spec()
-        assert spec.init["image"] == "custom-image:v2"
-        assert spec.init["max_containers"] == 8
-        assert spec.init["env_vars"] == {"DB_HOST": "localhost", "ENV": "test"}
-        assert spec.init["volumes"] == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
-        assert spec.init["fail_fast"] is True
-        assert spec.init["reraise"] is True
+        assert spec.config["image"] == "custom-image:v2"
+        assert spec.config["max_containers"] == 8
+        assert spec.config["env_vars"] == {"DB_HOST": "localhost", "ENV": "test"}
+        assert spec.config["volumes"] == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
+        assert spec.config["fail_fast"] is True
+        assert spec.config["reraise"] is True
 
     def test_to_spec_path(self, runner):
         """Spec path points to the DockerRunner class."""
@@ -155,12 +155,12 @@ class TestDockerRunnerToSpec:
         reconstructed = spec.reconstruct()
 
         assert isinstance(reconstructed, DockerRunner)
-        assert reconstructed._image == original._image
-        assert reconstructed._max_containers == original._max_containers
-        assert reconstructed._env_vars == original._env_vars
-        assert reconstructed._volumes == original._volumes
-        assert reconstructed._fail_fast == original._fail_fast
-        assert reconstructed._reraise == original._reraise
+        assert reconstructed.image == original.image
+        assert reconstructed.max_containers == original.max_containers
+        assert reconstructed.env_vars == original.env_vars
+        assert reconstructed.volumes == original.volumes
+        assert reconstructed.fail_fast == original.fail_fast
+        assert reconstructed.reraise == original.reraise
 
 
 class TestDockerRunnerBuildCommand:
@@ -286,7 +286,7 @@ class TestDockerRunnerBuildName:
         r._state.run_id = "11112222-3333-4444"
 
         asset = MagicMock()
-        asset.instance_key = "source_A:my_asset"
+        asset.key = "source_A:my_asset"
 
         name = r._build_name(asset)
         assert ":" not in name

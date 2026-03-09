@@ -9,27 +9,20 @@ from typing import Any
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionWindow
-from interloper.serialization.io import IOInstanceSpec
 
 
 class CsvIO(IO):
     """IO that reads and writes CSV files on the local filesystem.
 
-    Data is stored under ``{base_path}/{dataset}/{asset_name}/data.csv``
-    (or ``{base_path}/{asset_name}/data.csv`` when no dataset is set).
+    Data is stored under ``{base_path}/{dataset}/{asset_local_key}/data.csv``
+    (or ``{base_path}/{asset_local_key}/data.csv`` when no dataset is set).
     Partitioned assets add a ``{column}={id}`` subdirectory.
 
     Data must be ``list[dict]`` — each dict represents a row, and the keys
     of the first dict determine the CSV column headers.
     """
 
-    def __init__(self, base_path: str) -> None:
-        """Initialize CsvIO.
-
-        Args:
-            base_path: Base directory path for CSV file storage.
-        """
-        self.base_path = base_path
+    base_path: str = ""
 
     def __str__(self) -> str:
         """Return a human-readable label including the base path."""
@@ -37,7 +30,7 @@ class CsvIO(IO):
 
     def _asset_path(self, context: IOContext) -> Path:
         """Return the base directory for an asset."""
-        return Path(self.base_path) / (context.asset.dataset or "") / context.asset.name
+        return Path(self.base_path) / (context.asset.dataset or "") / context.asset.local_key
 
     def _write_csv(self, file_path: Path, data: list[dict[str, Any]]) -> None:
         """Write a list of row dicts to a CSV file."""
@@ -132,13 +125,3 @@ class CsvIO(IO):
                     counts[partition_value] = len(rows)
         return counts
 
-    def to_spec(self) -> IOInstanceSpec:
-        """Convert to a serializable spec.
-
-        Returns:
-            The IOSpec representation of this CsvIO.
-        """
-        return IOInstanceSpec(
-            path=self.path,
-            init={"base_path": self.base_path},
-        )

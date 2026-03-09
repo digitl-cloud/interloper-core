@@ -1,6 +1,8 @@
 """Tests for interloper_assets package exports."""
 
 import interloper as il
+import pytest
+from interloper.io.base import IO
 
 
 class TestPackageExports:
@@ -50,7 +52,7 @@ class TestSourceRegistry:
         """DemoSource is registered."""
         from interloper_assets import SOURCE_REGISTRY, DemoSource
 
-        assert DemoSource.name in SOURCE_REGISTRY
+        assert DemoSource.key in SOURCE_REGISTRY
 
     def test_registry_values_are_tuples(self):
         """Each registry value is a (SourceDefinition, config_type|None) tuple."""
@@ -68,13 +70,13 @@ class TestSourceRegistry:
                     f"Registry entry '{key}' config type is not a Config subclass"
                 )
 
-    def test_registry_keys_match_source_names(self):
-        """Registry keys match the name attribute of their SourceDefinition."""
+    def test_registry_keys_match_source_keys(self):
+        """Registry keys match the key attribute of their SourceDefinition."""
         from interloper_assets import SOURCE_REGISTRY
 
         for key, (source_def, _) in SOURCE_REGISTRY.items():
-            assert key == source_def.name, (
-                f"Registry key '{key}' does not match source name '{source_def.name}'"
+            assert key == source_def.key, (
+                f"Registry key '{key}' does not match source key '{source_def.key}'"
             )
 
 
@@ -85,7 +87,7 @@ class TestGetSourceAndConfig:
         """Looking up 'DemoSource' returns the correct definition and config."""
         from interloper_assets import DemoConfig, DemoSource, get_source_and_config
 
-        source_def, config_type = get_source_and_config(DemoSource.name)
+        source_def, config_type = get_source_and_config(DemoSource.key)
         assert source_def is DemoSource
         assert config_type is DemoConfig
 
@@ -114,7 +116,7 @@ class TestGetAllSources:
         from interloper_assets import DemoSource, get_all_sources
 
         result = get_all_sources()
-        assert DemoSource.name in result
+        assert DemoSource.key in result
 
     def test_returns_copy(self):
         """Returned dict is a copy, not the original registry."""
@@ -123,3 +125,124 @@ class TestGetAllSources:
         result = get_all_sources()
         assert result is not SOURCE_REGISTRY
         assert result == SOURCE_REGISTRY
+
+
+class TestPackageIOExports:
+    """IO-related symbols are importable from interloper_assets."""
+
+    def test_import_io_registry(self):
+        """IO_REGISTRY is importable and is a dict."""
+        from interloper_assets import IO_REGISTRY
+
+        assert isinstance(IO_REGISTRY, dict)
+
+    def test_import_get_io(self):
+        """get_io is importable and callable."""
+        from interloper_assets import get_io
+
+        assert callable(get_io)
+
+    def test_import_get_all_ios(self):
+        """get_all_ios is importable and callable."""
+        from interloper_assets import get_all_ios
+
+        assert callable(get_all_ios)
+
+
+class TestIORegistry:
+    """IO_REGISTRY contents and structure."""
+
+    def test_registry_is_non_empty(self):
+        """Registry contains at least one entry."""
+        from interloper_assets import IO_REGISTRY
+
+        assert len(IO_REGISTRY) > 0
+
+    def test_postgres_in_registry(self):
+        """PostgreSQL is registered."""
+        from interloper_assets import IO_REGISTRY
+
+        assert "PostgreSQL" in IO_REGISTRY
+
+    def test_mysql_in_registry(self):
+        """MySQL is registered."""
+        from interloper_assets import IO_REGISTRY
+
+        assert "MySQL" in IO_REGISTRY
+
+    def test_bigquery_in_registry(self):
+        """BigQuery is registered."""
+        from interloper_assets import IO_REGISTRY
+
+        assert "BigQuery" in IO_REGISTRY
+
+    def test_registry_values_are_io_classes(self):
+        """Each registry value is an IO subclass."""
+        from interloper_assets import IO_REGISTRY
+
+        for key, io_cls in IO_REGISTRY.items():
+            assert issubclass(io_cls, IO), f"Registry entry '{key}' is not an IO subclass"
+
+
+class TestGetIO:
+    """get_io lookup function."""
+
+    def test_returns_postgres(self):
+        """Looking up 'PostgreSQL' returns the correct IO class."""
+        from interloper_sql import PostgresIO
+
+        from interloper_assets import get_io
+
+        io_cls = get_io("PostgreSQL")
+        assert io_cls is PostgresIO
+
+    def test_returns_mysql(self):
+        """Looking up 'MySQL' returns the correct IO class."""
+        from interloper_sql import MySQLIO
+
+        from interloper_assets import get_io
+
+        io_cls = get_io("MySQL")
+        assert io_cls is MySQLIO
+
+    def test_returns_bigquery(self):
+        """Looking up 'BigQuery' returns the correct IO class."""
+        from interloper_google_cloud import BigQueryIO
+
+        from interloper_assets import get_io
+
+        io_cls = get_io("BigQuery")
+        assert io_cls is BigQueryIO
+
+    def test_unknown_key_raises(self):
+        """Looking up an unknown key raises ConfigError."""
+        from interloper_assets import get_io
+
+        with pytest.raises(il.ConfigError):
+            get_io("nonexistent_io_xyz")
+
+
+class TestGetAllIOs:
+    """get_all_ios function."""
+
+    def test_returns_dict(self):
+        """Returns a dict."""
+        from interloper_assets import get_all_ios
+
+        result = get_all_ios()
+        assert isinstance(result, dict)
+
+    def test_contains_postgres(self):
+        """Returned dict contains PostgreSQL."""
+        from interloper_assets import get_all_ios
+
+        result = get_all_ios()
+        assert "PostgreSQL" in result
+
+    def test_returns_copy(self):
+        """Returned dict is a copy, not the original registry."""
+        from interloper_assets import IO_REGISTRY, get_all_ios
+
+        result = get_all_ios()
+        assert result is not IO_REGISTRY
+        assert result == IO_REGISTRY

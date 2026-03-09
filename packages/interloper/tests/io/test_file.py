@@ -2,7 +2,8 @@
 
 import datetime as dt
 
-from pydantic import BaseModel
+import pytest
+from pydantic import BaseModel, ValidationError
 
 import interloper as il
 
@@ -18,12 +19,12 @@ class TestFileIO:
 
     def test_initialization(self, tmp_path):
         """Test FileIO initialization."""
-        file_io = il.FileIO(tmp_path)
-        assert file_io.base_path == tmp_path
+        file_io = il.FileIO(base_path=str(tmp_path))
+        assert file_io.base_path == str(tmp_path)
 
     def test_write_non_partitioned(self, tmp_path):
         """Test writing non-partitioned data."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset():
@@ -37,7 +38,7 @@ class TestFileIO:
 
     def test_write_partitioned(self, tmp_path):
         """Test writing partitioned data."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -52,7 +53,7 @@ class TestFileIO:
 
     def test_read_non_partitioned(self, tmp_path):
         """Test reading non-partitioned data."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset():
@@ -67,7 +68,7 @@ class TestFileIO:
 
     def test_read_partitioned(self, tmp_path):
         """Test reading partitioned data."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -88,9 +89,9 @@ class TestFileIO:
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        io1 = il.FileIO(str(local_dir))
-        io2 = il.FileIO(str(cloud_dir))
-        io3 = il.FileIO("/absolute/path/")
+        io1 = il.FileIO(base_path=str(local_dir))
+        io2 = il.FileIO(base_path=str(cloud_dir))
+        io3 = il.FileIO(base_path="/absolute/path/")
 
         assert io1.base_path == str(local_dir)
         assert io2.base_path == str(cloud_dir)
@@ -98,7 +99,7 @@ class TestFileIO:
 
     def test_with_schema(self, tmp_path):
         """Test FileIO with schema in context."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset() -> SampleSchema:
@@ -111,7 +112,7 @@ class TestFileIO:
 
     def test_write_read_roundtrip(self, tmp_path):
         """Test writing and then reading data."""
-        file_io = il.FileIO(tmp_path)
+        file_io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset
         def test_asset():
@@ -128,17 +129,17 @@ class TestFileIO:
 class TestMultipleIOs:
     """Tests for using multiple IO destinations."""
 
-    def test_multiple_io_dict(self, tmp_path):
-        """Test asset with multiple IOs as dict."""
+    def test_multiple_io_list(self, tmp_path):
+        """Test asset with multiple IOs as list."""
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
@@ -155,10 +156,10 @@ class TestMultipleIOs:
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
@@ -177,10 +178,10 @@ class TestMultipleIOs:
         main_dir = tmp_path / "main"
         main_dir.mkdir(parents=True)
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
 
         @il.asset
         def upstream(context: il.ExecutionContext) -> str:
@@ -193,55 +194,45 @@ class TestMultipleIOs:
 
         # IO is now passed at instantiation time
         upstream(io=ios, default_io_key="local")
-        downstream(io=il.FileIO(str(main_dir)))
+        downstream(io=il.FileIO(base_path=str(main_dir)))
 
     def test_missing_default_io_key(self, tmp_path):
-        """Test that missing default_io_key with dict io creates asset without error.
-
-        Validation of default_io_key now happens at DAG dependency resolution time,
-        not at asset creation time.
-        """
+        """Test that missing default_io_key with list io raises ConfigError."""
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"value": 1}]
 
-        # Creating asset with dict io but no default_io_key is allowed at instantiation time
-        asset_instance = my_asset(io=ios)
-        assert asset_instance.io == ios
-        assert asset_instance.default_io_key is None
+        # Creating asset with list io but no default_io_key raises at init
+        with pytest.raises((il.ConfigError, ValidationError), match="no default_io_key"):
+            my_asset(io=ios)
 
     def test_invalid_default_io_key(self, tmp_path):
-        """Test that invalid default_io_key creates asset without error.
-
-        Validation of default_io_key now happens at DAG dependency resolution time,
-        not at asset creation time.
-        """
+        """Test that invalid default_io_key raises ConfigError at creation."""
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
         cloud_dir.mkdir(parents=True)
 
-        ios = {
-            "local": il.FileIO(str(local_dir)),
-            "cloud": il.FileIO(str(cloud_dir)),
-        }
+        ios = [
+            il.FileIO(key="local", base_path=str(local_dir)),
+            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        ]
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"value": 1}]
 
-        # Creating asset with an invalid default_io_key is allowed at instantiation time
-        asset_instance = my_asset(io=ios, default_io_key="invalid")
-        assert asset_instance.io == ios
-        assert asset_instance.default_io_key == "invalid"
+        # Creating asset with an invalid default_io_key raises at init
+        with pytest.raises((il.ConfigError, ValidationError), match="not found in IO list"):
+            my_asset(io=ios, default_io_key="invalid")
 

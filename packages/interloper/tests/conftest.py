@@ -57,7 +57,7 @@ def dag(tmp_path):
     Returns:
         il.DAG: A DAG with multiple parallelizable levels.
     """
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
 
     @il.asset
     def a(context: il.ExecutionContext) -> list[dict]:
@@ -113,7 +113,7 @@ def dag_partitioned(tmp_path):
     Returns:
         il.DAG: A partitioned DAG with daily time partitions.
     """
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset(partitioning=part)
@@ -174,7 +174,7 @@ def dag_mixed(tmp_path):
     Returns:
         il.DAG: A mixed DAG with non-partitioned and partitioned assets.
     """
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset
@@ -217,7 +217,7 @@ def double_source_dag(tmp_path):
     Returns:
         il.DAG: A DAG with two sources.
     """
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.source
@@ -265,7 +265,7 @@ def file_based_dag(tmp_path):
     Returns:
         il.DAG: A DAG with real, importable functions that write to files.
     """
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
 
     # Use the module-level assets defined above, override IO to use tmp_path
     a = asset_a()(io=io)  # type: ignore[attr-defined]

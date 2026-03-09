@@ -70,21 +70,21 @@ class DAG(Serializable):
                 raise DAGError(f"Expected Asset or Source, got {type(item)}")
 
         # Build asset map using key
-        self.asset_map = {asset.instance_key: asset for asset in self.assets}
+        self.asset_map = {asset.key: asset for asset in self.assets}
 
         # Check for duplicate keys
         if len(self.asset_map) != len(self.assets):
             seen_keys = set()
             duplicates = []
             for asset in self.assets:
-                if asset.instance_key in seen_keys:
-                    duplicates.append(asset.instance_key)
-                seen_keys.add(asset.instance_key)
+                if asset.key in seen_keys:
+                    duplicates.append(asset.key)
+                seen_keys.add(asset.key)
             raise DAGError(f"Duplicate key found: {duplicates}")
 
         # Initialize successors dict with empty lists
         for asset in self.assets:
-            self.successors[asset.instance_key] = []
+            self.successors[asset.key] = []
 
         # Build dependency graph
         for asset in self.assets:
@@ -93,7 +93,7 @@ class DAG(Serializable):
             if not asset.materializable:
                 continue
 
-            self.predecessors[asset.instance_key] = []
+            self.predecessors[asset.key] = []
 
             # Inspect function signature for dependencies
             sig = inspect.signature(asset.func)
@@ -105,15 +105,15 @@ class DAG(Serializable):
 
                 # This is a dependency
                 if upstream_key in self.asset_map:
-                    self.predecessors[asset.instance_key].append(upstream_key)
-                    self.successors[upstream_key].append(asset.instance_key)
-                    if asset.instance_key not in self._dependency_params:
-                        self._dependency_params[asset.instance_key] = {}
-                    self._dependency_params[asset.instance_key][upstream_key] = param_name
+                    self.predecessors[asset.key].append(upstream_key)
+                    self.successors[upstream_key].append(asset.key)
+                    if asset.key not in self._dependency_params:
+                        self._dependency_params[asset.key] = {}
+                    self._dependency_params[asset.key][upstream_key] = param_name
                 else:
                     # Dependency not found in DAG
                     raise DependencyNotFoundError(
-                        f"Asset '{asset.instance_key}' depends on '{upstream_key}' which is not in the DAG. "
+                        f"Asset '{asset.key}' depends on '{upstream_key}' which is not in the DAG. "
                         f"Available assets: {list(self.asset_map.keys())}"
                     )
 
@@ -128,11 +128,11 @@ class DAG(Serializable):
         """
         matches: list[AssetInstanceKey] = []
         for asset in self.assets:
-            if not asset.source or asset.source.name != source_name:
+            if not asset.source or asset.source.key != source_name:
                 continue
-            original_name = asset.metadata.get("source_original_name")
+            original_name = asset.metadata.get("source_original_key")
             if original_name == param_name:
-                matches.append(asset.instance_key)
+                matches.append(asset.key)
 
         if not matches:
             return None
@@ -158,11 +158,11 @@ class DAG(Serializable):
             return AssetInstanceKey(asset.deps[param_name])
 
         if asset.source:
-            upstream_key = AssetInstanceKey(f"{asset.source.instance_key}:{param_name}")
+            upstream_key = AssetInstanceKey(f"{asset.source.key}:{param_name}")
             if upstream_key in self.asset_map:
                 return upstream_key
 
-            alias_key = self._resolve_source_alias_key(asset.source.name, param_name)
+            alias_key = self._resolve_source_alias_key(asset.source.key, param_name)
             if alias_key is not None:
                 return alias_key
 
@@ -197,8 +197,8 @@ class DAG(Serializable):
                 upstream_asset = self.asset_map[pred_key]
                 if upstream_asset.partitioning is not None and asset.partitioning is None:
                     raise DAGError(
-                        f"Invalid dependency: partitioned asset '{upstream_asset.instance_key}' "
-                        f"cannot be a dependency of non-partitioned asset '{asset.instance_key}'"
+                        f"Invalid dependency: partitioned asset '{upstream_asset.key}' "
+                        f"cannot be a dependency of non-partitioned asset '{asset.key}'"
                     )
 
     def _check_requires_constraints(self) -> None:
@@ -217,10 +217,10 @@ class DAG(Serializable):
                 param_name = self._dependency_params[asset_key][pred_key]
                 if param_name in requires:
                     expected_def_key = requires[param_name]
-                    actual_def_key = upstream_asset.definition.definition_key
+                    actual_def_key = upstream_asset.definition.qualified_key
                     if actual_def_key != expected_def_key:
                         raise DAGError(
-                            f"Asset '{asset.instance_key}' requires parameter '{param_name}' "
+                            f"Asset '{asset.key}' requires parameter '{param_name}' "
                             f"to come from definition '{expected_def_key}', "
                             f"but resolved to '{actual_def_key}'"
                         )
@@ -399,6 +399,6 @@ class DAG(Serializable):
         }
 
         for asset in dag.assets:
-            asset.materializable = asset.instance_key not in completed_keys
+            asset.materializable = asset.key not in completed_keys
 
         return dag

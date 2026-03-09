@@ -10,83 +10,39 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
-from typing_extensions import Self
+from pydantic import Field, PrivateAttr
 
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.state import BackfillState
 from interloper.dag.base import DAG
 from interloper.errors import BackfillError, InterloperError, PartitionError
-from interloper.events.base import Event, flush, subscribe, unsubscribe
+from interloper.events.base import Event
+from interloper.events.subscriber import EventSubscriber
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.backfiller import BackfillerInstanceSpec
-from interloper.serialization.base import Serializable
+from interloper.serialization.base import Component
 
 HandleT = TypeVar("HandleT")
 
 
-class Backfiller(Serializable[BackfillerInstanceSpec], Generic[HandleT]):
+class Backfiller(EventSubscriber, Component, Generic[HandleT]):
     """Abstract base class for all backfillers.
 
     A backfiller is responsible for orchestrating the entire run (process/host/container),
     while a `Runner` handles the asset-level scheduling and concurrency model.
     """
 
-    def __init__(
-        self,
-        runner: Runner | None = None,
-        fail_fast: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ) -> None:
-        """Initialize the backfiller.
+    _state_id_field = "backfill_id"
 
-        Args:
-            runner: The runner to use for each partition run.
-            fail_fast: If True, stop the backfill on the first partition failure.
-                If False (default), continue executing remaining partitions.
-            on_event: Optional event handler filtered by backfill_id.
-        """
-        self.runner = runner or MultiThreadRunner()
-        self._fail_fast = fail_fast
-        self._state: BackfillState | None = None
+    runner: Runner = Field(default_factory=MultiThreadRunner, exclude=True, repr=False)
+    fail_fast: bool = False
+    on_event: Callable[[Event], None] | None = Field(default=None, exclude=True, repr=False)
 
-        # Event handling
-        self._on_event: Callable[[Event], None] | None = None
-        self._subscribed_via_context_manager: bool = False
-
-        if on_event is not None:
-
-            def event_handler(event: Event) -> None:
-                if self._state is not None and event.metadata.get("backfill_id") == self._state.backfill_id:
-                    on_event(event)
-
-            self._on_event = event_handler
-            subscribe(event_handler)
-
-    def __del__(self) -> None:
-        """Flush pending events and unsubscribe the event handler."""
-        if self._on_event is not None and not self._subscribed_via_context_manager:
-            flush()
-            unsubscribe(self._on_event)
-
-    def __enter__(self) -> Self:
-        """Mark that event cleanup should happen in ``__exit__`` instead of ``__del__``.
-
-        Returns:
-            The backfiller instance.
-        """
-        self._subscribed_via_context_manager = True
-        return self
-
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Flush pending events and unsubscribe the event handler."""
-        if self._on_event is not None and self._subscribed_via_context_manager:
-            flush()
-            unsubscribe(self._on_event)
-            self._on_event = None
-            self._subscribed_via_context_manager = False
+    _state: BackfillState | None = PrivateAttr(default=None)
+    _on_event: Callable[[Event], None] | None = PrivateAttr(default=None)
+    _subscribed_via_context_manager: bool = PrivateAttr(default=False)
 
     def _on_start(self) -> None:
         """Optional lifecycle hook before a run begins (e.g., create pools)."""
@@ -149,7 +105,7 @@ class Backfiller(Serializable[BackfillerInstanceSpec], Generic[HandleT]):
             self.state.mark_run_completed(partition_or_window, result)
         except Exception as e:
             self.state.mark_run_failed(partition_or_window, str(e))
-            if self._fail_fast:
+            if self.fail_fast:
                 raise
             return RunResult(
                 partition_or_window=partition_or_window,

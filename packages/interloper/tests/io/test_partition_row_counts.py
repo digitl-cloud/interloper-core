@@ -50,14 +50,14 @@ class TestAssetPartitionRowCounts:
             asset.partition_row_counts()
 
     def test_multi_io_explicit_key(self):
-        io1 = SqliteIO(database=":memory:")
-        io2 = SqliteIO(database=":memory:")
+        io1 = SqliteIO(key="primary", database=":memory:")
+        io2 = SqliteIO(key="backup", database=":memory:")
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return []
 
-        asset = my_asset(io={"primary": io1, "backup": io2})
+        asset = my_asset(io=[io1, io2], default_io_key="primary")
 
         # Write only to primary
         p1 = il.TimePartition(dt.date(2025, 1, 1))
@@ -68,13 +68,13 @@ class TestAssetPartitionRowCounts:
         assert counts["2025-01-01"] == 1
 
     def test_multi_io_invalid_key_raises(self):
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(key="primary", database=":memory:")
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return []
 
-        asset = my_asset(io={"primary": io})
+        asset = my_asset(io=[io], default_io_key="primary")
         with pytest.raises(il.ConfigError, match="IO key 'missing'"):
             asset.partition_row_counts(io_key="missing")
 
@@ -140,7 +140,7 @@ class TestFileIOPartitionRowCounts:
     """Tests for FileIO.partition_row_counts()."""
 
     def test_counts_partitions(self, tmp_path):
-        io = il.FileIO(str(tmp_path))
+        io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:
@@ -160,7 +160,7 @@ class TestFileIOPartitionRowCounts:
         assert counts["2025-01-02"] == 1
 
     def test_no_directory_returns_empty(self, tmp_path):
-        io = il.FileIO(str(tmp_path))
+        io = il.FileIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:

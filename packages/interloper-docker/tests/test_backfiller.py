@@ -10,7 +10,7 @@ import pytest
 from interloper.cli.config import Config
 from interloper.errors import PartitionError
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.backfiller import BackfillerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_docker import DockerBackfiller
 
@@ -45,7 +45,7 @@ def backfiller_custom(mock_docker_client):
 @pytest.fixture
 def simple_dag(tmp_path):
     """A minimal DAG with a single partitioned asset for command-building tests."""
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
 
     @il.asset(partitioning=il.TimePartitionConfig(column="date"))
     def my_asset(context: il.ExecutionContext) -> list[dict]:
@@ -59,27 +59,27 @@ class TestDockerBackfillerInit:
 
     def test_default_params(self, backfiller):
         """Default values are applied correctly."""
-        assert backfiller._image == "test-image:latest"
-        assert backfiller._env_vars == {}
-        assert backfiller._max_containers == 1
-        assert backfiller._volumes == {}
-        assert backfiller._dind is False
+        assert backfiller.image == "test-image:latest"
+        assert backfiller.env_vars == {}
+        assert backfiller.max_containers == 1
+        assert backfiller.volumes == {}
+        assert backfiller.dind is False
 
     def test_custom_params(self, backfiller_custom):
         """Custom values are stored correctly."""
-        assert backfiller_custom._image == "custom-image:v2"
-        assert backfiller_custom._env_vars == {"DB_HOST": "localhost", "ENV": "test"}
-        assert backfiller_custom._max_containers == 3
-        assert backfiller_custom._volumes == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
-        assert backfiller_custom._dind is True
+        assert backfiller_custom.image == "custom-image:v2"
+        assert backfiller_custom.env_vars == {"DB_HOST": "localhost", "ENV": "test"}
+        assert backfiller_custom.max_containers == 3
+        assert backfiller_custom.volumes == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
+        assert backfiller_custom.dind is True
 
     def test_docker_client_initialized(self, mock_docker_client, backfiller):
         """Docker client is created via docker.from_env()."""
         assert backfiller._docker is mock_docker_client
 
     def test_runner_reraise_forced_true(self, backfiller):
-        """The inner runner's _reraise is forced to True."""
-        assert backfiller.runner._reraise is True
+        """The inner runner's reraise is forced to True."""
+        assert backfiller.runner.reraise is True
 
     def test_default_runner_is_multi_thread(self, backfiller):
         """Without an explicit runner, a MultiThreadRunner is used."""
@@ -91,17 +91,17 @@ class TestDockerBackfillerInit:
         b = DockerBackfiller(image="img", runner=custom_runner)
         assert b.runner is custom_runner
         # reraise is still forced
-        assert b.runner._reraise is True
+        assert b.runner.reraise is True
 
-    def test_env_vars_none_becomes_empty_dict(self, mock_docker_client):
-        """Passing None for env_vars results in an empty dict."""
-        b = DockerBackfiller(image="img", env_vars=None)
-        assert b._env_vars == {}
+    def test_env_vars_default_is_empty_dict(self, mock_docker_client):
+        """Omitting env_vars results in an empty dict."""
+        b = DockerBackfiller(image="img")
+        assert b.env_vars == {}
 
-    def test_volumes_none_becomes_empty_dict(self, mock_docker_client):
-        """Passing None for volumes results in an empty dict."""
-        b = DockerBackfiller(image="img", volumes=None)
-        assert b._volumes == {}
+    def test_volumes_default_is_empty_dict(self, mock_docker_client):
+        """Omitting volumes results in an empty dict."""
+        b = DockerBackfiller(image="img")
+        assert b.volumes == {}
 
     def test_log_threads_initialized_empty(self, backfiller):
         """Log thread tracking dict starts empty."""
@@ -133,27 +133,27 @@ class TestDockerBackfillerToSpec:
     """Tests for the to_spec() serialization roundtrip."""
 
     def test_to_spec_returns_backfiller_spec(self, backfiller):
-        """to_spec() returns a BackfillerInstanceSpec instance."""
+        """to_spec() returns a ComponentInstanceSpec instance."""
         spec = backfiller.to_spec()
-        assert isinstance(spec, BackfillerInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
 
     def test_to_spec_default_values(self, backfiller):
-        """Spec captures default init kwargs."""
+        """Spec captures default config kwargs."""
         spec = backfiller.to_spec()
-        assert spec.init["image"] == "test-image:latest"
-        assert spec.init["env_vars"] == {}
-        assert spec.init["volumes"] == {}
-        assert spec.init["max_containers"] == 1
-        assert spec.init["dind"] is False
+        assert spec.config["image"] == "test-image:latest"
+        assert spec.config["env_vars"] == {}
+        assert spec.config["volumes"] == {}
+        assert spec.config["max_containers"] == 1
+        assert spec.config["dind"] is False
 
     def test_to_spec_custom_values(self, backfiller_custom):
-        """Spec captures custom init kwargs."""
+        """Spec captures custom config kwargs."""
         spec = backfiller_custom.to_spec()
-        assert spec.init["image"] == "custom-image:v2"
-        assert spec.init["env_vars"] == {"DB_HOST": "localhost", "ENV": "test"}
-        assert spec.init["volumes"] == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
-        assert spec.init["max_containers"] == 3
-        assert spec.init["dind"] is True
+        assert spec.config["image"] == "custom-image:v2"
+        assert spec.config["env_vars"] == {"DB_HOST": "localhost", "ENV": "test"}
+        assert spec.config["volumes"] == {"/host/data": {"bind": "/container/data", "mode": "ro"}}
+        assert spec.config["max_containers"] == 3
+        assert spec.config["dind"] is True
 
     def test_to_spec_path(self, backfiller):
         """Spec path points to the DockerBackfiller class."""
@@ -173,11 +173,11 @@ class TestDockerBackfillerToSpec:
         reconstructed = spec.reconstruct()
 
         assert isinstance(reconstructed, DockerBackfiller)
-        assert reconstructed._image == original._image
-        assert reconstructed._env_vars == original._env_vars
-        assert reconstructed._max_containers == original._max_containers
-        assert reconstructed._volumes == original._volumes
-        assert reconstructed._dind == original._dind
+        assert reconstructed.image == original.image
+        assert reconstructed.env_vars == original.env_vars
+        assert reconstructed.max_containers == original.max_containers
+        assert reconstructed.volumes == original.volumes
+        assert reconstructed.dind == original.dind
 
 
 class TestDockerBackfillerBuildCommand:

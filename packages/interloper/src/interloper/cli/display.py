@@ -52,8 +52,8 @@ class AssetState:
     """Tracked display state for a single asset execution."""
 
     key: AssetInstanceKey
-    name: str
-    source_name: str | None = None
+    local_key: str
+    source_key: str | None = None
     status: Status = Status.WAITING
     phase: str | None = None  # "reading", "executing", "writing"
     start_time: dt.datetime | None = None
@@ -346,10 +346,10 @@ class RichView:
         self._asset_order: list[tuple[str | None, AssetInstanceKey, str]] = []
         for asset in dag.assets:
             if asset.materializable:
-                self._asset_order.append((asset.source.name if asset.source else None, asset.instance_key, asset.name))
+                self._asset_order.append((asset.source.key if asset.source else None, asset.key, asset.local_key))
         self._asset_order.sort(key=lambda t: (t[0] or "", t[1]))
 
-        self._max_name_len = max((len(n) for _, _, n in self._asset_order), default=0)
+        self._max_key_len = max((len(n) for _, _, n in self._asset_order), default=0)
         self._event_asset_key_width = max((len(str(key)) for _, key, _ in self._asset_order), default=1)
 
         # Mode detection
@@ -620,9 +620,9 @@ class RichView:
 
     def _seed_assets(self, run: PartitionRun) -> None:
         """Pre-populate asset states from the DAG order."""
-        for source_name, key, name in self._asset_order:
+        for source_key, key, local_key in self._asset_order:
             if key not in run.assets:
-                run.assets[key] = AssetState(key=key, name=name, source_name=source_name)
+                run.assets[key] = AssetState(key=key, local_key=local_key, source_key=source_key)
 
     def _find_run(self, run_id: str) -> PartitionRun | None:
         """Look up a partition run by its run ID.
@@ -648,8 +648,8 @@ class RichView:
         if asset is None:
             asset = AssetState(
                 key=asset_key,
-                name=metadata.get("asset_name", str(asset_key)),
-                source_name=metadata.get("source_name"),
+                local_key=str(asset_key).rsplit(":", 1)[-1],
+                source_key=metadata.get("source_key"),
             )
             run.assets[asset_key] = asset
         return asset
@@ -712,13 +712,13 @@ class RichView:
         current_source: str | None = None
         current_tree: Tree | None = None
 
-        for source_name, asset_key, _ in self._asset_order:
-            if source_name != current_source:
+        for source_key, asset_key, _ in self._asset_order:
+            if source_key != current_source:
                 if current_tree is not None:
                     trees.append(current_tree)
-                label = source_name or "<no source>"
+                label = source_key or "<no source>"
                 current_tree = Tree(Text(label, style="bold cyan"), guide_style="dim")
-                current_source = source_name
+                current_source = source_key
 
             asset = run.assets.get(asset_key)
             if asset is not None:
@@ -737,7 +737,7 @@ class RichView:
             A Table representing the asset's status row.
         """
         table = Table(show_header=False, box=None, show_lines=False, pad_edge=False, expand=False)
-        table.add_column("Name", min_width=self._max_name_len)
+        table.add_column("Name", min_width=self._max_key_len)
         table.add_column("Spinner", min_width=2)
         table.add_column("Ops", min_width=3)
         table.add_column("Status", min_width=8)
@@ -750,7 +750,7 @@ class RichView:
         time_str = _fmt_time(asset.elapsed) if asset.status != Status.WAITING else ""
         io_str = _fmt_io(asset) if (asset.io_reads or asset.io_writes or asset.io_errors) else ""
 
-        table.add_row(asset.name, spinner, ops, status, time_str, io_str)
+        table.add_row(asset.local_key, spinner, ops, status, time_str, io_str)
         return table
 
     # ------------------------------------------------------------------
@@ -810,17 +810,17 @@ class RichView:
         partition_count = len(self._partition_runs)
         active_run = self._active_run()
 
-        for source_name, asset_key, asset_name in self._asset_order:
-            if source_name != current_source:
+        for source_key, asset_key, local_key in self._asset_order:
+            if source_key != current_source:
                 if current_tree is not None:
                     trees.append(current_tree)
-                label = source_name or "<no source>"
+                label = source_key or "<no source>"
                 current_tree = Tree(Text(label, style="bold cyan"), guide_style="dim")
-                current_source = source_name
+                current_source = source_key
 
             # Get ops for the currently active partition
             current_asset = active_run.assets.get(asset_key) if active_run else None
-            line = self._render_backfill_asset_line(asset_key, asset_name, partition_count, current_asset)
+            line = self._render_backfill_asset_line(asset_key, local_key, partition_count, current_asset)
             assert current_tree is not None
             current_tree.add(line)
 
@@ -831,7 +831,7 @@ class RichView:
     def _render_backfill_asset_line(
         self,
         asset_key: AssetInstanceKey,
-        asset_name: str,
+        local_key: str,
         partition_count: int,
         current_asset: AssetState | None,
     ) -> Table:
@@ -841,7 +841,7 @@ class RichView:
             A Table representing the asset's backfill progress row.
         """
         table = Table(show_header=False, box=None, show_lines=False, pad_edge=False, expand=False)
-        table.add_column("Name", min_width=self._max_name_len)
+        table.add_column("Name", min_width=self._max_key_len)
         table.add_column("Spinner", min_width=2)
         table.add_column("Ops", min_width=3)
         table.add_column("Progress", min_width=partition_count)
@@ -872,7 +872,7 @@ class RichView:
         else:
             ops = Text("   ")
 
-        table.add_row(asset_name, spinner, ops, progress, f"{pct}%")
+        table.add_row(local_key, spinner, ops, progress, f"{pct}%")
         return table
 
     # ------------------------------------------------------------------

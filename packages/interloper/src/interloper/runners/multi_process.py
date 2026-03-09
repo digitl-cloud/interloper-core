@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from typing import Any
 
+from pydantic import PrivateAttr
+
 from interloper.assets.base import Asset
 from interloper.errors import RunnerError
-from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.serialization.asset import AssetInstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
-from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class MultiProcessRunner(Runner[Future[Any]]):
@@ -24,31 +23,18 @@ class MultiProcessRunner(Runner[Future[Any]]):
     Best for CPU-bound workloads and true parallelism.
     """
 
-    def __init__(
-        self,
-        max_workers: int = 4,
-        fail_fast: bool = True,
-        reraise: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ):
-        """Initialize the multi-process runner.
+    max_workers: int = 4
+    fail_fast: bool = True
+    reraise: bool = False
 
-        Args:
-            max_workers: Maximum number of worker processes.
-            fail_fast: Stop execution after the first asset failure.
-            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
-            on_event: Event callback, filtered by run_id.
-        """
-        super().__init__(fail_fast=fail_fast, reraise=reraise, on_event=on_event)
-        self._max_workers = max_workers
-        self._pool = None
+    _pool: ProcessPoolExecutor | None = PrivateAttr(default=None)
 
     @property
     def _capacity(self) -> int:
-        return self._max_workers
+        return self.max_workers
 
     def _on_start(self) -> None:
-        self._pool = ProcessPoolExecutor(max_workers=self._max_workers)
+        self._pool = ProcessPoolExecutor(max_workers=self.max_workers)
 
     def _on_end(self) -> None:
         if self._pool is not None:
@@ -81,7 +67,7 @@ class MultiProcessRunner(Runner[Future[Any]]):
                     if error_msg:
                         print(f"Asset {asset_key} failed: {error_msg}")
             except Exception as e:  # noqa: BLE001
-                print(f"Asset {asset.instance_key} failed with exception: {e}")
+                print(f"Asset {asset.key} failed with exception: {e}")
                 self.state.mark_asset_failed(asset, str(e))
 
         future.add_done_callback(done_callback)
@@ -92,14 +78,14 @@ class MultiProcessRunner(Runner[Future[Any]]):
         future = next(iter(done))
         try:
             asset_key, success, error_msg = future.result()
-            if not success and (self._fail_fast or self._reraise):
-                if self._fail_fast:
+            if not success and (self.fail_fast or self.reraise):
+                if self.fail_fast:
                     self._cancel_all([h for h in handles if h is not future])
                 raise RunnerError(f"Asset {asset_key} failed: {error_msg}")
         except Exception:
-            if self._fail_fast:
+            if self.fail_fast:
                 self._cancel_all([h for h in handles if h is not future])
-            if self._fail_fast or self._reraise:
+            if self.fail_fast or self.reraise:
                 raise
         return future
 
@@ -109,21 +95,6 @@ class MultiProcessRunner(Runner[Future[Any]]):
                 h.cancel()
             except Exception:  # noqa: BLE001, S110
                 pass
-
-    def to_spec(self) -> RunnerInstanceSpec:
-        """Serialize to a RunnerSpec.
-
-        Returns:
-            A RunnerSpec for this multi-process runner.
-        """
-        return RunnerInstanceSpec(
-            path=self.path,
-            init={
-                "max_workers": self._max_workers,
-                "fail_fast": self._fail_fast,
-                "reraise": self._reraise,
-            },
-        )
 
 
 def execute_in_process(
@@ -154,5 +125,5 @@ def execute_in_process(
             dag=dag,
         )
     except Exception as e:  # noqa: BLE001
-        return (asset.instance_key, False, str(e))
-    return (asset.instance_key, True, None)
+        return (asset.key, False, str(e))
+    return (asset.key, True, None)

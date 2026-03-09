@@ -31,22 +31,22 @@ class TestSourceDefinition:
         assert isinstance(MySource, il.SourceDefinition)
         assert len(MySource.asset_defs) == 2
         assert all(isinstance(ad, il.AssetDefinition) for ad in MySource.asset_defs.values())
-        assert MySource.name == "MySource"
+        assert MySource.key == "MySource"
         assert MySource.dataset is None
         assert MySource.config is None
 
-    def test_invalid_name_rejected(self):
-        """Test that invalid source names are rejected at definition time."""
+    def test_invalid_key_rejected(self):
+        """Test that invalid source keys are rejected at definition time."""
         with pytest.raises(ValueError, match="invalid"):
 
-            @il.source(name="my-source")
+            @il.source(key="my-source")
             class BadSource:
                 @il.asset
                 def asset1(self, context: il.ExecutionContext) -> str:
                     return "value"
 
-    def test_invalid_instance_name_rejected(self):
-        """Test that invalid name overrides are rejected when instantiating a source."""
+    def test_invalid_instance_key_rejected(self):
+        """Test that invalid key overrides are rejected when instantiating a source."""
 
         @il.source
         class MySource:
@@ -55,7 +55,7 @@ class TestSourceDefinition:
                 return "value"
 
         with pytest.raises(ValueError, match="invalid"):
-            MySource(name="bad-name")
+            MySource(key="bad-name")
 
     def test_with_config(self):
         """Test SourceDefinition with config."""
@@ -115,7 +115,7 @@ class TestSourceDefinition:
             def asset1(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-        io = il.FileIO("data2")
+        io = il.FileIO(base_path="data2")
         source_instance = MySource(io=io)
         assert source_instance.io == io
 
@@ -128,7 +128,7 @@ class TestSourceDefinition:
             def asset1(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-        io = il.FileIO("data2")
+        io = il.FileIO(base_path="data2")
         source_instance = MySource(io=io)
         assert source_instance.assets["asset1"].io == io
 
@@ -222,7 +222,7 @@ class TestSourceDefinition:
 
         with pytest.raises(
             ValueError,
-            match=r"Invalid asset names: \['nonexistent'\]. Valid asset names are: \['asset_a', 'asset_b'\].",
+            match=r"Invalid asset keys: \['nonexistent'\]. Valid asset keys are: \['asset_a', 'asset_b'\].",
         ):
             MySource(assets=["nonexistent"])
 
@@ -237,7 +237,7 @@ class TestSourceDefinition:
 
         with pytest.raises(
             ValueError,
-            match=r"Invalid asset names: \['invalid1', 'invalid2'\]. Valid asset names are: \['asset_a'\].",
+            match=r"Invalid asset keys: \['invalid1', 'invalid2'\]. Valid asset keys are: \['asset_a'\].",
         ):
             MySource(assets=["invalid1", "invalid2"])
 
@@ -427,8 +427,8 @@ class TestSource:
 
         source_instance = MySource()
         # Should be able to access assets by name
-        assert source_instance.asset_a.name == "asset_a"
-        assert source_instance.asset_b.name == "asset_b"
+        assert source_instance.asset_a.local_key == "asset_a"
+        assert source_instance.asset_b.local_key == "asset_b"
 
     def test_config_inheritance(self):
         """Test that assets inherit config from source."""
@@ -447,7 +447,7 @@ class TestSource:
 
     def test_io_inheritance(self, tmp_path):
         """Test that assets inherit IO from source when passed at call time."""
-        io = il.FileIO(tmp_path)
+        io = il.FileIO(base_path=str(tmp_path))
 
         @il.source
         class MySource:
@@ -489,9 +489,9 @@ class TestSource:
         source_instance = MySource()
         # Assets should default to source name as dataset
         assert source_instance.assets["asset1"].dataset == "MySource"
-        assert source_instance.assets["asset1"].instance_key == "MySource:asset1"
+        assert source_instance.assets["asset1"].key == "MySource:asset1"
         assert source_instance.assets["asset2"].dataset == "MySource"
-        assert source_instance.assets["asset2"].instance_key == "MySource:asset2"
+        assert source_instance.assets["asset2"].key == "MySource:asset2"
 
         # DAG should be able to resolve dependencies
         dag = il.DAG(source_instance)
@@ -523,8 +523,8 @@ class TestSource:
         class Cfg(il.Config):
             api_key: str = "a"
 
-        io1 = il.FileIO(tmp_path)
-        io2 = il.FileIO(tmp_path / "other")
+        io1 = il.FileIO(base_path=str(tmp_path))
+        io2 = il.FileIO(base_path=str(tmp_path / "other"))
 
         @il.source(config=Cfg)
         class Src:

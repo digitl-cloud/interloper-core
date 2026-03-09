@@ -6,11 +6,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from interloper.serialization.backfiller import BackfillerInstanceSpec
-from interloper.serialization.base import InstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec, InstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
-from interloper.serialization.io import IOInstanceSpec
-from interloper.serialization.runner import RunnerInstanceSpec
 
 if TYPE_CHECKING:
     from interloper.cli.config import Config
@@ -19,9 +16,9 @@ if TYPE_CHECKING:
 class ConfigInstanceSpec(InstanceSpec):
     """Top-level InstanceSpec that bundles a DAG with its runner, IO, and backfiller settings."""
 
-    backfiller: BackfillerInstanceSpec | None = None
-    runner: RunnerInstanceSpec | None = None
-    io: dict[str, IOInstanceSpec] = Field(default_factory=dict)
+    backfiller: ComponentInstanceSpec | None = None
+    runner: ComponentInstanceSpec | None = None
+    io: list[ComponentInstanceSpec] = Field(default_factory=list)
     dag: DAGInstanceSpec
 
     def reconstruct(self) -> Config:
@@ -33,7 +30,7 @@ class ConfigInstanceSpec(InstanceSpec):
         from interloper.cli.config import Config
 
         dag = self.dag.reconstruct()
-        io = {k: v.reconstruct() for k, v in self.io.items()}
+        io = [v.reconstruct() for v in self.io]
         backfiller = self.backfiller.reconstruct() if self.backfiller is not None else None
         runner = self.runner.reconstruct() if self.runner is not None else None
 

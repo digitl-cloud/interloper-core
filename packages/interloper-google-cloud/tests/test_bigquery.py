@@ -1,15 +1,19 @@
 """Tests for BigQueryIO."""
 
 import datetime
+import json
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
 from interloper.errors import ConfigError
 from interloper.io.database import WriteDisposition
-from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_google_cloud.io.bigquery import BigQueryIO, _bq_param_type, _infer_bq_type
+
+# A minimal service account key JSON for testing.
+_SA_KEY = json.dumps({"type": "service_account", "project_id": "test-proj"})
 
 # ------------------------------------------------------------------
 # _infer_bq_type
@@ -112,22 +116,29 @@ class TestBqParamType:
 class TestBigQueryIOInit:
     """BigQueryIO constructor and attribute storage."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_default_params(self, mock_client_cls):
-        io = BigQueryIO(project="my-project")
+    def test_default_params(self, mock_client_cls, mock_sa):
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+        io = BigQueryIO(project="my-project", service_account_key=_SA_KEY)
         assert io.project == "my-project"
         assert io.default_dataset is None
         assert io.location == "EU"
-        assert io.write_disposition == WriteDisposition.REPLACE
+        assert io.write_disposition == WriteDisposition.APPEND
         assert io.chunk_size == 1000
-        mock_client_cls.assert_called_once_with(project="my-project", credentials=None, location="EU")
+        mock_client_cls.assert_called_once_with(project="my-project", credentials=mock_creds, location="EU")
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_custom_params(self, mock_client_cls):
+    def test_custom_params(self, mock_client_cls, mock_sa):
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
         io = BigQueryIO(
             project="other-project",
             default_dataset="analytics",
             location="US",
+            service_account_key=_SA_KEY,
             write_disposition=WriteDisposition.APPEND,
             chunk_size=500,
         )
@@ -136,13 +147,16 @@ class TestBigQueryIOInit:
         assert io.location == "US"
         assert io.write_disposition == WriteDisposition.APPEND
         assert io.chunk_size == 500
-        mock_client_cls.assert_called_once_with(project="other-project", credentials=None, location="US")
+        mock_client_cls.assert_called_once_with(project="other-project", credentials=mock_creds, location="US")
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_credentials_passed_through(self, mock_client_cls):
-        creds = MagicMock()
-        BigQueryIO(project="p", credentials=creds)
-        mock_client_cls.assert_called_once_with(project="p", credentials=creds, location="EU")
+    def test_service_account_key_parsed(self, mock_client_cls, mock_sa):
+        mock_creds = MagicMock()
+        mock_sa.Credentials.from_service_account_info.return_value = mock_creds
+        BigQueryIO(project="p", service_account_key=_SA_KEY)
+        mock_sa.Credentials.from_service_account_info.assert_called_once_with(json.loads(_SA_KEY))
+        mock_client_cls.assert_called_once_with(project="p", credentials=mock_creds, location="EU")
 
 
 # ------------------------------------------------------------------
@@ -153,26 +167,30 @@ class TestBigQueryIOInit:
 class TestResolveDataset:
     """Dataset resolution from schema parameter and default_dataset."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_schema_takes_precedence(self, _mock):
-        io = BigQueryIO(project="p", default_dataset="fallback")
+    def test_schema_takes_precedence(self, _mock, _mock_sa):
+        io = BigQueryIO(project="p", default_dataset="fallback", service_account_key=_SA_KEY)
         assert io._resolve_dataset("explicit") == "explicit"
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_falls_back_to_default_dataset(self, _mock):
-        io = BigQueryIO(project="p", default_dataset="fallback")
+    def test_falls_back_to_default_dataset(self, _mock, _mock_sa):
+        io = BigQueryIO(project="p", default_dataset="fallback", service_account_key=_SA_KEY)
         assert io._resolve_dataset(None) == "fallback"
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_raises_when_both_none(self, _mock):
-        io = BigQueryIO(project="p")
+    def test_raises_when_both_none(self, _mock, _mock_sa):
+        io = BigQueryIO(project="p", service_account_key=_SA_KEY)
         with pytest.raises(ConfigError, match="BigQueryIO requires a dataset"):
             io._resolve_dataset(None)
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_empty_string_schema_falls_back(self, _mock):
+    def test_empty_string_schema_falls_back(self, _mock, _mock_sa):
         """Empty string is falsy, so it should fall back to default_dataset."""
-        io = BigQueryIO(project="p", default_dataset="fallback")
+        io = BigQueryIO(project="p", default_dataset="fallback", service_account_key=_SA_KEY)
         assert io._resolve_dataset("") == "fallback"
 
 
@@ -184,19 +202,22 @@ class TestResolveDataset:
 class TestTableRef:
     """Fully-qualified BigQuery table reference construction."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_with_explicit_schema(self, _mock):
-        io = BigQueryIO(project="my-project", default_dataset="default_ds")
+    def test_with_explicit_schema(self, _mock, _mock_sa):
+        io = BigQueryIO(project="my-project", default_dataset="default_ds", service_account_key=_SA_KEY)
         assert io._table_ref("my_table", "explicit_ds") == "my-project.explicit_ds.my_table"
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_with_default_dataset(self, _mock):
-        io = BigQueryIO(project="my-project", default_dataset="default_ds")
+    def test_with_default_dataset(self, _mock, _mock_sa):
+        io = BigQueryIO(project="my-project", default_dataset="default_ds", service_account_key=_SA_KEY)
         assert io._table_ref("my_table", None) == "my-project.default_ds.my_table"
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_raises_without_dataset(self, _mock):
-        io = BigQueryIO(project="my-project")
+    def test_raises_without_dataset(self, _mock, _mock_sa):
+        io = BigQueryIO(project="my-project", service_account_key=_SA_KEY)
         with pytest.raises(ConfigError):
             io._table_ref("my_table", None)
 
@@ -207,45 +228,51 @@ class TestTableRef:
 
 
 class TestToSpec:
-    """Serialization of BigQueryIO to IOInstanceSpec."""
+    """Serialization of BigQueryIO to ComponentInstanceSpec."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_minimal_spec(self, _mock):
-        io = BigQueryIO(project="proj")
+    def test_minimal_spec(self, _mock, _mock_sa):
+        io = BigQueryIO(project="proj", service_account_key=_SA_KEY)
         spec = io.to_spec()
 
-        assert isinstance(spec, IOInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
         assert spec.path == "interloper_google_cloud.io.bigquery.BigQueryIO"
-        assert spec.init["project"] == "proj"
-        assert spec.init["location"] == "EU"
-        assert "default_dataset" not in spec.init
-        assert spec.init["write_disposition"] == "replace"
-        assert spec.init["chunk_size"] == 1000
+        assert spec.config["project"] == "proj"
+        assert spec.config["location"] == "EU"
+        assert spec.config["service_account_key"] == _SA_KEY
+        assert "default_dataset" not in spec.config
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 1000
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_full_spec(self, _mock):
+    def test_full_spec(self, _mock, _mock_sa):
         io = BigQueryIO(
             project="proj",
             default_dataset="ds",
             location="US",
+            service_account_key=_SA_KEY,
             write_disposition=WriteDisposition.APPEND,
             chunk_size=2000,
         )
         spec = io.to_spec()
 
-        assert spec.init["project"] == "proj"
-        assert spec.init["default_dataset"] == "ds"
-        assert spec.init["location"] == "US"
-        assert spec.init["write_disposition"] == "append"
-        assert spec.init["chunk_size"] == 2000
+        assert spec.config["project"] == "proj"
+        assert spec.config["default_dataset"] == "ds"
+        assert spec.config["location"] == "US"
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 2000
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_spec_roundtrip(self, mock_client_cls):
+    def test_spec_roundtrip(self, mock_client_cls, _mock_sa):
         """to_spec() output can reconstruct an equivalent BigQueryIO."""
         original = BigQueryIO(
             project="roundtrip-proj",
             default_dataset="my_dataset",
             location="US",
+            service_account_key=_SA_KEY,
             write_disposition=WriteDisposition.APPEND,
             chunk_size=750,
         )
@@ -268,23 +295,25 @@ class TestToSpec:
 class TestTableExists:
     """Table existence check delegates to the BQ client."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_returns_true_when_found(self, mock_client_cls):
+    def test_returns_true_when_found(self, mock_client_cls, _mock_sa):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
-        io = BigQueryIO(project="p", default_dataset="ds")
+        io = BigQueryIO(project="p", default_dataset="ds", service_account_key=_SA_KEY)
 
         assert io._table_exists("tbl", None) is True
         mock_client.get_table.assert_called_once_with("p.ds.tbl")
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_returns_false_when_not_found(self, mock_client_cls):
+    def test_returns_false_when_not_found(self, mock_client_cls, _mock_sa):
         from google.cloud.exceptions import NotFound
 
         mock_client = MagicMock()
         mock_client.get_table.side_effect = NotFound("nope")
         mock_client_cls.return_value = mock_client
-        io = BigQueryIO(project="p", default_dataset="ds")
+        io = BigQueryIO(project="p", default_dataset="ds", service_account_key=_SA_KEY)
 
         assert io._table_exists("tbl", None) is False
 
@@ -297,10 +326,11 @@ class TestTableExists:
 class TestDispose:
     """Lifecycle: dispose closes the client."""
 
+    @patch("interloper_google_cloud.io.bigquery.service_account")
     @patch("interloper_google_cloud.io.bigquery.bigquery.Client")
-    def test_dispose_closes_client(self, mock_client_cls):
+    def test_dispose_closes_client(self, mock_client_cls, _mock_sa):
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
-        io = BigQueryIO(project="p")
+        io = BigQueryIO(project="p", service_account_key=_SA_KEY)
         io.dispose()
         mock_client.close.assert_called_once()

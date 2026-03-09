@@ -7,12 +7,12 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 from interloper.errors import TableNotFoundError
-from interloper.io.database import DatabaseIO, WriteDisposition
+from interloper.io.database import DatabaseIO
+from pydantic import PrivateAttr
 from sqlalchemy import Column, MetaData, Table, create_engine
 from sqlalchemy import inspect as sa_inspect
 
 if TYPE_CHECKING:
-    from interloper.io.adapter import DataAdapter
     from sqlalchemy.engine import URL, Connection, Engine
 
 
@@ -58,27 +58,21 @@ class SqlIO(DatabaseIO):
     The IO is fully stateless with respect to table identity — the table name
     and schema are passed through from the asset context on every call, so a
     single instance can safely serve multiple assets.
-
-    Args:
-        url: SQLAlchemy connection URL or :class:`~sqlalchemy.engine.URL` object
-            (constructed by dialect subclasses).
-        write_disposition: Controls whether existing rows are deleted before
-            writing.  Defaults to :attr:`WriteDisposition.REPLACE`.
-        chunk_size: Number of rows per insert batch
-        adapter: Optional data adapter for type conversion
     """
 
-    def __init__(
-        self,
-        url: str | URL,
-        write_disposition: WriteDisposition = WriteDisposition.REPLACE,
-        chunk_size: int = 1000,
-        adapter: DataAdapter | str | None = None,
-    ) -> None:
-        super().__init__(write_disposition, chunk_size, adapter)
-        self._engine: Engine = create_engine(url)
-        self._table_cache: dict[tuple[str, str | None], Table] = {}
-        self._conn: Connection | None = None
+    _engine: Engine | None = PrivateAttr(default=None)  # type: ignore[assignment]
+    _table_cache: dict[tuple[str, str | None], Table] = PrivateAttr(default_factory=dict)
+    _conn: Connection | None = PrivateAttr(default=None)
+
+    def _init_engine(self, url: str | URL) -> None:
+        """Initialize the SQLAlchemy engine from a connection URL.
+
+        Must be called by subclasses in their ``__post_init__``.
+
+        Args:
+            url: SQLAlchemy connection URL or URL object.
+        """
+        self._engine = create_engine(url)
 
     # ------------------------------------------------------------------
     # Table helpers
@@ -86,6 +80,7 @@ class SqlIO(DatabaseIO):
 
     def _resolve_table(self, table: str, schema: str | None) -> Table | None:
         """Reflect and cache the SQLAlchemy Table, or return None if it doesn't exist."""
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         key = (table, schema)
         if key not in self._table_cache:
             if sa_inspect(self._engine).has_table(table, schema=schema):
@@ -139,6 +134,7 @@ class SqlIO(DatabaseIO):
         Yields:
             None
         """
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         with self._engine.begin() as conn:
             self._conn = conn
             try:
@@ -216,6 +212,7 @@ class SqlIO(DatabaseIO):
             ValueError: If the table does not exist
         """
         sa_table = self._require_table(table, schema)
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         with self._engine.connect() as conn:
             result = conn.execute(sa_table.select())
             return [dict(row._mapping) for row in result]
@@ -238,6 +235,7 @@ class SqlIO(DatabaseIO):
             ValueError: If the table does not exist
         """
         sa_table = self._require_table(table, schema)
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         with self._engine.connect() as conn:
             result = conn.execute(sa_table.select().where(sa_table.c[column] == value))
             return [dict(row._mapping) for row in result]
@@ -265,6 +263,7 @@ class SqlIO(DatabaseIO):
         from sqlalchemy import func
 
         sa_table = self._require_table(table, schema)
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         col = sa_table.c[column]
         stmt = sa_table.select().with_only_columns(col, func.count()).group_by(col)
         with self._engine.connect() as conn:
@@ -277,5 +276,6 @@ class SqlIO(DatabaseIO):
 
     def dispose(self) -> None:
         """Dispose the SQLAlchemy engine and clear the table cache."""
+        assert self._engine is not None, "Engine not initialized — call _init_engine first"
         self._engine.dispose()
         self._table_cache.clear()

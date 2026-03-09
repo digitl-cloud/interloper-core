@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import interloper as il
 import pytest
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.serialization.runner import RunnerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_k8s import KubernetesRunner
 
@@ -53,7 +53,7 @@ def custom_runner():
 @pytest.fixture
 def simple_dag(tmp_path):
     """A minimal DAG for testing command/job building."""
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
 
     @il.asset
     def my_asset(context: il.ExecutionContext) -> list[dict]:
@@ -65,7 +65,7 @@ def simple_dag(tmp_path):
 @pytest.fixture
 def partitioned_dag(tmp_path):
     """A partitioned DAG for testing partition command building."""
-    io = il.FileIO(tmp_path)
+    io = il.FileIO(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset(partitioning=part)
@@ -86,41 +86,41 @@ class TestInit:
     def test_defaults(self, default_runner):
         """Default values are applied for all optional parameters."""
         r = default_runner
-        assert r._image == "my-image:latest"
-        assert r._namespace == "default"
-        assert r._max_jobs == 4
-        assert r._env_vars == {}
-        assert r._service_account is None
-        assert r._image_pull_policy is None
-        assert r._image_pull_secrets == []
-        assert r._resources is None
-        assert r._node_selector is None
-        assert r._tolerations == []
-        assert r._poll_interval == 1.0
-        assert r._ttl_seconds_after_finished == 300
-        assert r._fail_fast is False
-        assert r._reraise is False
+        assert r.image == "my-image:latest"
+        assert r.namespace == "default"
+        assert r.max_jobs == 4
+        assert r.env_vars == {}
+        assert r.service_account is None
+        assert r.image_pull_policy is None
+        assert r.image_pull_secrets == []
+        assert r.resources is None
+        assert r.node_selector is None
+        assert r.tolerations == []
+        assert r.poll_interval == 1.0
+        assert r.ttl_seconds_after_finished == 300
+        assert r.fail_fast is False
+        assert r.reraise is False
 
     def test_custom_params(self, custom_runner):
         """All custom parameters are stored correctly."""
         r = custom_runner
-        assert r._image == "registry.example.com/interloper:v2"
-        assert r._namespace == "production"
-        assert r._max_jobs == 8
-        assert r._env_vars == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
-        assert r._service_account == "interloper-sa"
-        assert r._image_pull_policy == "Always"
-        assert r._image_pull_secrets == ["regcred", "backup-cred"]
-        assert r._resources == {
+        assert r.image == "registry.example.com/interloper:v2"
+        assert r.namespace == "production"
+        assert r.max_jobs == 8
+        assert r.env_vars == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
+        assert r.service_account == "interloper-sa"
+        assert r.image_pull_policy == "Always"
+        assert r.image_pull_secrets == ["regcred", "backup-cred"]
+        assert r.resources == {
             "requests": {"cpu": "500m", "memory": "512Mi"},
             "limits": {"cpu": "2", "memory": "2Gi"},
         }
-        assert r._node_selector == {"pool": "compute", "tier": "high"}
-        assert len(r._tolerations) == 2
-        assert r._poll_interval == 2.5
-        assert r._ttl_seconds_after_finished == 600
-        assert r._fail_fast is True
-        assert r._reraise is True
+        assert r.node_selector == {"pool": "compute", "tier": "high"}
+        assert len(r.tolerations) == 2
+        assert r.poll_interval == 2.5
+        assert r.ttl_seconds_after_finished == 600
+        assert r.fail_fast is True
+        assert r.reraise is True
 
     def test_k8s_clients_initially_none(self, default_runner):
         """Kubernetes API clients are not created until _on_start."""
@@ -141,74 +141,75 @@ class TestCapacity:
 
 
 class TestToSpec:
-    """Serialization to RunnerInstanceSpec and roundtrip reconstruction."""
+    """Serialization to ComponentInstanceSpec and roundtrip reconstruction."""
 
     def test_to_spec_returns_runner_spec(self, default_runner):
-        """to_spec returns a RunnerInstanceSpec."""
+        """to_spec returns a ComponentInstanceSpec."""
         spec = default_runner.to_spec()
-        assert isinstance(spec, RunnerInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
 
     def test_to_spec_path(self, default_runner):
         """Spec path points to the KubernetesRunner class."""
         spec = default_runner.to_spec()
         assert spec.path == "interloper_k8s.runner.KubernetesRunner"
 
-    def test_to_spec_default_init(self, default_runner):
-        """Spec init dict captures all constructor kwargs."""
+    def test_to_spec_default_config(self, default_runner):
+        """Spec config dict captures all constructor kwargs."""
         spec = default_runner.to_spec()
-        init = spec.init
-        assert init["image"] == "my-image:latest"
-        assert init["namespace"] == "default"
-        assert init["max_jobs"] == 4
-        assert init["env_vars"] == {}
-        assert init["service_account"] is None
-        assert init["image_pull_policy"] is None
-        assert init["image_pull_secrets"] == []
-        assert init["resources"] is None
-        assert init["node_selector"] is None
-        assert init["tolerations"] == []
-        assert init["poll_interval"] == 1.0
-        assert init["ttl_seconds_after_finished"] == 300
-        assert init["fail_fast"] is False
-        assert init["reraise"] is False
+        config = spec.config
+        assert config["image"] == "my-image:latest"
+        assert config["namespace"] == "default"
+        assert config["max_jobs"] == 4
+        assert config["env_vars"] == {}
+        # None-valued fields are excluded by model_dump(exclude_none=True)
+        assert "service_account" not in config
+        assert "image_pull_policy" not in config
+        assert config["image_pull_secrets"] == []
+        assert "resources" not in config
+        assert "node_selector" not in config
+        assert config["tolerations"] == []
+        assert config["poll_interval"] == 1.0
+        assert config["ttl_seconds_after_finished"] == 300
+        assert config["fail_fast"] is False
+        assert config["reraise"] is False
 
-    def test_to_spec_custom_init(self, custom_runner):
-        """Spec init dict captures all custom constructor kwargs."""
+    def test_to_spec_custom_config(self, custom_runner):
+        """Spec config dict captures all custom constructor kwargs."""
         spec = custom_runner.to_spec()
-        init = spec.init
-        assert init["image"] == "registry.example.com/interloper:v2"
-        assert init["namespace"] == "production"
-        assert init["max_jobs"] == 8
-        assert init["env_vars"] == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
-        assert init["service_account"] == "interloper-sa"
-        assert init["image_pull_policy"] == "Always"
-        assert init["image_pull_secrets"] == ["regcred", "backup-cred"]
-        assert init["resources"]["requests"]["cpu"] == "500m"
-        assert init["tolerations"][0]["key"] == "dedicated"
-        assert init["poll_interval"] == 2.5
-        assert init["ttl_seconds_after_finished"] == 600
-        assert init["fail_fast"] is True
-        assert init["reraise"] is True
+        config = spec.config
+        assert config["image"] == "registry.example.com/interloper:v2"
+        assert config["namespace"] == "production"
+        assert config["max_jobs"] == 8
+        assert config["env_vars"] == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
+        assert config["service_account"] == "interloper-sa"
+        assert config["image_pull_policy"] == "Always"
+        assert config["image_pull_secrets"] == ["regcred", "backup-cred"]
+        assert config["resources"]["requests"]["cpu"] == "500m"
+        assert config["tolerations"][0]["key"] == "dedicated"
+        assert config["poll_interval"] == 2.5
+        assert config["ttl_seconds_after_finished"] == 600
+        assert config["fail_fast"] is True
+        assert config["reraise"] is True
 
     def test_to_spec_roundtrip(self, custom_runner):
         """Reconstructing from spec yields an equivalent runner."""
         spec = custom_runner.to_spec()
         reconstructed = spec.reconstruct()
         assert isinstance(reconstructed, KubernetesRunner)
-        assert reconstructed._image == custom_runner._image
-        assert reconstructed._namespace == custom_runner._namespace
-        assert reconstructed._max_jobs == custom_runner._max_jobs
-        assert reconstructed._env_vars == custom_runner._env_vars
-        assert reconstructed._service_account == custom_runner._service_account
-        assert reconstructed._image_pull_policy == custom_runner._image_pull_policy
-        assert reconstructed._image_pull_secrets == custom_runner._image_pull_secrets
-        assert reconstructed._resources == custom_runner._resources
-        assert reconstructed._node_selector == custom_runner._node_selector
-        assert reconstructed._tolerations == custom_runner._tolerations
-        assert reconstructed._poll_interval == custom_runner._poll_interval
-        assert reconstructed._ttl_seconds_after_finished == custom_runner._ttl_seconds_after_finished
-        assert reconstructed._fail_fast == custom_runner._fail_fast
-        assert reconstructed._reraise == custom_runner._reraise
+        assert reconstructed.image == custom_runner.image
+        assert reconstructed.namespace == custom_runner.namespace
+        assert reconstructed.max_jobs == custom_runner.max_jobs
+        assert reconstructed.env_vars == custom_runner.env_vars
+        assert reconstructed.service_account == custom_runner.service_account
+        assert reconstructed.image_pull_policy == custom_runner.image_pull_policy
+        assert reconstructed.image_pull_secrets == custom_runner.image_pull_secrets
+        assert reconstructed.resources == custom_runner.resources
+        assert reconstructed.node_selector == custom_runner.node_selector
+        assert reconstructed.tolerations == custom_runner.tolerations
+        assert reconstructed.poll_interval == custom_runner.poll_interval
+        assert reconstructed.ttl_seconds_after_finished == custom_runner.ttl_seconds_after_finished
+        assert reconstructed.fail_fast == custom_runner.fail_fast
+        assert reconstructed.reraise == custom_runner.reraise
 
 
 class TestBuildEnv:
@@ -312,20 +313,20 @@ class TestBuildJobName:
         default_runner._state = MagicMock()
         default_runner._state.run_id = "a" * 50
 
-        # Create a mock asset with a very long instance_key
+        # Create a mock asset with a very long key
         asset = MagicMock()
-        asset.instance_key = "very.long.source.name:very_long_asset_name_that_exceeds_limits"
+        asset.key = "very.long.source.name:very_long_asset_name_that_exceeds_limits"
 
         name = default_runner._build_job_name(asset)
         assert len(name) <= 63
 
     def test_dots_and_underscores_replaced(self, default_runner):
-        """Dots and underscores in instance_key are replaced with hyphens."""
+        """Dots and underscores in key are replaced with hyphens."""
         default_runner._state = MagicMock()
         default_runner._state.run_id = "run12345"
 
         asset = MagicMock()
-        asset.instance_key = "my_source.v1:my_asset"
+        asset.key = "my_source.v1:my_asset"
 
         name = default_runner._build_job_name(asset)
         assert "." not in name
@@ -533,8 +534,8 @@ class TestSubmitAsset:
 
         default_runner._submit_asset(asset, partition)
 
-        running_keys = [a.instance_key for a in default_runner.state.running_assets]
-        assert asset.instance_key in running_keys
+        running_keys = [a.key for a in default_runner.state.running_assets]
+        assert asset.key in running_keys
 
 
 class TestOnStart:

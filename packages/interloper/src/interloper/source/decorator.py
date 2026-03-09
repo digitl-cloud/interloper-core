@@ -21,7 +21,7 @@ def source(cls: type) -> SourceDefinition: ...
 @overload
 def source(
     *,
-    name: str | None = None,
+    key: str | None = None,
     config: type[Config] | None = None,
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
@@ -33,7 +33,7 @@ def source(
 def source(
     cls: type | None = None,
     *,
-    name: str | None = None,
+    key: str | None = None,
     config: type[Config] | None = None,
     tags: Sequence[str] | None = None,
     dataset: str | None = None,
@@ -60,8 +60,8 @@ def source(
 
         return SourceDefinition(
             cls=cls,
-            asset_defs={ad.name: ad for ad in collected},
-            name=name or "",
+            asset_defs={ad.key: ad for ad in collected},
+            key=key or "",
             config=config,
             tags=tuple(tags) if tags else (),
             dataset=dataset,

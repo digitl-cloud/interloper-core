@@ -1,5 +1,8 @@
 import interloper as il
-from interloper.errors import SourceError
+from interloper.errors import ConfigError, SourceError
+from interloper.io.base import IO
+from interloper_google_cloud import BigQueryIO
+from interloper_sql import MySQLIO, PostgresIO
 
 from interloper_assets.adservice.source import Adservice, AdserviceConfig
 from interloper_assets.adup.source import Adup, AdupConfig
@@ -26,29 +29,29 @@ from interloper_assets.thetradedesk.source import TheTradeDesk
 from interloper_assets.tiktok_ads.source import TiktokAds
 
 SOURCE_REGISTRY: dict[str, tuple[il.SourceDefinition, type[il.Config] | None]] = {
-    DemoSource.name: (DemoSource, DemoConfig),
-    Adup.name: (Adup, AdupConfig),
-    Adservice.name: (Adservice, AdserviceConfig),
-    AmazonAds.name: (AmazonAds, AmazonAdsConfig),
-    AmazonSellingPartner.name: (AmazonSellingPartner, None),
-    Awin.name: (Awin, None),
-    BingAds.name: (BingAds, None),
-    CampaignManager360.name: (CampaignManager360, None),
-    CampaignPerformanceAnalysis.name: (CampaignPerformanceAnalysis, None),
-    Criteo.name: (Criteo, None),
-    DisplayVideo360.name: (DisplayVideo360, None),
-    FacebookAds.name: (FacebookAds, None),
-    FacebookInsights.name: (FacebookInsights, None),
-    InstagramInsights.name: (InstagramInsights, None),
-    LinkedinAds.name: (LinkedinAds, None),
-    LinkedinOrganic.name: (LinkedinOrganic, None),
-    PinterestAds.name: (PinterestAds, None),
-    SearchAds360.name: (SearchAds360, None),
-    SearchConsole.name: (SearchConsole, None),
-    SnapchatAds.name: (SnapchatAds, None),
-    Teads.name: (Teads, None),
-    TheTradeDesk.name: (TheTradeDesk, None),
-    TiktokAds.name: (TiktokAds, None),
+    DemoSource.key: (DemoSource, DemoConfig),
+    Adup.key: (Adup, AdupConfig),
+    Adservice.key: (Adservice, AdserviceConfig),
+    AmazonAds.key: (AmazonAds, AmazonAdsConfig),
+    AmazonSellingPartner.key: (AmazonSellingPartner, None),
+    Awin.key: (Awin, None),
+    BingAds.key: (BingAds, None),
+    CampaignManager360.key: (CampaignManager360, None),
+    CampaignPerformanceAnalysis.key: (CampaignPerformanceAnalysis, None),
+    Criteo.key: (Criteo, None),
+    DisplayVideo360.key: (DisplayVideo360, None),
+    FacebookAds.key: (FacebookAds, None),
+    FacebookInsights.key: (FacebookInsights, None),
+    InstagramInsights.key: (InstagramInsights, None),
+    LinkedinAds.key: (LinkedinAds, None),
+    LinkedinOrganic.key: (LinkedinOrganic, None),
+    PinterestAds.key: (PinterestAds, None),
+    SearchAds360.key: (SearchAds360, None),
+    SearchConsole.key: (SearchConsole, None),
+    SnapchatAds.key: (SnapchatAds, None),
+    Teads.key: (Teads, None),
+    TheTradeDesk.key: (TheTradeDesk, None),
+    TiktokAds.key: (TiktokAds, None),
 }
 
 
@@ -56,7 +59,7 @@ def get_source_and_config(id: str) -> tuple[il.SourceDefinition, type[il.Config]
     """Get a source definition and its config type by source type ID.
 
     Args:
-        id: Source type identifier (e.g. FacebookAds.name, DemoSource.name)
+        id: Source type identifier (e.g. FacebookAds.key, DemoSource.key)
 
     Returns:
         Tuple of (SourceDefinition, ConfigType or None)
@@ -78,8 +81,47 @@ def get_all_sources() -> dict[str, tuple[il.SourceDefinition, type[il.Config] | 
     return dict(SOURCE_REGISTRY)
 
 
+IO_REGISTRY: dict[str, type[IO]] = {
+    "PostgreSQL": PostgresIO,
+    "MySQL":      MySQLIO,
+    "BigQuery":   BigQueryIO,
+}
+
+
+def get_io(key: str) -> type[IO]:
+    """Get an IO class by destination key.
+
+    The IO class carries its own config as model fields, so no separate
+    config class lookup is needed.
+
+    Args:
+        key: Destination type identifier (e.g. "PostgreSQL", "BigQuery")
+
+    Returns:
+        The IO class registered under *key*.
+
+    Raises:
+        ConfigError: If the key is not found in the registry.
+    """
+    if key not in IO_REGISTRY:
+        raise ConfigError(f"Unknown IO key: {key}")
+    return IO_REGISTRY[key]
+
+
+def get_all_ios() -> dict[str, type[IO]]:
+    """Get all registered IO backends.
+
+    Returns:
+        Dictionary mapping destination keys to IO classes.
+    """
+    return dict(IO_REGISTRY)
+
+
 __all__ = [
+    "IO_REGISTRY",
     "SOURCE_REGISTRY",
+    "get_all_ios",
     "get_all_sources",
+    "get_io",
     "get_source_and_config",
 ]

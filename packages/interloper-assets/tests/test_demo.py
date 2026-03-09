@@ -45,9 +45,9 @@ class TestDemoSourceDefinition:
         """DemoSource is a SourceDefinition instance."""
         assert isinstance(DemoSource, il.SourceDefinition)
 
-    def test_name(self):
-        """Source name is 'DemoSource'."""
-        assert DemoSource.name == "DemoSource"
+    def test_key(self):
+        """Source key is 'DemoSource'."""
+        assert DemoSource.key == "DemoSource"
 
     def test_config_type(self):
         """Source config type is DemoConfig."""
@@ -126,25 +126,25 @@ class TestDemoDagStructure:
     def test_b_requires_a(self, defs):
         """Asset 'b' depends on 'a'."""
         assert "a" in defs["b"].requires
-        assert defs["b"].requires["a"] == defs["a"].definition_key
+        assert defs["b"].requires["a"] == defs["a"].qualified_key
 
     def test_c_requires_a(self, defs):
         """Asset 'c' depends on 'a'."""
         assert "a" in defs["c"].requires
-        assert defs["c"].requires["a"] == defs["a"].definition_key
+        assert defs["c"].requires["a"] == defs["a"].qualified_key
 
     def test_d_requires_a(self, defs):
         """Asset 'd' depends on 'a'."""
         assert "a" in defs["d"].requires
-        assert defs["d"].requires["a"] == defs["a"].definition_key
+        assert defs["d"].requires["a"] == defs["a"].qualified_key
 
     def test_e_requires_b_c_d(self, defs):
         """Asset 'e' depends on 'b', 'c', and 'd'."""
         requires = defs["e"].requires
         assert set(requires.keys()) == {"b", "c", "d"}
-        assert requires["b"] == defs["b"].definition_key
-        assert requires["c"] == defs["c"].definition_key
-        assert requires["d"] == defs["d"].definition_key
+        assert requires["b"] == defs["b"].qualified_key
+        assert requires["c"] == defs["c"].qualified_key
+        assert requires["d"] == defs["d"].qualified_key
 
     def test_dag_shape_fan_out_fan_in(self, defs):
         """DAG has fan-out from a and fan-in to e (diamond shape)."""
@@ -169,9 +169,9 @@ class TestDemoSourceInstantiation:
         """Calling the definition returns a Source."""
         assert isinstance(source, il.Source)
 
-    def test_source_name(self, source):
-        """Source name matches the definition."""
-        assert source.name == "DemoSource"
+    def test_source_key(self, source):
+        """Source key matches the definition."""
+        assert source.key == "DemoSource"
 
     def test_asset_count(self, source):
         """Instantiated source has five assets."""

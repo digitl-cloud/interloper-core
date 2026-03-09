@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
+from google.oauth2 import service_account
 from interloper.errors import ConfigError, TableNotFoundError
-from interloper.io.database import DatabaseIO, WriteDisposition
-from interloper.serialization.io import IOInstanceSpec
-
-if TYPE_CHECKING:
-    from interloper.io.adapter import DataAdapter
+from interloper.io.database import DatabaseIO
+from pydantic import PrivateAttr
 
 
 def _infer_bq_type(value: Any) -> str:
@@ -51,38 +49,28 @@ class BigQueryIO(DatabaseIO):
 
     The BigQuery *dataset* is resolved from the asset's ``dataset`` attribute
     (i.e. the schema parameter in :class:`DatabaseIO` hooks).  If the asset has
-    no ``dataset``, the ``default_dataset`` constructor argument is used as a
+    no ``dataset``, the ``default_dataset`` from the config is used as a
     fallback.
-
-    Args:
-        project: Google Cloud project ID.
-        default_dataset: Fallback BigQuery dataset when the asset has no
-            ``dataset`` attribute.  At least one of the asset's ``dataset`` or
-            this parameter must be set.
-        location: BigQuery location (e.g. ``"US"``, ``"EU"``).
-        credentials: Optional Google credentials object.  When *None*, the
-            default application credentials are used.
-        write_disposition: Controls whether existing rows are deleted before
-            writing.  Defaults to :attr:`WriteDisposition.REPLACE`.
-        chunk_size: Number of rows per insert batch.
-        adapter: Optional data adapter for type conversion.
     """
 
-    def __init__(
-        self,
-        project: str,
-        default_dataset: str | None = None,
-        location: str = "EU",
-        credentials: Any = None,
-        write_disposition: WriteDisposition = WriteDisposition.REPLACE,
-        chunk_size: int = 1000,
-        adapter: DataAdapter | str | None = None,
-    ) -> None:
-        super().__init__(write_disposition, chunk_size, adapter)
-        self.project = project
-        self.default_dataset = default_dataset
-        self.location = location
-        self._client = bigquery.Client(project=project, credentials=credentials, location=location)
+    project: str | None = None
+    default_dataset: str | None = None
+    location: str = "EU"
+    service_account_key: str | None = None
+    _client: Any = PrivateAttr(default=None)
+
+    def model_post_init(self, context: Any, /) -> None:
+        super().model_post_init(context)
+        if self.project is not None and self.service_account_key is not None:
+            import json
+
+            key_info = json.loads(self.service_account_key)
+            credentials = service_account.Credentials.from_service_account_info(key_info)
+            self._client = bigquery.Client(
+                project=self.project,
+                credentials=credentials,
+                location=self.location,
+            )
 
     def __str__(self) -> str:
         if self.default_dataset:
@@ -97,7 +85,7 @@ class BigQueryIO(DatabaseIO):
         """Return the BigQuery dataset to use.
 
         Prefers ``schema`` (from the asset's ``dataset``).  Falls back to
-        :attr:`default_dataset`.
+        the config's ``default_dataset``.
 
         Args:
             schema: Schema parameter from the asset context.
@@ -106,13 +94,13 @@ class BigQueryIO(DatabaseIO):
             The resolved dataset name.
 
         Raises:
-            ValueError: If neither *schema* nor *default_dataset* is set.
+            ConfigError: If neither *schema* nor *default_dataset* is set.
         """
         dataset = schema or self.default_dataset
         if dataset is None:
             raise ConfigError(
                 "BigQueryIO requires a dataset. Either set 'dataset' on the asset "
-                "or provide 'default_dataset' to BigQueryIO."
+                "or provide 'default_dataset' when constructing BigQueryIO."
             )
         return dataset
 
@@ -168,6 +156,7 @@ class BigQueryIO(DatabaseIO):
             schema: Schema (dataset) override.
         """
         dataset = self._resolve_dataset(schema)
+        assert self.project is not None, "BigQueryIO.project must be set to ensure datasets"
         dataset_ref = bigquery.DatasetReference(self.project, dataset)
         try:
             self._client.get_dataset(dataset_ref)
@@ -248,7 +237,7 @@ class BigQueryIO(DatabaseIO):
             All rows as list of dicts.
 
         Raises:
-            ValueError: If the table does not exist.
+            TableNotFoundError: If the table does not exist.
         """
         if not self._table_exists(table, schema):
             qualified = self._table_ref(table, schema)
@@ -270,7 +259,7 @@ class BigQueryIO(DatabaseIO):
             Matching rows as list of dicts.
 
         Raises:
-            ValueError: If the table does not exist.
+            TableNotFoundError: If the table does not exist.
         """
         if not self._table_exists(table, schema):
             qualified = self._table_ref(table, schema)
@@ -319,22 +308,14 @@ class BigQueryIO(DatabaseIO):
     # Serialization
     # ------------------------------------------------------------------
 
-    def to_spec(self) -> IOInstanceSpec:
-        """Convert to serializable spec."""
-        init = self._base_init_kwargs()
-        init["project"] = self.project
-        if self.default_dataset is not None:
-            init["default_dataset"] = self.default_dataset
-        init["location"] = self.location
-        return IOInstanceSpec(path=self.path, init=init)
-
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     def dispose(self) -> None:
         """Close the BigQuery client."""
-        self._client.close()
+        if self._client:
+            self._client.close()
 
 
 def _bq_param_type(value: Any) -> str:

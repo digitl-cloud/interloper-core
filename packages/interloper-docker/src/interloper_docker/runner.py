@@ -9,7 +9,7 @@ config, similar to the `DockerBackfiller`.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Any
 
 import docker
 from docker.models.containers import Container
@@ -17,11 +17,10 @@ from interloper.assets.base import Asset
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError, RunnerError
-from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerInstanceSpec
+from pydantic import Field, PrivateAttr
 
 
 class DockerRunner(Runner[Container]):
@@ -34,37 +33,23 @@ class DockerRunner(Runner[Container]):
     still enabling IO-based dependency resolution.
     """
 
-    def __init__(
-        self,
-        image: str,
-        max_containers: int = 4,
-        env_vars: dict[str, str] | None = None,
-        volumes: dict[str, dict[str, str]] | list[str] | None = None,
-        fail_fast: bool = False,
-        reraise: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ) -> None:
-        """Initialize the DockerRunner.
+    image: str
+    max_containers: int = 4
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    volumes: dict[str, dict[str, str]] | list[str] = Field(default_factory=dict)
+    fail_fast: bool = False
+    reraise: bool = False
 
-        Args:
-            image: Docker image to use for container execution.
-            max_containers: Maximum number of concurrent containers.
-            env_vars: Environment variables to pass to the container.
-            volumes: Volume mounts for the container.
-            fail_fast: Stop execution on first failure.
-            reraise: Re-raise exceptions.
-            on_event: Optional event handler for lifecycle events.
-        """
-        super().__init__(fail_fast=fail_fast, reraise=reraise, on_event=on_event)
-        self._image = image
-        self._max_containers = max_containers
-        self._env_vars = env_vars or {}
-        self._volumes = volumes or {}
+    _docker: Any = PrivateAttr()
+
+    def model_post_init(self, __context: Any, /) -> None:
+        """Initialize Docker client after model initialization."""
+        super().model_post_init(__context)
         self._docker = docker.from_env()
 
     @property
     def _capacity(self) -> int:
-        return self._max_containers
+        return self.max_containers
 
     def _build_command(
         self,
@@ -110,21 +95,21 @@ class DockerRunner(Runner[Container]):
 
     def _build_env(self) -> dict[str, str]:
         """Build the environment variables for the container."""
-        return dict(self._env_vars)
+        return dict(self.env_vars)
 
     def _build_volumes(self) -> dict[str, dict[str, str]]:
         """Build the volume mounts for the container."""
-        volumes = {}
-        if isinstance(self._volumes, dict):
-            volumes.update(self._volumes)
-        elif isinstance(self._volumes, list):
-            for volume in self._volumes:
+        volumes: dict[str, dict[str, str]] = {}
+        if isinstance(self.volumes, dict):
+            volumes.update(self.volumes)
+        elif isinstance(self.volumes, list):
+            for volume in self.volumes:
                 volumes[volume.split(":")[0]] = {"bind": volume.split(":")[1], "mode": "rw"}
         return volumes
 
     def _build_name(self, asset: Asset) -> str:
         """Build the name for the container."""
-        name = f"interloper_run_{self.state.run_id[:8]}-{asset.instance_key}"
+        name = f"interloper_run_{self.state.run_id[:8]}-{asset.key}"
         return name.replace(":", "-").replace("_", "-").lower()
 
     def _submit_asset(
@@ -145,7 +130,7 @@ class DockerRunner(Runner[Container]):
             The container object for the asset execution
         """
         # Build a mini-DAG: target asset + its parents (non-materializable)
-        mini_dag = self.state.dag.mini_dag(asset.instance_key)
+        mini_dag = self.state.dag.mini_dag(asset.key)
 
         cmd = self._build_command(mini_dag, partition_or_window, self.state.run_id)
         name = self._build_name(asset)
@@ -155,12 +140,12 @@ class DockerRunner(Runner[Container]):
         self.state.mark_asset_running(asset)
 
         container = self._docker.containers.run(
-            image=self._image,
+            image=self.image,
             name=name,
             command=cmd,
             environment=env,
             volumes=volumes if volumes else None,
-            labels={"interloper.asset_key": asset.instance_key},
+            labels={"interloper.asset_key": asset.key},
             remove=False,
             detach=True,
             stdout=True,
@@ -201,7 +186,9 @@ class DockerRunner(Runner[Container]):
                     if status_code == 0:
                         self.state.mark_asset_completed(asset)
                     else:
-                        self.state.mark_asset_failed(asset, f"Container {container.id} exited with code {status_code}")
+                        self.state.mark_asset_failed(
+                            asset, f"Container {container.id} exited with code {status_code}"
+                        )
 
                         try:
                             logs = container.logs(stdout=True, stderr=True)
@@ -213,8 +200,10 @@ class DockerRunner(Runner[Container]):
                         except Exception:
                             pass
 
-                        if self._reraise or self._fail_fast:
-                            raise RunnerError(f"Container {container.id} exited with code {status_code}")
+                        if self.reraise or self.fail_fast:
+                            raise RunnerError(
+                                f"Container {container.id} exited with code {status_code}"
+                            )
 
                     # Remove the container after processing
                     try:
@@ -238,16 +227,3 @@ class DockerRunner(Runner[Container]):
                 asset_key = container.labels.get("interloper.asset_key")
                 asset = self.state.dag.asset_map[asset_key]
                 self.state.mark_asset_canceled(asset)
-
-    def to_spec(self) -> RunnerInstanceSpec:
-        return RunnerInstanceSpec(
-            path=self.path,
-            init=dict(
-                image=self._image,
-                max_containers=self._max_containers,
-                env_vars=self._env_vars,
-                volumes=self._volumes,
-                fail_fast=self._fail_fast,
-                reraise=self._reraise,
-            ),
-        )

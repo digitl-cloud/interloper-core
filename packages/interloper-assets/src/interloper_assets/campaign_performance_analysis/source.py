@@ -11,7 +11,7 @@ class CampaignPerformanceAnalysis:
     @il.asset(
         tags=["Transform"],
         requires={
-            "amazon_ads_campaigns": AmazonAds.products_campaigns.definition_key,
+            "amazon_ads_campaigns": AmazonAds.products_campaigns.qualified_key,
         },
     )
     def matcher(

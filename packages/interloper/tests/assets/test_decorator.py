@@ -31,7 +31,7 @@ class TestAssetDecorator:
             return "value"
 
         assert isinstance(my_asset, il.AssetDefinition)
-        assert my_asset.name == "my_asset"
+        assert my_asset.key == "my_asset"
         assert my_asset.func is not None
 
     def test_decorator_with_empty_parentheses(self):
@@ -42,16 +42,16 @@ class TestAssetDecorator:
             return "value"
 
         assert isinstance(my_asset, il.AssetDefinition)
-        assert my_asset.name == "my_asset"
+        assert my_asset.key == "my_asset"
 
-    def test_decorator_with_name(self):
-        """Test @asset decorator with custom name."""
+    def test_decorator_with_key(self):
+        """Test @asset decorator with custom key."""
 
-        @il.asset(name="custom_name")
+        @il.asset(key="custom_name")
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        assert my_asset.name == "custom_name"
+        assert my_asset.key == "custom_name"
 
     def test_decorator_with_requires(self):
         """Test @asset decorator with requires parameter."""
@@ -115,7 +115,7 @@ class TestAssetDecorator:
         partitioning = il.TimePartitionConfig(column="date")
 
         @il.asset(
-            name="custom",
+            key="custom",
             schema=SampleSchema,
             config=SampleConfig,
             partitioning=partitioning,
@@ -124,7 +124,7 @@ class TestAssetDecorator:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"value": 1, "name": "test", "date": dt.date(2025, 1, 1)}]
 
-        assert my_asset.name == "custom"
+        assert my_asset.key == "custom"
         assert my_asset.schema == SampleSchema
         assert my_asset.config == SampleConfig
         assert my_asset.partitioning == partitioning

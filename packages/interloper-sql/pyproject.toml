@@ -8,10 +8,7 @@ description = "Interloper SQLAlchemy IO managers"
 readme = "README.md"
 authors = [{ name = "Guillaume Onfroy", email = "guillaume@digitlcloud.com" }]
 requires-python = ">=3.10"
-dependencies = [
-    "sqlalchemy>=2.0",
-    "interloper-core",
-]
+dependencies = ["sqlalchemy>=2.0", "interloper-core"]
 
 [project.optional-dependencies]
 postgres = ["psycopg2-binary>=2.9"]

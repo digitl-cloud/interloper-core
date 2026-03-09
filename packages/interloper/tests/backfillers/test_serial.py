@@ -21,7 +21,7 @@ class TestSerialBackfiller:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
+        dag = il.DAG(my_asset(io=il.FileIO(base_path=str(tmp_path))))
         backfiller = il.SerialBackfiller(runner=il.SerialRunner())
         result = backfiller.backfill(
             dag=dag,
@@ -40,7 +40,7 @@ class TestSerialBackfiller:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        dag = il.DAG(my_asset(io=il.FileIO(tmp_path)))
+        dag = il.DAG(my_asset(io=il.FileIO(base_path=str(tmp_path))))
         backfiller = il.SerialBackfiller(runner=il.SerialRunner())
         result = backfiller.backfill(
             dag=dag,

@@ -8,10 +8,7 @@ description = "Interloper pandas integration: DataFrame normalizer and adapter"
 readme = "README.md"
 authors = [{ name = "Guillaume Onfroy", email = "guillaume@digitlcloud.com" }]
 requires-python = ">=3.10"
-dependencies = [
-    "pandas>=1.5",
-    "interloper-core",
-]
+dependencies = ["interloper-core", "pandas>=1.5"]
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]

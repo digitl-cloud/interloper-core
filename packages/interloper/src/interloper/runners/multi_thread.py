@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Any
 
+from pydantic import PrivateAttr
+
 from interloper.assets.base import Asset
 from interloper.errors import RunnerError
-from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerInstanceSpec
 
 
 class MultiThreadRunner(Runner[Future[Any]]):
@@ -22,31 +21,18 @@ class MultiThreadRunner(Runner[Future[Any]]):
     Default runner for dag.materialize().
     """
 
-    def __init__(
-        self,
-        max_workers: int = 4,
-        fail_fast: bool = True,
-        reraise: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ):
-        """Initialize the multi-thread runner.
+    max_workers: int = 4
+    fail_fast: bool = True
+    reraise: bool = False
 
-        Args:
-            max_workers: Maximum number of worker threads.
-            fail_fast: Stop execution after the first asset failure.
-            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
-            on_event: Event callback, filtered by run_id.
-        """
-        super().__init__(fail_fast, reraise, on_event)
-        self._max_workers = max_workers
-        self._pool = None
+    _pool: ThreadPoolExecutor | None = PrivateAttr(default=None)
 
     @property
     def _capacity(self) -> int:
-        return self._max_workers
+        return self.max_workers
 
     def _on_start(self) -> None:
-        self._pool = ThreadPoolExecutor(max_workers=self._max_workers)
+        self._pool = ThreadPoolExecutor(max_workers=self.max_workers)
 
     def _on_end(self) -> None:
         if self._pool is not None:
@@ -71,9 +57,9 @@ class MultiThreadRunner(Runner[Future[Any]]):
         try:
             future.result()
         except Exception:
-            if self._fail_fast:
+            if self.fail_fast:
                 self._cancel_all([h for h in handles if h is not future])
-            if self._fail_fast or self._reraise:
+            if self.fail_fast or self.reraise:
                 raise
         return future
 
@@ -83,18 +69,3 @@ class MultiThreadRunner(Runner[Future[Any]]):
                 h.cancel()
             except Exception:  # noqa: BLE001, S110
                 pass
-
-    def to_spec(self) -> RunnerInstanceSpec:
-        """Serialize to a RunnerSpec.
-
-        Returns:
-            A RunnerSpec for this multi-thread runner.
-        """
-        return RunnerInstanceSpec(
-            path=self.path,
-            init={
-                "max_workers": self._max_workers,
-                "fail_fast": self._fail_fast,
-                "reraise": self._reraise,
-            },
-        )

@@ -19,7 +19,7 @@ class TestConfig:
         assert config.dag is dag
         assert config.backfiller is None
         assert config.runner is None
-        assert config.io == {}
+        assert config.io == []
 
     def test_creation_with_all_fields(self):
         """Config accepts all optional fields."""

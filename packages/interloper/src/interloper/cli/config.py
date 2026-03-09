@@ -16,7 +16,7 @@ class Config:
     dag: DAG
     backfiller: Backfiller | None = None
     runner: Runner | None = None
-    io: dict[str, IO] = field(default_factory=dict)
+    io: list[IO] = field(default_factory=list)
 
     def to_spec(self) -> ConfigInstanceSpec:
         """Convert to a serializable ConfigSpec.
@@ -27,7 +27,7 @@ class Config:
         return ConfigInstanceSpec(
             backfiller=self.backfiller.to_spec() if self.backfiller is not None else None,
             runner=self.runner.to_spec() if self.runner is not None else None,
-            io={k: v.to_spec() for k, v in self.io.items()},
+            io=[v.to_spec() for v in self.io],
             dag=self.dag.to_spec(),
         )
 

@@ -16,7 +16,7 @@ class TestMultiThreadRunner:
     def test_initialization_with_max_workers(self, dag):
         """Test MultiThreadRunner with max_workers."""
         runner = il.MultiThreadRunner(max_workers=4)
-        assert runner._max_workers == 4
+        assert runner.max_workers == 4
 
     def test_materialize_non_partitioned(self, dag):
         """Test materialize for non-partitioned DAG using complex topology."""
@@ -150,6 +150,6 @@ class TestMultiThreadRunner:
         # Verify that both sources' assets were executed
         # The assets should be tracked by their keys, not names
         executed_keys = set(result.completed_assets)
-        expected_keys = {asset.instance_key for asset in double_source_dag.assets}
+        expected_keys = {asset.key for asset in double_source_dag.assets}
         assert executed_keys == expected_keys
 

@@ -7,82 +7,37 @@ from abc import abstractmethod
 from collections.abc import Callable
 from typing import Any, Generic, TypeVar
 
-from typing_extensions import Self
+from pydantic import Field, PrivateAttr
 
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError, RunnerError
-from interloper.events.base import Event, flush, subscribe, unsubscribe
+from interloper.events.base import Event
+from interloper.events.subscriber import EventSubscriber
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
 from interloper.runners.state import RunState
-from interloper.serialization.base import Serializable
-from interloper.serialization.runner import RunnerInstanceSpec
+from interloper.serialization.base import Component
 
 HandleT = TypeVar("HandleT")
 
 
-class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
+class Runner(EventSubscriber, Component, Generic[HandleT]):
     """Abstract base class for all runners.
 
     Runners differ only in their orchestration strategy (sequential vs parallel).
     The actual execution logic is the same across all runners.
     """
 
-    def __init__(
-        self,
-        fail_fast: bool = False,
-        reraise: bool = True,
-        on_event: Callable[[Event], None] | None = None,
-    ):
-        """Initialize the runner.
+    _state_id_field = "run_id"
 
-        Args:
-            fail_fast: Stop execution after the first asset failure.
-            reraise: Re-raise exceptions to the caller (takes precedence over fail_fast).
-            on_event: Event callback, filtered by run_id. When provided, the runner
-                can be used as a context manager for automatic subscribe/unsubscribe.
-        """
-        self._fail_fast: bool = fail_fast
-        self._reraise: bool = reraise
-        self._state: RunState | None = None
+    fail_fast: bool = False
+    reraise: bool = True
+    on_event: Callable[[Event], None] | None = Field(default=None, exclude=True, repr=False)
 
-        # Event handling
-        self._on_event: Callable[[Event], None] | None = None
-        self._subscribed_via_context_manager: bool = False
-
-        if on_event is not None:
-
-            def event_handler(event: Event) -> None:
-                if self._state is not None and event.metadata.get("run_id") == self._state.run_id:
-                    on_event(event)
-
-            self._on_event = event_handler
-            subscribe(event_handler)
-
-    def __del__(self) -> None:
-        """Flush pending events and unsubscribe if not using context manager."""
-        if self._on_event is not None and not self._subscribed_via_context_manager:
-            flush()
-            unsubscribe(self._on_event)
-
-    def __enter__(self) -> Self:
-        """Mark that event cleanup should happen on __exit__ rather than __del__.
-
-        Returns:
-            This runner instance for use in a ``with`` block.
-        """
-        self._subscribed_via_context_manager = True
-        return self
-
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Flush pending events and unsubscribe from the event bus."""
-        if self._on_event is not None and self._subscribed_via_context_manager:
-            # Wait for any pending events to be processed before unsubscribing
-            flush()
-            unsubscribe(self._on_event)
-            self._on_event = None
-            self._subscribed_via_context_manager = False
+    _state: RunState | None = PrivateAttr(default=None)
+    _on_event: Callable[[Event], None] | None = PrivateAttr(default=None)
+    _subscribed_via_context_manager: bool = PrivateAttr(default=False)
 
     def _on_start(self) -> None:
         """Lifecycle hook called before a run begins (e.g. create pools)."""
@@ -147,7 +102,7 @@ class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
             self.state.mark_asset_failed(asset, str(e), tb=traceback.format_exc())
 
             # If reraise is True, always re-raise. Otherwise, re-raise only if fail_fast is True.
-            if self._reraise or self._fail_fast:
+            if self.reraise or self.fail_fast:
                 raise
             return None
         return result
@@ -180,7 +135,7 @@ class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
             return
 
         unsupported_assets = [
-            asset.instance_key
+            asset.key
             for asset in dag.assets
             if asset.materializable and asset.partitioning is not None and not asset.partitioning.allow_window
         ]
@@ -223,14 +178,14 @@ class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
 
             while not self.state.is_run_complete():
                 # Fill capacity with any currently ready assets not yet submitted
-                submitted_keys = {asset.instance_key for asset in inflight.values()}
+                submitted_keys = {asset.key for asset in inflight.values()}
                 ready_assets = self.state.ready_assets
 
                 for asset in ready_assets:
                     if len(inflight) >= self._capacity:
                         break
 
-                    if asset.instance_key in submitted_keys:
+                    if asset.key in submitted_keys:
                         continue
 
                     handle = self._submit_asset(asset, partition_or_window)
@@ -260,7 +215,7 @@ class Runner(Serializable[RunnerInstanceSpec], Generic[HandleT]):
         except Exception as e:
             asset_executions = self.state.end_run(ExecutionStatus.FAILED, str(e))
 
-            if self._reraise:
+            if self.reraise:
                 raise
             else:
                 print(f"Exception in run {self.state.run_id}: {e}")

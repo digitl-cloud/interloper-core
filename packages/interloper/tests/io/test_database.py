@@ -4,6 +4,7 @@ import datetime as dt
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import Field
 
 from interloper.errors import AdapterError
 from interloper.io.adapter import RowAdapter
@@ -15,10 +16,7 @@ from interloper.partitioning.time import TimePartition, TimePartitionConfig, Tim
 class StubDatabaseIO(DatabaseIO):
     """Concrete DatabaseIO that records calls to abstract methods."""
 
-    def __init__(self, **kwargs):
-        """Initialize with call-tracking state."""
-        super().__init__(**kwargs)
-        self.calls: list[tuple] = []
+    calls: list[tuple] = Field(default_factory=list, exclude=True)
 
     def _insert(self, table, schema, rows):
         self.calls.append(("insert", table, schema, rows))
@@ -41,18 +39,16 @@ class StubDatabaseIO(DatabaseIO):
         self.calls.append(("count_by_partition", table, schema, column))
         return {}
 
-    def to_spec(self):
-        pass  # not needed for these tests
-
 
 def _make_asset(*, name="my_table", dataset="my_schema", partitioning=None):
     """Create a mock asset with the given attributes.
 
     Returns:
-        Mock asset with name, dataset, and partitioning.
+        Mock asset with key, dataset, and partitioning.
     """
     asset = MagicMock()
-    asset.name = name
+    asset.key = name
+    asset.local_key = name
     asset.dataset = dataset
     asset.partitioning = partitioning
     return asset
@@ -207,29 +203,29 @@ class TestDatabaseIO:
         with pytest.raises(AdapterError, match="No adapter configured"):
             stub._to_rows({"a": 1})
 
-    # ---- _base_init_kwargs ----
+    # ---- to_spec / model_dump serialization ----
 
-    def test_base_init_kwargs_defaults(self, stub):
-        """_base_init_kwargs returns correct dict for default settings."""
-        kwargs = stub._base_init_kwargs()
-        assert kwargs == {
+    def test_to_spec_defaults(self, stub):
+        """to_spec returns correct spec for default settings."""
+        spec = stub.to_spec()
+        assert spec.config == {
             "write_disposition": "append",
             "chunk_size": 1000,
         }
 
-    def test_base_init_kwargs_with_adapter(self):
-        """_base_init_kwargs includes adapter path when an adapter is set."""
+    def test_to_spec_with_adapter(self):
+        """to_spec includes adapter path when an adapter is set."""
         db = StubDatabaseIO(adapter=RowAdapter())
-        kwargs = db._base_init_kwargs()
-        assert kwargs["adapter"] == "interloper.io.adapter.RowAdapter"
-        assert kwargs["write_disposition"] == "append"
-        assert kwargs["chunk_size"] == 1000
+        spec = db.to_spec()
+        assert spec.config["adapter"] == "interloper.io.adapter.RowAdapter"
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 1000
 
-    def test_base_init_kwargs_custom_settings(self):
-        """_base_init_kwargs reflects non-default write_disposition and chunk_size."""
+    def test_to_spec_custom_settings(self):
+        """to_spec reflects non-default write_disposition and chunk_size."""
         db = StubDatabaseIO(write_disposition=WriteDisposition.REPLACE, chunk_size=500)
-        kwargs = db._base_init_kwargs()
-        assert kwargs == {
+        spec = db.to_spec()
+        assert spec.config == {
             "write_disposition": "replace",
             "chunk_size": 500,
         }

@@ -25,10 +25,11 @@ def asset(func: Callable[..., Any]) -> AssetDefinition: ...
 @overload
 def asset(
     *,
-    name: str | None = None,
+    key: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    io: IO | None = None,
+    io: IO | list[IO] | None = None,
+    default_io_key: str | None = None,
     normalizer: Normalizer | None = None,
     strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
@@ -42,10 +43,11 @@ def asset(
 def asset(
     func: Callable[..., Any] | None = None,
     *,
-    name: str | None = None,
+    key: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    io: IO | None = None,
+    io: IO | list[IO] | None = None,
+    default_io_key: str | None = None,
     normalizer: Normalizer | None = None,
     strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
@@ -71,10 +73,11 @@ def asset(
     def decorator(f: Callable[..., Any]) -> AssetDefinition:
         return AssetDefinition(
             func=f,
-            name=name or "",
+            key=key or "",
             schema=schema,
             config=config,
             io=io,
+            default_io_key=default_io_key,
             normalizer=normalizer,
             strategy=strategy,
             partitioning=partitioning,

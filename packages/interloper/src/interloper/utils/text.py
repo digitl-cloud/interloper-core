@@ -5,19 +5,23 @@ import re
 _NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
-def validate_name(name: str) -> None:
-    """Validate that *name* contains only letters, numbers, and underscores.
+def validate_key(key: str) -> None:
+    """Validate that *key* contains only letters, numbers, and underscores.
 
     Must start with a letter.
 
     Raises:
-        ValueError: If the name is invalid.
+        ValueError: If the key is invalid.
     """
-    if not _NAME_RE.match(name):
+    if not _NAME_RE.match(key):
         raise ValueError(
-            f"Name '{name}' is invalid. "
-            "Names must start with a letter and contain only letters, numbers, and underscores."
+            f"Key '{key}' is invalid. "
+            "Keys must start with a letter and contain only letters, numbers, and underscores."
         )
+
+
+# Backward-compatible alias
+validate_name = validate_key
 
 
 def slugify(text: str) -> str:

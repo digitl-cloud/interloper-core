@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from dbos import DBOS, DBOSConfiguredInstance, Queue, SetWorkflowID, WorkflowHandle
 from dbos._sys_db import StepInfo
-from interloper import Event, RunResult
+from interloper import RunResult
 from interloper.assets.base import Asset
 from interloper.dag.base import DAG
 from interloper.errors import RunnerError
@@ -15,35 +14,31 @@ from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus
 from interloper.serialization.asset import AssetInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
-from interloper.serialization.runner import RunnerInstanceSpec
+from pydantic import PrivateAttr
 
 
 @DBOS.dbos_class()
 class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     """DBOS-based runner for durable workflow execution."""
 
-    def __init__(
-        self,
-        concurrency: int = 10,
-        on_event: Callable[[Event], None] | None = None,
-    ):
-        """Initialize the DBOS runner.
+    concurrency: int = 10
+    fail_fast: bool = False
+    reraise: bool = True
 
-        Args:
-            concurrency: The concurrency of the DBOS queue.
-            on_event: Optional event handler for lifecycle events.
-        """
-        Runner.__init__(self, fail_fast=False, reraise=True, on_event=on_event)
+    _queue: Any = PrivateAttr()
+    _handle: WorkflowHandle | None = PrivateAttr(default=None)
+
+    def model_post_init(self, __context: Any, /) -> None:
+        """Initialize DBOS-specific state after model initialization."""
+        super().model_post_init(__context)
         DBOSConfiguredInstance.__init__(self, config_name="interloper")
-
-        self._concurrency = concurrency
         self._queue = Queue("interloper", concurrency=self._capacity)
-        self._handle = None
 
     @property
     def _capacity(self) -> int:
-        return self._concurrency
+        return self.concurrency
 
     @property
     def handle(self) -> WorkflowHandle | None:
@@ -105,7 +100,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
 
         self._queue.enqueue(self._execute_asset_workflow, DBOS.workflow_id, asset.to_spec(), partition_or_window)
 
-        return asset.instance_key
+        return asset.key
 
     def _wait_any(self, handles: list[str]) -> str:
         """Wait for any asset to complete and return the key of the completed asset."""
@@ -123,7 +118,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     def _wait_all(self) -> None:
         while not self.state.is_run_complete():
             try:
-                self._wait_any([asset.instance_key for asset in self.state.running_assets])
+                self._wait_any([asset.key for asset in self.state.running_assets])
             except Exception:
                 pass
 
@@ -148,7 +143,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
             self._wait_all()
             raise RunnerError(
                 f"Failed to materialize workflow. Failed assets: "
-                f"{[asset.instance_key for asset in self.state.failed_assets]}"
+                f"{[asset.key for asset in self.state.failed_assets]}"
             )
 
     @DBOS.workflow(name="execute_asset")
@@ -168,10 +163,10 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         try:
             result = self._execute_asset_step(asset_spec, partition_or_window)
         except Exception as e:
-            DBOS.send(workflow_id, (ExecutionStatus.FAILED.value, asset.instance_key, e))
+            DBOS.send(workflow_id, (ExecutionStatus.FAILED.value, asset.key, e))
             raise e
 
-        DBOS.send(workflow_id, (ExecutionStatus.COMPLETED.value, asset.instance_key, None))
+        DBOS.send(workflow_id, (ExecutionStatus.COMPLETED.value, asset.key, None))
         return result
 
     @DBOS.step(name="execute_asset")
@@ -208,10 +203,10 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
     def get_first_failed_step(self) -> StepInfo | None:
         return next((step for step in self.list_failed_steps()), None)
 
-    def to_spec(self) -> RunnerInstanceSpec:
-        return RunnerInstanceSpec(
+    def to_spec(self) -> ComponentInstanceSpec:
+        return ComponentInstanceSpec(
             path="dbos",
             init={
-                "concurrency": self._concurrency,
+                "concurrency": self.concurrency,
             },
         )

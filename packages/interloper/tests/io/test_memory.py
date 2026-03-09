@@ -157,7 +157,7 @@ class TestMemoryIO:
         spec = memory_io.to_spec()
 
         assert spec.path == "interloper.io.memory.MemoryIO"
-        assert spec.init == {}
+        assert spec.init == {"key": "memory"}
 
     def test_partitioned_with_dataset(self):
         """Test partitioned asset with dataset."""

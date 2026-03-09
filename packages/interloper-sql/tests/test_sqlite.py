@@ -18,7 +18,7 @@ from interloper_sql import SqliteIO
 def _make_context(name="test_table", dataset=None):
     """Build an IOContext for a dummy asset with the given table name and dataset."""
 
-    @il.asset(name=name, dataset=dataset)
+    @il.asset(key=name, dataset=dataset)
     def _dummy():
         return None
 
@@ -34,9 +34,9 @@ class TestSqliteIOInit:
     """SqliteIO constructor and defaults."""
 
     def test_default_memory_database(self):
-        """Default database is :memory:."""
+        """Default database is None (no connection)."""
         io = SqliteIO()
-        assert io.database == ":memory:"
+        assert io.database is None
 
     def test_explicit_memory_database(self):
         """Explicitly passing :memory: works."""
@@ -50,28 +50,28 @@ class TestSqliteIOInit:
         assert io.database == db_path
 
     def test_default_write_disposition(self):
-        """Default write disposition is REPLACE."""
-        io = SqliteIO()
-        assert io.write_disposition is WriteDisposition.REPLACE
+        """Default write disposition is APPEND."""
+        io = SqliteIO(database=":memory:")
+        assert io.write_disposition is WriteDisposition.APPEND
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""
-        io = SqliteIO(write_disposition=WriteDisposition.APPEND)
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.APPEND)
         assert io.write_disposition is WriteDisposition.APPEND
 
     def test_default_chunk_size(self):
         """Default chunk_size is 1000."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         assert io.chunk_size == 1000
 
     def test_custom_chunk_size(self):
         """Explicit chunk_size is preserved."""
-        io = SqliteIO(chunk_size=500)
+        io = SqliteIO(database=":memory:", chunk_size=500)
         assert io.chunk_size == 500
 
     def test_is_io_subclass(self):
         """SqliteIO is an IO subclass."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         assert isinstance(io, il.IO)
 
 
@@ -85,26 +85,34 @@ class TestSqliteIOSpec:
 
     def test_to_spec_default(self):
         """to_spec captures default constructor arguments."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         spec = io.to_spec()
 
         assert spec.path == "interloper_sql.io.sqlite.SqliteIO"
-        assert spec.init["database"] == ":memory:"
-        assert spec.init["write_disposition"] == "replace"
-        assert spec.init["chunk_size"] == 1000
+        assert spec.config["database"] == ":memory:"
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 1000
 
     def test_to_spec_custom(self):
         """to_spec captures custom constructor arguments."""
-        io = SqliteIO(database="/tmp/test.db", write_disposition=WriteDisposition.APPEND, chunk_size=500)
+        io = SqliteIO(
+            database="/tmp/test.db",
+            write_disposition=WriteDisposition.APPEND,
+            chunk_size=500,
+        )
         spec = io.to_spec()
 
-        assert spec.init["database"] == "/tmp/test.db"
-        assert spec.init["write_disposition"] == "append"
-        assert spec.init["chunk_size"] == 500
+        assert spec.config["database"] == "/tmp/test.db"
+        assert spec.config["write_disposition"] == "append"
+        assert spec.config["chunk_size"] == 500
 
     def test_roundtrip(self):
         """to_spec -> reconstruct produces an equivalent SqliteIO."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.APPEND, chunk_size=250)
+        io = SqliteIO(
+            database=":memory:",
+            write_disposition=WriteDisposition.APPEND,
+            chunk_size=250,
+        )
         spec = io.to_spec()
         restored = spec.reconstruct()
 
@@ -124,7 +132,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_then_read(self):
         """Write rows, then read them back."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("simple")
         rows = [{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}]
 
@@ -135,7 +143,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_empty_rows_is_noop(self):
         """Writing an empty list should not create a table."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("empty_table")
 
         io.write(ctx, [])
@@ -145,7 +153,7 @@ class TestSqliteIOReadWrite:
 
     def test_read_nonexistent_table_raises(self):
         """Reading a table that doesn't exist raises TableNotFoundError."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("no_such_table")
 
         with pytest.raises(TableNotFoundError):
@@ -153,7 +161,7 @@ class TestSqliteIOReadWrite:
 
     def test_multiple_writes_replace_mode(self):
         """With REPLACE disposition, a second write replaces the first."""
-        io = SqliteIO(write_disposition=WriteDisposition.REPLACE)
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("replace_test")
 
         io.write(ctx, [{"v": 1}])
@@ -164,7 +172,7 @@ class TestSqliteIOReadWrite:
 
     def test_multiple_writes_append_mode(self):
         """With APPEND disposition, writes accumulate."""
-        io = SqliteIO(write_disposition=WriteDisposition.APPEND)
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.APPEND)
         ctx = _make_context("append_test")
 
         io.write(ctx, [{"v": 1}])
@@ -175,7 +183,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_various_types(self):
         """Rows containing int, float, str, bool persist correctly."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("types_test")
         rows = [{"i": 42, "f": 3.14, "s": "hello", "b": True}]
 
@@ -191,7 +199,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_large_batch_chunked(self):
         """Rows exceeding chunk_size are still written completely."""
-        io = SqliteIO(chunk_size=3)
+        io = SqliteIO(database=":memory:", chunk_size=3)
         ctx = _make_context("chunked")
         rows = [{"n": i} for i in range(10)]
 
@@ -212,7 +220,7 @@ class TestSqliteIOTableCreation:
 
     def test_table_created_on_first_write(self):
         """Writing to a non-existent table creates it automatically."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("auto_create")
 
         io.write(ctx, [{"col_a": "value"}])
@@ -223,7 +231,7 @@ class TestSqliteIOTableCreation:
 
     def test_inferred_column_types(self):
         """Column types are inferred from the first row's Python types."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("infer_types")
         rows = [
             {
@@ -251,7 +259,7 @@ class TestSqliteIOTableCreation:
 
     def test_multiple_tables_same_io(self):
         """A single SqliteIO can manage multiple tables."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx_a = _make_context("table_a")
         ctx_b = _make_context("table_b")
 
@@ -272,7 +280,7 @@ class TestSqliteIODispose:
 
     def test_dispose_clears_cache(self):
         """After dispose(), the internal table cache is empty."""
-        io = SqliteIO()
+        io = SqliteIO(database=":memory:")
         ctx = _make_context("dispose_test")
         io.write(ctx, [{"a": 1}])
 

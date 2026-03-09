@@ -7,41 +7,41 @@ IO backends control **where** and **how** asset data is stored. IO is completely
 ### On a source
 
 ```py
-source = MySource(io=il.FileIO("./data"))
+source = MySource(io=il.FileIO(base_path="./data"))
 ```
 
 ### On an individual asset
 
 ```py
-asset_instance = my_asset(io=il.FileIO("./data"))
+asset_instance = my_asset(io=il.FileIO(base_path="./data"))
 ```
 
 ### Multiple IO backends
 
-Write to multiple destinations simultaneously:
+Write to multiple destinations simultaneously by passing a list of IO instances, each identified by its `key`:
 
 ```py
 from interloper_sql import PostgresIO, SqliteIO
 
 source = MySource(
-    io={
-        "postgres": PostgresIO(host="localhost", database="mydb", user="user", password="pass"),
-        "sqlite": SqliteIO(database="data/local.db"),
-    },
+    io=[
+        PostgresIO(key="postgres", host="localhost", database="mydb", username="user", password="pass"),
+        SqliteIO(key="sqlite", database="data/local.db"),
+    ],
 )
 
 dag = il.DAG(source)
 dag.materialize()
 ```
 
-When using multiple IOs with upstream dependencies, set `default_io_key` to specify which backend to read from:
+When using multiple IOs with upstream dependencies, set `default_io_key` to specify which backend to read from. The key matches against each IO's `key` field:
 
 ```py
 asset_instance = my_asset(
-    io={
-        "postgres": PostgresIO(...),
-        "file": il.FileIO("./data"),
-    },
+    io=[
+        PostgresIO(key="postgres", host="localhost", database="mydb", username="user", password="pass"),
+        il.FileIO(key="file", base_path="./data"),
+    ],
     default_io_key="postgres",
 )
 ```
@@ -69,7 +69,7 @@ il.MemoryIO.clear()
 Pickle-based storage on the local filesystem.
 
 ```py
-asset_instance = my_asset(io=il.FileIO("./data"))
+asset_instance = my_asset(io=il.FileIO(base_path="./data"))
 asset_instance.materialize()
 # Writes to ./data/{dataset}/{asset_name}/data.pkl
 ```
@@ -100,7 +100,7 @@ io = PostgresIO(
     host="localhost",
     port=5432,
     database="mydb",
-    user="user",
+    username="user",
     password="pass",
 )
 ```
@@ -114,7 +114,7 @@ io = MySQLIO(
     host="localhost",
     port=3306,
     database="mydb",
-    user="user",
+    username="user",
     password="pass",
 )
 ```
@@ -126,10 +126,10 @@ from interloper_sql import SqliteIO
 
 io = SqliteIO(database="data/local.db")
 # or in-memory:
-io = SqliteIO(database=":memory:")
+io = SqliteIO()
 ```
 
-All SQL IO backends support `write_disposition` and `chunk_size` options.
+All SQL IO backends support `write_disposition` and `chunk_size` as model fields.
 
 ### interloper-google-cloud
 
@@ -156,18 +156,20 @@ Create a custom IO by extending the `IO` base class:
 
 ```py
 import interloper as il
+from pydantic import ConfigDict
 
 class MyCustomIO(il.IO):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Config fields as model attributes
+    endpoint: str = "https://api.example.com"
+
     def write(self, context: il.IOContext, data):
         # Write data to your destination
         ...
 
     def read(self, context: il.IOContext):
         # Read data from your destination
-        ...
-
-    def to_spec(self):
-        # Return a serializable spec (needed for multi-process runners)
         ...
 ```
 

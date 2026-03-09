@@ -64,17 +64,17 @@ class RunState:
             else:
                 status = ExecutionStatus.QUEUED
 
-            self.asset_executions[asset.instance_key] = AssetExecutionInfo(asset_key=asset.instance_key, status=status)
+            self.asset_executions[asset.key] = AssetExecutionInfo(asset_key=asset.key, status=status)
 
         # Second pass to find ready assets
         for asset in self.queued_assets:
-            has_parents = self.dag.predecessors[asset.instance_key] is not None
+            has_parents = self.dag.predecessors[asset.key] is not None
             all_parents_skipped = all(
                 self.asset_executions[pred].status == ExecutionStatus.SKIPPED
-                for pred in self.dag.predecessors[asset.instance_key]
+                for pred in self.dag.predecessors[asset.key]
             )
             if not has_parents or all_parents_skipped:
-                self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
+                self.asset_executions[asset.key].status = ExecutionStatus.READY
 
     @property
     def queued_assets(self) -> list[Asset]:
@@ -108,7 +108,7 @@ class RunState:
 
     def assets_with_status(self, status: ExecutionStatus) -> list[Asset]:
         """Return all assets matching the given execution status."""
-        return [asset for asset in self.dag.assets if self.asset_executions[asset.instance_key].status == status]
+        return [asset for asset in self.dag.assets if self.asset_executions[asset.key].status == status]
 
     def is_run_complete(self) -> bool:
         """Check whether every asset has reached a terminal state.
@@ -158,31 +158,38 @@ class RunState:
 
         return self.asset_executions.copy()
 
-    def mark_asset_running(self, asset: Asset) -> None:
-        """Transition an asset to RUNNING and emit ASSET_STARTED."""
-        self.asset_executions[asset.instance_key].mark_running()
+    def _asset_event_metadata(self, asset: Asset) -> dict[str, Any]:
+        """Build the base event metadata for an asset state transition.
 
-        metadata = {
+        Merges run-level metadata with asset identity and partition info.
+
+        Args:
+            asset: The asset this event relates to.
+
+        Returns:
+            The merged metadata dict (without ``message``).
+        """
+        return {
             **self.metadata,
             **get_asset_event_metadata(asset),
             "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
-            "message": f"Asset '{asset.instance_key}' started",
         }
+
+    def mark_asset_running(self, asset: Asset) -> None:
+        """Transition an asset to RUNNING and emit ASSET_STARTED."""
+        self.asset_executions[asset.key].mark_running()
+
+        metadata = {**self._asset_event_metadata(asset), "message": f"Asset '{asset.key}' started"}
         emit(EventType.ASSET_STARTED, metadata=metadata)
 
     def mark_asset_completed(self, asset: Asset) -> None:
         """Transition an asset to COMPLETED, emit event, and promote ready dependents."""
-        self.asset_executions[asset.instance_key].mark_completed()
+        self.asset_executions[asset.key].mark_completed()
 
-        metadata = {
-            **self.metadata,
-            **get_asset_event_metadata(asset),
-            "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
-            "message": f"Asset '{asset.instance_key}' completed",
-        }
+        metadata = {**self._asset_event_metadata(asset), "message": f"Asset '{asset.key}' completed"}
         emit(EventType.ASSET_COMPLETED, metadata=metadata)
 
-        self._update_dependent_assets(asset.instance_key)
+        self._update_dependent_assets(asset.key)
 
     def mark_asset_failed(self, asset: Asset, error: str, tb: str | None = None) -> None:
         """Transition an asset to FAILED, emit event, and mark downstream dependents as CANCELED.
@@ -192,31 +199,24 @@ class RunState:
             error: Error message describing the failure.
             tb: Optional formatted traceback string.
         """
-        self.asset_executions[asset.instance_key].mark_failed(error)
+        self.asset_executions[asset.key].mark_failed(error)
 
         metadata: dict[str, Any] = {
-            **self.metadata,
-            **get_asset_event_metadata(asset),
-            "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
+            **self._asset_event_metadata(asset),
             "error": error,
-            "message": f"Asset '{asset.instance_key}' failed: {error}",
+            "message": f"Asset '{asset.key}' failed: {error}",
         }
         if tb:
             metadata["traceback"] = tb
         emit(EventType.ASSET_FAILED, metadata=metadata)
 
-        self._propagate_failure(asset.instance_key)
+        self._propagate_failure(asset.key)
 
     def mark_asset_canceled(self, asset: Asset) -> None:
         """Transition an asset to CANCELED and emit ASSET_CANCELED."""
-        self.asset_executions[asset.instance_key].mark_canceled()
+        self.asset_executions[asset.key].mark_canceled()
 
-        metadata = {
-            **self.metadata,
-            **get_asset_event_metadata(asset),
-            "partition_or_window": str(self.partition_or_window) if self.partition_or_window is not None else None,
-            "message": f"Asset '{asset.instance_key}' canceled (upstream failure)",
-        }
+        metadata = {**self._asset_event_metadata(asset), "message": f"Asset '{asset.key}' canceled (upstream failure)"}
         emit(EventType.ASSET_CANCELED, metadata=metadata)
 
     def _update_dependent_assets(self, completed_asset: AssetInstanceKey) -> None:
@@ -227,17 +227,17 @@ class RunState:
 
             # Check if all predecessors are completed
             predecessors = self.dag.predecessors[successor]
-            completed_keys = [asset.instance_key for asset in self.completed_assets]
+            completed_keys = [asset.key for asset in self.completed_assets]
             all_preds_completed = all(pred in completed_keys for pred in predecessors)
 
-            if self.asset_executions[asset.instance_key].status == ExecutionStatus.QUEUED and all_preds_completed:
-                self.asset_executions[asset.instance_key].status = ExecutionStatus.READY
+            if self.asset_executions[asset.key].status == ExecutionStatus.QUEUED and all_preds_completed:
+                self.asset_executions[asset.key].status = ExecutionStatus.READY
 
     def _propagate_failure(self, failed_asset: AssetInstanceKey) -> None:
         """Recursively mark all downstream dependents as CANCELED."""
         for successor in self.dag.successors.get(failed_asset, []):
             asset = self.dag.asset_map[successor]
-            exec_info = self.asset_executions[asset.instance_key]
+            exec_info = self.asset_executions[asset.key]
 
             if exec_info.status in (
                 ExecutionStatus.COMPLETED,

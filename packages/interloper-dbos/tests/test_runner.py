@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from interloper.errors import RunnerError
-from interloper.serialization.runner import RunnerInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec
 
 from interloper_dbos.runner import DBOSRunner
 
@@ -45,11 +45,11 @@ class TestDBOSRunnerInit:
 
     def test_default_concurrency(self, runner):
         """Default concurrency is 10."""
-        assert runner._concurrency == 10
+        assert runner.concurrency == 10
 
     def test_custom_concurrency(self, runner_custom):
         """Custom concurrency is stored correctly."""
-        assert runner_custom._concurrency == 25
+        assert runner_custom.concurrency == 25
 
     def test_handle_initially_none(self, runner):
         """Handle is None before any workflow execution."""
@@ -61,8 +61,8 @@ class TestDBOSRunnerInit:
 
     def test_inherits_runner_defaults(self, runner):
         """Runner base class defaults are applied (fail_fast=False, reraise=True)."""
-        assert runner._fail_fast is False
-        assert runner._reraise is True
+        assert runner.fail_fast is False
+        assert runner.reraise is True
 
     def test_on_event_none_by_default(self, runner):
         """No event handler is registered by default."""
@@ -95,9 +95,9 @@ class TestDBOSRunnerToSpec:
     """Tests for to_spec() serialization."""
 
     def test_returns_runner_spec(self, runner):
-        """to_spec() returns a RunnerInstanceSpec instance."""
+        """to_spec() returns a ComponentInstanceSpec instance."""
         spec = runner.to_spec()
-        assert isinstance(spec, RunnerInstanceSpec)
+        assert isinstance(spec, ComponentInstanceSpec)
 
     def test_spec_path(self, runner):
         """Spec path is 'dbos'."""
@@ -118,7 +118,7 @@ class TestDBOSRunnerToSpec:
         """Spec can be serialized to JSON and deserialized back."""
         spec = runner.to_spec()
         json_str = spec.model_dump_json()
-        restored = RunnerInstanceSpec.model_validate_json(json_str)
+        restored = ComponentInstanceSpec.model_validate_json(json_str)
         assert restored.path == spec.path
         assert restored.init == spec.init
 
@@ -126,7 +126,7 @@ class TestDBOSRunnerToSpec:
         """Spec can be converted to dict and back."""
         spec = runner_custom.to_spec()
         data = spec.model_dump()
-        restored = RunnerInstanceSpec.model_validate(data)
+        restored = ComponentInstanceSpec.model_validate(data)
         assert restored.path == "dbos"
         assert restored.init == {"concurrency": 25}
 

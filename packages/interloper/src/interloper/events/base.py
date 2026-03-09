@@ -383,17 +383,16 @@ def unsubscribe(handler: Callable[[Event], None]) -> None:
 
 
 def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
-    """Build common metadata fields (key, name, source) for an asset event.
+    """Build common metadata fields (key, source) for an asset event.
 
     Returns:
-        Dict with asset_key, asset_name, and optionally source_name.
+        Dict with asset_key and optionally source_key.
     """
-    metadata = {
-        "asset_key": asset.instance_key,
-        "asset_name": asset.name,
+    metadata: dict[str, Any] = {
+        "asset_key": asset.key,
     }
     if asset.source is not None:
-        metadata["source_name"] = asset.source.name
+        metadata["source_key"] = asset.source.key
     return metadata
 
 

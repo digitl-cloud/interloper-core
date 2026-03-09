@@ -8,7 +8,6 @@ asset scheduling delegated to the configured runner in the inline config.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from time import sleep
 from typing import Any, cast
 
@@ -16,14 +15,13 @@ from interloper.backfillers.base import Backfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError, RunnerError
-from interloper.events.base import Event, EventBus, parse_event_from_log_line
+from interloper.events.base import EventBus, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.backfiller import BackfillerInstanceSpec
 from kubernetes import client, config, watch
 from kubernetes.client import V1Job
+from pydantic import Field, PrivateAttr
 
 
 class KubernetesBackfiller(Backfiller[str]):
@@ -33,67 +31,34 @@ class KubernetesBackfiller(Backfiller[str]):
     the `interloper` package (CLI available on PATH).
     """
 
-    def __init__(
-        self,
-        image: str,
-        namespace: str = "default",
-        max_jobs: int = 4,
-        env_vars: dict[str, str] | None = None,
-        service_account: str | None = None,
-        image_pull_policy: str | None = None,
-        image_pull_secrets: list[str] | None = None,
-        resources: dict[str, dict[str, str]] | None = None,
-        node_selector: dict[str, str] | None = None,
-        tolerations: list[dict[str, Any]] | None = None,
-        ttl_seconds_after_finished: int = 300,
-        runner: Runner | None = None,
-        on_event: Callable[[Event], None] | None = None,
-    ) -> None:
-        """Initialize the KubernetesBackfiller.
+    image: str
+    namespace: str = "default"
+    max_jobs: int = 4
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    service_account: str | None = None
+    image_pull_policy: str | None = None
+    image_pull_secrets: list[str] = Field(default_factory=list)
+    resources: dict[str, dict[str, str]] | None = None
+    node_selector: dict[str, str] | None = None
+    tolerations: list[dict[str, Any]] = Field(default_factory=list)
+    ttl_seconds_after_finished: int = 300
 
-        Args:
-            image: Container image to use for job execution.
-            namespace: Kubernetes namespace to create jobs in.
-            max_jobs: Maximum number of concurrent jobs.
-            env_vars: Environment variables to set in the container.
-            service_account: Service account name to use for the job.
-            image_pull_policy: Image pull policy ("Always", "IfNotPresent", or "Never").
-            image_pull_secrets: List of image pull secret names.
-            resources: Resource requests/limits dict with 'requests' and 'limits' keys.
-            node_selector: Node selector labels for pod scheduling.
-            tolerations: List of toleration dicts for pod scheduling.
-            ttl_seconds_after_finished: TTL for completed jobs cleanup.
-            runner: Runner to use for running assets inside the container.
-            on_event: Optional event handler for lifecycle events.
-        """
-        super().__init__(runner=runner, on_event=on_event)
+    _batch_v1: client.BatchV1Api | None = PrivateAttr(default=None)
+    _core_v1: client.CoreV1Api | None = PrivateAttr(default=None)
+    _log_threads: dict[str, threading.Thread] = PrivateAttr(default_factory=dict)
+    _stop_log_streaming: threading.Event = PrivateAttr(default_factory=threading.Event)
+
+    def model_post_init(self, __context: Any, /) -> None:
+        """Force runner to reraise after model initialization."""
+        super().model_post_init(__context)
 
         # Force the runner to re-raise exceptions to propagate container exit codes.
-        self.runner._reraise = True
-
-        self._image = image
-        self._namespace = namespace
-        self._max_jobs = max_jobs
-        self._env_vars = env_vars or {}
-        self._service_account = service_account
-        self._image_pull_policy = image_pull_policy
-        self._image_pull_secrets = image_pull_secrets or []
-        self._resources = resources
-        self._node_selector = node_selector
-        self._tolerations = tolerations or []
-        self._ttl_seconds_after_finished = ttl_seconds_after_finished
-
-        self._batch_v1: client.BatchV1Api | None = None
-        self._core_v1: client.CoreV1Api | None = None
-
-        # Track log streaming threads for cleanup
-        self._log_threads: dict[str, threading.Thread] = {}
-        self._stop_log_streaming = threading.Event()
+        self.runner.reraise = True
 
     @property
     def _capacity(self) -> int:
         """Maximum number of concurrent jobs."""
-        return self._max_jobs
+        return self.max_jobs
 
     def _on_start(self) -> None:
         """Initialize Kubernetes client."""
@@ -165,18 +130,18 @@ class KubernetesBackfiller(Backfiller[str]):
 
     def _build_env(self) -> list[client.V1EnvVar]:
         """Build the environment variables for the container."""
-        env_vars = [client.V1EnvVar(name=k, value=v) for k, v in self._env_vars.items()]
+        env_vars = [client.V1EnvVar(name=k, value=v) for k, v in self.env_vars.items()]
         # Enable log-based event streaming
         env_vars.append(client.V1EnvVar(name="INTERLOPER_EVENTS_TO_STDERR", value="true"))
         return env_vars
 
     def _build_resources(self) -> client.V1ResourceRequirements | None:
         """Build the resource requirements for the container."""
-        if not self._resources:
+        if not self.resources:
             return None
         return client.V1ResourceRequirements(
-            requests=self._resources.get("requests"),
-            limits=self._resources.get("limits"),
+            requests=self.resources.get("requests"),
+            limits=self.resources.get("limits"),
         )
 
     def _build_tolerations(self) -> list[client.V1Toleration]:
@@ -188,7 +153,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 value=t.get("value"),
                 effect=t.get("effect"),
             )
-            for t in self._tolerations
+            for t in self.tolerations
         ]
 
     def _build_job_name(self, partition_or_window: Partition | PartitionWindow | None) -> str:
@@ -228,7 +193,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 while not self._stop_log_streaming.is_set():
                     try:
                         pods = core_v1.list_namespaced_pod(
-                            namespace=self._namespace,
+                            namespace=self.namespace,
                             label_selector=f"job-name={job_name}",
                         )
                         if pods.items:
@@ -251,7 +216,7 @@ class KubernetesBackfiller(Backfiller[str]):
                     for line in w.stream(
                         core_v1.read_namespaced_pod_log,
                         name=pod_name,
-                        namespace=self._namespace,
+                        namespace=self.namespace,
                         follow=True,
                     ):
                         if self._stop_log_streaming.is_set():
@@ -314,8 +279,8 @@ class KubernetesBackfiller(Backfiller[str]):
 
         container = client.V1Container(
             name="interloper",
-            image=self._image,
-            image_pull_policy=self._image_pull_policy,
+            image=self.image,
+            image_pull_policy=self.image_pull_policy,
             command=cmd[:1],
             args=cmd[1:],
             env=env if env else None,
@@ -325,11 +290,11 @@ class KubernetesBackfiller(Backfiller[str]):
         pod_spec = client.V1PodSpec(
             containers=[container],
             restart_policy="Never",
-            service_account_name=self._service_account,
-            node_selector=self._node_selector if self._node_selector else None,
+            service_account_name=self.service_account,
+            node_selector=self.node_selector if self.node_selector else None,
             tolerations=tolerations if tolerations else None,
-            image_pull_secrets=[client.V1LocalObjectReference(name=s) for s in self._image_pull_secrets]
-            if self._image_pull_secrets
+            image_pull_secrets=[client.V1LocalObjectReference(name=s) for s in self.image_pull_secrets]
+            if self.image_pull_secrets
             else None,
         )
 
@@ -342,7 +307,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 spec=pod_spec,
             ),
             backoff_limit=0,
-            ttl_seconds_after_finished=self._ttl_seconds_after_finished,
+            ttl_seconds_after_finished=self.ttl_seconds_after_finished,
         )
 
         job = client.V1Job(
@@ -350,7 +315,7 @@ class KubernetesBackfiller(Backfiller[str]):
             kind="Job",
             metadata=client.V1ObjectMeta(
                 name=job_name,
-                namespace=self._namespace,
+                namespace=self.namespace,
                 labels=labels,
                 annotations=annotations,
             ),
@@ -360,7 +325,7 @@ class KubernetesBackfiller(Backfiller[str]):
         self.state.mark_run_running(partition_or_window)
 
         assert self._batch_v1 is not None
-        self._batch_v1.create_namespaced_job(namespace=self._namespace, body=job)
+        self._batch_v1.create_namespaced_job(namespace=self.namespace, body=job)
 
         # Start log streaming for event collection
         self._start_log_streaming(job_name)
@@ -384,7 +349,9 @@ class KubernetesBackfiller(Backfiller[str]):
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job_status(name=job_name, namespace=self._namespace),
+                    self._batch_v1.read_namespaced_job_status(
+                        name=job_name, namespace=self.namespace
+                    ),
                 )
 
                 assert updated_job.status is not None
@@ -422,7 +389,7 @@ class KubernetesBackfiller(Backfiller[str]):
                         # Try to get pod logs for debugging
                         try:
                             pods = self._core_v1.list_namespaced_pod(
-                                namespace=self._namespace,
+                                namespace=self.namespace,
                                 label_selector=f"job-name={job_name}",
                             )
                             if pods.items:
@@ -430,7 +397,7 @@ class KubernetesBackfiller(Backfiller[str]):
                                 assert pod.metadata is not None and pod.metadata.name is not None
                                 logs = self._core_v1.read_namespaced_pod_log(
                                     name=pod.metadata.name,
-                                    namespace=self._namespace,
+                                    namespace=self.namespace,
                                 )
                                 if logs:
                                     print("=============== START OF RUN JOB LOGS ==================")
@@ -460,11 +427,13 @@ class KubernetesBackfiller(Backfiller[str]):
                 # Get job to retrieve partition from annotations
                 job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job(name=job_name, namespace=self._namespace),
+                    self._batch_v1.read_namespaced_job(
+                        name=job_name, namespace=self.namespace
+                    ),
                 )
                 self._batch_v1.delete_namespaced_job(
                     name=job_name,
-                    namespace=self._namespace,
+                    namespace=self.namespace,
                     body=client.V1DeleteOptions(propagation_policy="Background"),
                 )
             except Exception:
@@ -482,22 +451,3 @@ class KubernetesBackfiller(Backfiller[str]):
                                 break
                     except Exception:
                         pass
-
-    def to_spec(self) -> BackfillerInstanceSpec:
-        """Convert to serializable spec."""
-        return BackfillerInstanceSpec(
-            path=self.path,
-            init=dict(
-                image=self._image,
-                namespace=self._namespace,
-                max_jobs=self._max_jobs,
-                env_vars=self._env_vars,
-                service_account=self._service_account,
-                image_pull_policy=self._image_pull_policy,
-                image_pull_secrets=self._image_pull_secrets,
-                resources=self._resources,
-                node_selector=self._node_selector,
-                tolerations=self._tolerations,
-                ttl_seconds_after_finished=self._ttl_seconds_after_finished,
-            ),
-        )

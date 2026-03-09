@@ -10,20 +10,18 @@ config, similar to the `DockerRunner`.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from typing import Any, cast
 
 from interloper.assets.base import Asset
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError, RunnerError
-from interloper.events.base import Event
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
-from interloper.serialization.runner import RunnerInstanceSpec
 from kubernetes import client, config
 from kubernetes.client import V1Job
+from pydantic import Field, PrivateAttr
 
 
 class KubernetesRunner(Runner[str]):
@@ -36,59 +34,23 @@ class KubernetesRunner(Runner[str]):
     still enabling IO-based dependency resolution.
     """
 
-    def __init__(
-        self,
-        image: str,
-        namespace: str = "default",
-        max_jobs: int = 4,
-        env_vars: dict[str, str] | None = None,
-        service_account: str | None = None,
-        image_pull_policy: str | None = None,
-        image_pull_secrets: list[str] | None = None,
-        resources: dict[str, dict[str, str]] | None = None,
-        node_selector: dict[str, str] | None = None,
-        tolerations: list[dict[str, Any]] | None = None,
-        poll_interval: float = 1.0,
-        ttl_seconds_after_finished: int = 300,
-        fail_fast: bool = False,
-        reraise: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ) -> None:
-        """Initialize the KubernetesRunner.
+    image: str
+    namespace: str = "default"
+    max_jobs: int = 4
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    service_account: str | None = None
+    image_pull_policy: str | None = None
+    image_pull_secrets: list[str] = Field(default_factory=list)
+    resources: dict[str, dict[str, str]] | None = None
+    node_selector: dict[str, str] | None = None
+    tolerations: list[dict[str, Any]] = Field(default_factory=list)
+    poll_interval: float = 1.0
+    ttl_seconds_after_finished: int = 300
+    fail_fast: bool = False
+    reraise: bool = False
 
-        Args:
-            image: Container image to use for job execution.
-            namespace: Kubernetes namespace to create jobs in.
-            max_jobs: Maximum number of concurrent jobs.
-            env_vars: Environment variables to set in the container.
-            service_account: Service account name to use for the job.
-            image_pull_policy: Image pull policy ("Always", "IfNotPresent", or "Never").
-            image_pull_secrets: List of image pull secret names.
-            resources: Resource requests/limits dict with 'requests' and 'limits' keys.
-            node_selector: Node selector labels for pod scheduling.
-            tolerations: List of toleration dicts for pod scheduling.
-            poll_interval: Interval in seconds between job status polls.
-            ttl_seconds_after_finished: TTL for completed jobs cleanup.
-            fail_fast: Stop execution on first failure.
-            reraise: Re-raise exceptions.
-            on_event: Optional event handler for lifecycle events.
-        """
-        super().__init__(fail_fast=fail_fast, reraise=reraise, on_event=on_event)
-        self._image = image
-        self._namespace = namespace
-        self._max_jobs = max_jobs
-        self._env_vars = env_vars or {}
-        self._service_account = service_account
-        self._image_pull_policy = image_pull_policy
-        self._image_pull_secrets = image_pull_secrets or []
-        self._resources = resources
-        self._node_selector = node_selector
-        self._tolerations = tolerations or []
-        self._poll_interval = poll_interval
-        self._ttl_seconds_after_finished = ttl_seconds_after_finished
-
-        self._batch_v1: client.BatchV1Api | None = None
-        self._core_v1: client.CoreV1Api | None = None
+    _batch_v1: client.BatchV1Api | None = PrivateAttr(default=None)
+    _core_v1: client.CoreV1Api | None = PrivateAttr(default=None)
 
     def _on_start(self) -> None:
         """Initialize Kubernetes client."""
@@ -102,7 +64,7 @@ class KubernetesRunner(Runner[str]):
 
     @property
     def _capacity(self) -> int:
-        return self._max_jobs
+        return self.max_jobs
 
     def _build_command(
         self,
@@ -139,21 +101,21 @@ class KubernetesRunner(Runner[str]):
 
     def _build_env(self) -> list[client.V1EnvVar]:
         """Build the environment variables for the container."""
-        return [client.V1EnvVar(name=k, value=v) for k, v in self._env_vars.items()]
+        return [client.V1EnvVar(name=k, value=v) for k, v in self.env_vars.items()]
 
     def _build_resources(self) -> client.V1ResourceRequirements | None:
         """Build the resource requirements for the container."""
-        if not self._resources:
+        if not self.resources:
             return None
         return client.V1ResourceRequirements(
-            requests=self._resources.get("requests"),
-            limits=self._resources.get("limits"),
+            requests=self.resources.get("requests"),
+            limits=self.resources.get("limits"),
         )
 
     def _build_job_name(self, asset: Asset) -> str:
         """Build the name for the Kubernetes job."""
         # K8s names must be lowercase, alphanumeric, and can contain hyphens
-        safe_key = asset.instance_key.replace(".", "-").replace("_", "-").lower()
+        safe_key = asset.key.replace(".", "-").replace("_", "-").lower()
         return f"interloper-{self.state.run_id[:8]}-{safe_key}"[:63]
 
     def _build_tolerations(self) -> list[client.V1Toleration]:
@@ -165,7 +127,7 @@ class KubernetesRunner(Runner[str]):
                 value=t.get("value"),
                 effect=t.get("effect"),
             )
-            for t in self._tolerations
+            for t in self.tolerations
         ]
 
     def _submit_asset(
@@ -186,7 +148,7 @@ class KubernetesRunner(Runner[str]):
             The job name (string) for the asset execution
         """
         # Build a mini-DAG: target asset + its parents (non-materializable)
-        mini_dag = self.state.dag.mini_dag(asset.instance_key)
+        mini_dag = self.state.dag.mini_dag(asset.key)
 
         cmd = self._build_command(mini_dag, partition_or_window, self.state.run_id)
         job_name = self._build_job_name(asset)
@@ -197,8 +159,8 @@ class KubernetesRunner(Runner[str]):
         # Build container spec
         container = client.V1Container(
             name="interloper",
-            image=self._image,
-            image_pull_policy=self._image_pull_policy,
+            image=self.image,
+            image_pull_policy=self.image_pull_policy,
             command=cmd[:1],
             args=cmd[1:],
             env=env if env else None,
@@ -209,11 +171,11 @@ class KubernetesRunner(Runner[str]):
         pod_spec = client.V1PodSpec(
             containers=[container],
             restart_policy="Never",
-            service_account_name=self._service_account,
-            node_selector=self._node_selector if self._node_selector else None,
+            service_account_name=self.service_account,
+            node_selector=self.node_selector if self.node_selector else None,
             tolerations=tolerations if tolerations else None,
-            image_pull_secrets=[client.V1LocalObjectReference(name=s) for s in self._image_pull_secrets]
-            if self._image_pull_secrets
+            image_pull_secrets=[client.V1LocalObjectReference(name=s) for s in self.image_pull_secrets]
+            if self.image_pull_secrets
             else None,
         )
 
@@ -222,14 +184,14 @@ class KubernetesRunner(Runner[str]):
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "interloper.asset_key": asset.instance_key.replace(".", "-").lower(),
+                        "interloper.asset_key": asset.key.replace(".", "-").lower(),
                         "interloper.run_id": self.state.run_id[:8],
                     }
                 ),
                 spec=pod_spec,
             ),
             backoff_limit=0,
-            ttl_seconds_after_finished=self._ttl_seconds_after_finished,
+            ttl_seconds_after_finished=self.ttl_seconds_after_finished,
         )
 
         # Build job object
@@ -238,13 +200,13 @@ class KubernetesRunner(Runner[str]):
             kind="Job",
             metadata=client.V1ObjectMeta(
                 name=job_name,
-                namespace=self._namespace,
+                namespace=self.namespace,
                 labels={
-                    "interloper.asset_key": asset.instance_key.replace(".", "-").lower(),
+                    "interloper.asset_key": asset.key.replace(".", "-").lower(),
                     "interloper.run_id": self.state.run_id[:8],
                 },
                 annotations={
-                    "interloper.asset_key": asset.instance_key,
+                    "interloper.asset_key": asset.key,
                 },
             ),
             spec=job_spec,
@@ -254,7 +216,7 @@ class KubernetesRunner(Runner[str]):
 
         # Create the job in Kubernetes
         assert self._batch_v1 is not None
-        self._batch_v1.create_namespaced_job(namespace=self._namespace, body=job)
+        self._batch_v1.create_namespaced_job(namespace=self.namespace, body=job)
 
         return job_name
 
@@ -278,7 +240,9 @@ class KubernetesRunner(Runner[str]):
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job_status(name=job_name, namespace=self._namespace),
+                    self._batch_v1.read_namespaced_job_status(
+                        name=job_name, namespace=self.namespace
+                    ),
                 )
 
                 assert updated_job.status is not None
@@ -302,14 +266,14 @@ class KubernetesRunner(Runner[str]):
                         # Try to get pod logs for debugging
                         try:
                             pods = self._core_v1.list_namespaced_pod(
-                                namespace=self._namespace,
+                                namespace=self.namespace,
                                 label_selector=f"job-name={job_name}",
                             )
                             if pods.items:
                                 pod = pods.items[0]
                                 logs = self._core_v1.read_namespaced_pod_log(
                                     name=pod.metadata.name,
-                                    namespace=self._namespace,
+                                    namespace=self.namespace,
                                 )
                                 if logs:
                                     print("=============== START OF ASSET JOB LOGS ================")
@@ -320,12 +284,12 @@ class KubernetesRunner(Runner[str]):
 
                         self.state.mark_asset_failed(asset, error_msg)
 
-                        if self._reraise or self._fail_fast:
+                        if self.reraise or self.fail_fast:
                             raise RunnerError(error_msg)
 
                     return job_name
 
-            time.sleep(self._poll_interval)
+            time.sleep(self.poll_interval)
 
     def _cancel_all(self, handles: list[str]) -> None:
         """Cancel all running jobs."""
@@ -337,11 +301,13 @@ class KubernetesRunner(Runner[str]):
                 # Get job to retrieve asset key from annotations
                 job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job(name=job_name, namespace=self._namespace),
+                    self._batch_v1.read_namespaced_job(
+                        name=job_name, namespace=self.namespace
+                    ),
                 )
                 self._batch_v1.delete_namespaced_job(
                     name=job_name,
-                    namespace=self._namespace,
+                    namespace=self.namespace,
                     body=client.V1DeleteOptions(propagation_policy="Background"),
                 )
             except Exception:
@@ -356,24 +322,3 @@ class KubernetesRunner(Runner[str]):
                             self.state.mark_asset_canceled(asset)
                     except Exception:
                         pass
-
-    def to_spec(self) -> RunnerInstanceSpec:
-        return RunnerInstanceSpec(
-            path=self.path,
-            init=dict(
-                image=self._image,
-                namespace=self._namespace,
-                max_jobs=self._max_jobs,
-                env_vars=self._env_vars,
-                service_account=self._service_account,
-                image_pull_policy=self._image_pull_policy,
-                image_pull_secrets=self._image_pull_secrets,
-                resources=self._resources,
-                node_selector=self._node_selector,
-                tolerations=self._tolerations,
-                poll_interval=self._poll_interval,
-                ttl_seconds_after_finished=self._ttl_seconds_after_finished,
-                fail_fast=self._fail_fast,
-                reraise=self._reraise,
-            ),
-        )

@@ -6,7 +6,7 @@ import interloper as il
 
 
 def _build_simple_dag(tmp_path):
-    io = il.FileIO(str(tmp_path / "data"))
+    io = il.FileIO(base_path=str(tmp_path / "data"))
 
     @il.asset
     def a() -> str:
@@ -42,7 +42,7 @@ def _build_simple_dag(tmp_path):
 
 #     def test_backfill_delegation(self, tmp_path):
 #         partitioned = il.TimePartitionConfig(column="date")
-#         io = il.FileIO(str(tmp_path / "data"))
+#         io = il.FileIO(base_path=str(tmp_path / "data"))
 
 #         @il.asset(io=io, partitioning=partitioned)
 #         def a() -> str:

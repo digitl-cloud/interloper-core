@@ -9,11 +9,11 @@ class TestCsvIO:
     """Tests for CsvIO."""
 
     def test_initialization(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
         assert csv_io.base_path == str(tmp_path)
 
     def test_write_read_non_partitioned(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset():
@@ -27,7 +27,7 @@ class TestCsvIO:
         assert result == data
 
     def test_write_read_partitioned(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -42,7 +42,7 @@ class TestCsvIO:
         assert result == data
 
     def test_write_read_partition_window(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -62,7 +62,7 @@ class TestCsvIO:
         assert all(r == data for r in result)
 
     def test_read_missing_file(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset():
@@ -76,7 +76,7 @@ class TestCsvIO:
             pass
 
     def test_write_empty_data(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset
         def my_asset():
@@ -88,7 +88,7 @@ class TestCsvIO:
         assert result == []
 
     def test_partition_row_counts(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -106,7 +106,7 @@ class TestCsvIO:
         assert counts == {"2025-01-01": 1, "2025-01-02": 3}
 
     def test_partition_row_counts_empty(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset():
@@ -116,15 +116,16 @@ class TestCsvIO:
         assert counts == {}
 
     def test_to_spec(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
         spec = csv_io.to_spec()
-        assert spec.init == {"base_path": str(tmp_path)}
+        assert spec.config == {"base_path": str(tmp_path)}
+        assert spec.init == {"key": "csv"}
         reconstructed = spec.reconstruct()
         assert isinstance(reconstructed, il.CsvIO)
         assert reconstructed.base_path == str(tmp_path)
 
     def test_with_dataset(self, tmp_path):
-        csv_io = il.CsvIO(str(tmp_path))
+        csv_io = il.CsvIO(base_path=str(tmp_path))
 
         @il.asset(dataset="my_dataset")
         def my_asset():

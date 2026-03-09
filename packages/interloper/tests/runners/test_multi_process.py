@@ -13,16 +13,16 @@ class TestMultiProcessRunnerInit:
     def test_default_init(self):
         """Default init uses 4 workers, fail_fast=True, reraise=False."""
         runner = il.MultiProcessRunner()
-        assert runner._max_workers == 4
-        assert runner._fail_fast is True
-        assert runner._reraise is False
+        assert runner.max_workers == 4
+        assert runner.fail_fast is True
+        assert runner.reraise is False
 
     def test_custom_init(self):
         """Custom init accepts max_workers, fail_fast, reraise."""
         runner = il.MultiProcessRunner(max_workers=8, fail_fast=False, reraise=True)
-        assert runner._max_workers == 8
-        assert runner._fail_fast is False
-        assert runner._reraise is True
+        assert runner.max_workers == 8
+        assert runner.fail_fast is False
+        assert runner.reraise is True
 
     def test_capacity_matches_max_workers(self):
         """_capacity property returns max_workers."""
@@ -33,9 +33,9 @@ class TestMultiProcessRunnerInit:
         """to_spec captures constructor args."""
         runner = il.MultiProcessRunner(max_workers=3, fail_fast=False, reraise=True)
         spec = runner.to_spec()
-        assert spec.init["max_workers"] == 3
-        assert spec.init["fail_fast"] is False
-        assert spec.init["reraise"] is True
+        assert spec.config["max_workers"] == 3
+        assert spec.config["fail_fast"] is False
+        assert spec.config["reraise"] is True
 
 
 class TestMultiProcessRunnerLifecycle:

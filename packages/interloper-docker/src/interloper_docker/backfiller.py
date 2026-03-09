@@ -8,8 +8,8 @@ asset scheduling to the configured backfiller in the inline config (typically in
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from time import sleep
+from typing import Any
 
 import docker
 from docker.errors import NotFound
@@ -18,12 +18,11 @@ from interloper.backfillers.base import Backfiller
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError
-from interloper.events.base import Event, EventBus, parse_event_from_log_line
+from interloper.events.base import EventBus, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
-from interloper.runners.base import Runner
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.backfiller import BackfillerInstanceSpec
+from pydantic import Field, PrivateAttr
 
 
 class DockerBackfiller(Backfiller[Container]):
@@ -32,47 +31,29 @@ class DockerBackfiller(Backfiller[Container]):
     The image must contain the `interloper` package (CLI available on PATH).
     """
 
-    def __init__(
-        self,
-        image: str,
-        env_vars: dict[str, str] | None = None,
-        max_containers: int = 1,
-        runner: Runner | None = None,
-        volumes: dict[str, dict[str, str]] | list[str] | None = None,
-        dind: bool = False,
-        on_event: Callable[[Event], None] | None = None,
-    ) -> None:
-        """Initialize the DockerBackfiller.
+    image: str
+    env_vars: dict[str, str] = Field(default_factory=dict)
+    max_containers: int = 1
+    volumes: dict[str, dict[str, str]] | list[str] = Field(default_factory=dict)
+    dind: bool = False
 
-        Args:
-            image: Docker image to use
-            env_vars: Environment variables to pass to the container
-            max_containers: Maximum number of concurrent containers (default 1)
-            runner: Runner to use for running assets
-            volumes: Volume mounts for the container
-            dind: If True, mount the Docker socket to enable Docker-in-Docker
-            on_event: Optional event handler for lifecycle events
-        """
-        super().__init__(runner=runner, on_event=on_event)
+    _docker: Any = PrivateAttr()
+    _log_threads: dict[str, threading.Thread] = PrivateAttr(default_factory=dict)
+    _stop_log_streaming: threading.Event = PrivateAttr(default_factory=threading.Event)
+
+    def model_post_init(self, __context: Any, /) -> None:
+        """Initialize Docker client and force runner to reraise."""
+        super().model_post_init(__context)
 
         # Force the runner to re-raise exceptions to make sure the container's exit code is propagated.
-        self.runner._reraise = True
+        self.runner.reraise = True
 
-        self._image = image
-        self._env_vars = env_vars or {}
-        self._max_containers = max_containers
-        self._volumes = volumes or {}
-        self._dind = dind
         self._docker = docker.from_env()
-
-        # Track log streaming threads for cleanup
-        self._log_threads: dict[str, threading.Thread] = {}
-        self._stop_log_streaming = threading.Event()
 
     @property
     def _capacity(self) -> int:
         """Maximum number of concurrent containers."""
-        return self._max_containers
+        return self.max_containers
 
     def _on_start(self) -> None:
         self._stop_log_streaming.clear()
@@ -132,20 +113,20 @@ class DockerBackfiller(Backfiller[Container]):
 
     def _build_env(self) -> dict[str, str]:
         """Build the environment variables for the container."""
-        env = dict(self._env_vars)
+        env = dict(self.env_vars)
         # Enable log-based event streaming
         env["INTERLOPER_EVENTS_TO_STDERR"] = "true"
         return env
 
     def _build_volumes(self) -> dict[str, dict[str, str]]:
         """Build the volume mounts for the container."""
-        volumes = {}
-        if isinstance(self._volumes, dict):
-            volumes.update(self._volumes)
-        elif isinstance(self._volumes, list):
-            for volume in self._volumes:
+        volumes: dict[str, dict[str, str]] = {}
+        if isinstance(self.volumes, dict):
+            volumes.update(self.volumes)
+        elif isinstance(self.volumes, list):
+            for volume in self.volumes:
                 volumes[volume.split(":")[0]] = {"bind": volume.split(":")[1], "mode": "rw"}
-        if self._dind:
+        if self.dind:
             volumes["/var/run/docker.sock"] = {"bind": "/var/run/docker.sock", "mode": "rw"}
         return volumes
 
@@ -222,7 +203,7 @@ class DockerBackfiller(Backfiller[Container]):
         self.state.mark_run_running(partition_or_window)
 
         container = self._docker.containers.run(
-            image=self._image,
+            image=self.image,
             name=name,
             command=cmd,
             environment=env,
@@ -321,16 +302,3 @@ class DockerBackfiller(Backfiller[Container]):
                 # Only mark as canceled if we successfully stopped/killed
                 if partition is not None:
                     self.state.mark_run_canceled(partition)
-
-    def to_spec(self) -> BackfillerInstanceSpec:
-        """Convert to serializable spec."""
-        return BackfillerInstanceSpec(
-            path=self.path,
-            init=dict(
-                image=self._image,
-                env_vars=self._env_vars,
-                volumes=self._volumes,
-                max_containers=self._max_containers,
-                dind=self._dind,
-            ),
-        )

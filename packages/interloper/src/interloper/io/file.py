@@ -9,24 +9,17 @@ from typing import Any
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionWindow
-from interloper.serialization.io import IOInstanceSpec
 
 
 class FileIO(IO):
     """IO that reads and writes pickle files on the local filesystem.
 
-    Data is stored under ``{base_path}/{dataset}/{asset_name}/data.pkl``
-    (or ``{base_path}/{asset_name}/data.pkl`` when no dataset is set).
+    Data is stored under ``{base_path}/{dataset}/{asset_local_key}/data.pkl``
+    (or ``{base_path}/{asset_local_key}/data.pkl`` when no dataset is set).
     Partitioned assets add a ``{column}={id}`` subdirectory.
     """
 
-    def __init__(self, base_path: str):
-        """Initialize FileIO.
-
-        Args:
-            base_path: Base directory path for file storage
-        """
-        self.base_path = base_path
+    base_path: str = ""
 
     def __str__(self) -> str:
         """Return a human-readable label including the base path."""
@@ -39,7 +32,8 @@ class FileIO(IO):
             context: IO context with asset and partition information.
             data: Data to write.
         """
-        base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
+        dataset = context.asset.dataset or ""
+        base_path = Path(self.base_path) / dataset / context.asset.local_key
         base_path.mkdir(parents=True, exist_ok=True)
 
         # No partitioning - write directly
@@ -82,13 +76,14 @@ class FileIO(IO):
         Raises:
             FileNotFoundError: If the expected data file does not exist.
         """
-        base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
+        dataset = context.asset.dataset or ""
+        base_path = Path(self.base_path) / dataset / context.asset.local_key
 
         # No partitioning - read directly
         if context.partition_or_window is None:
             file_path = base_path / "data.pkl"
             if not file_path.exists():
-                raise FileNotFoundError(f"Data file not found for asset {context.asset.name}: {file_path}")
+                raise FileNotFoundError(f"Data file not found for asset {context.asset.local_key}: {file_path}")
             with file_path.open("rb") as f:
                 return pickle.load(f)
 
@@ -99,7 +94,7 @@ class FileIO(IO):
             for partition in context.partition_or_window:
                 file_path = base_path / f"{context.asset.partitioning.column}={partition.id}" / "data.pkl"
                 if not file_path.exists():
-                    raise FileNotFoundError(f"Data file not found for asset {context.asset.name}: {file_path}")
+                    raise FileNotFoundError(f"Data file not found for asset {context.asset.local_key}: {file_path}")
                 with file_path.open("rb") as f:
                     results.append(pickle.load(f))
             return results
@@ -110,7 +105,7 @@ class FileIO(IO):
             assert context.asset.partitioning
             file_path = base_path / f"{context.asset.partitioning.column}={context.partition_or_window.id}" / "data.pkl"
             if not file_path.exists():
-                raise FileNotFoundError(f"Data file not found for asset {context.asset.name}: {file_path}")
+                raise FileNotFoundError(f"Data file not found for asset {context.asset.local_key}: {file_path}")
             with file_path.open("rb") as f:
                 return pickle.load(f)
 
@@ -129,7 +124,8 @@ class FileIO(IO):
         """
         assert context.asset.partitioning is not None
         column = context.asset.partitioning.column
-        base_path = Path(self.base_path) / (context.asset.dataset if context.asset.dataset else "") / context.asset.name
+        dataset = context.asset.dataset or ""
+        base_path = Path(self.base_path) / dataset / context.asset.local_key
 
         counts: dict[str, int] = {}
         if not base_path.exists():
@@ -145,13 +141,3 @@ class FileIO(IO):
                     counts[partition_value] = len(data) if isinstance(data, list) else 1
         return counts
 
-    def to_spec(self) -> IOInstanceSpec:
-        """Convert to a serializable spec.
-
-        Returns:
-            The IOSpec representation of this FileIO.
-        """
-        return IOInstanceSpec(
-            path=self.path,
-            init={"base_path": self.base_path},
-        )

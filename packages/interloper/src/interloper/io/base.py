@@ -2,24 +2,38 @@
 
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Any
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar
 
+from interloper.errors import ConfigError
 from interloper.io.context import IOContext
-from interloper.serialization.base import Serializable
-
-if TYPE_CHECKING:
-    from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.base import Component
+from interloper.utils.text import validate_key
 
 
-class IO(Serializable):
+class IO(Component, ABC):
     """Abstract base class for IO implementations.
 
-    Subclasses must implement :meth:`read`, :meth:`write`, and :meth:`to_spec`.
-    A per-subclass :meth:`singleton` factory is provided for stateless backends.
+    Subclasses must implement :meth:`read`, :meth:`write`, and
+    :meth:`partition_row_counts`.  Serialization is provided automatically
+    by :class:`Component` via ``model_dump()``.
+
+    The ``key`` field (inherited from :class:`Component`) is auto-derived
+    from the class name by stripping the ``IO`` suffix and lowercasing
+    (e.g. ``FileIO`` → ``"file"``).  It can be overridden explicitly
+    when multiple instances of the same IO class are used together.
     """
 
-    _singleton: IO | None = None
+    _singleton: ClassVar[IO | None] = None
+
+    def model_post_init(self, __context: Any, /) -> None:
+        """Auto-derive key from class name if not explicitly set."""
+        if not self.key:
+            name = type(self).__name__
+            if name.endswith("IO") and len(name) > 2:
+                name = name[:-2]
+            self.key = name.lower()
+        validate_key(self.key)
 
     @classmethod
     def singleton(cls: type[IO]) -> IO:
@@ -61,13 +75,26 @@ class IO(Serializable):
         value; each value is the number of rows in that partition.
 
         Args:
-            context: IO context (uses ``asset.name``, ``asset.dataset``,
+            context: IO context (uses ``asset.key``, ``asset.dataset``,
                 and ``asset.partitioning``).
 
         Returns:
             Mapping from partition value (as string) to row count.
         """
 
-    @abstractmethod
-    def to_spec(self) -> IOInstanceSpec:
-        """Convert to serializable spec."""
+
+def validate_io_keys(ios: list[IO], owner: str) -> None:
+    """Validate that all IO keys in a list are unique.
+
+    Args:
+        ios: List of IO instances to check.
+        owner: Key of the owning entity (for error messages).
+
+    Raises:
+        ConfigError: If duplicate keys are found.
+    """
+    seen: set[str] = set()
+    for io in ios:
+        if io.key in seen:
+            raise ConfigError(f"Duplicate IO key '{io.key}' on '{owner}'")
+        seen.add(io.key)

@@ -56,11 +56,9 @@ from interloper.runners.results import AssetExecutionInfo, ExecutionStatus, RunR
 from interloper.schema import AssetSchema
 from interloper.serialization import (
     AssetInstanceSpec,
-    BackfillerInstanceSpec,
+    ComponentInstanceSpec,
     ConfigInstanceSpec,
     DAGInstanceSpec,
-    IOInstanceSpec,
-    RunnerInstanceSpec,
 )
 from interloper.source import Source, SourceDefinition, source
 from interloper.source.config import Config
@@ -84,8 +82,8 @@ __all__ = [
     "BackfillError",
     "BackfillResult",
     "Backfiller",
-    "BackfillerInstanceSpec",
     "CircularDependencyError",
+    "ComponentInstanceSpec",
     "Config",
     "ConfigError",
     "ConfigInstanceSpec",
@@ -104,7 +102,6 @@ __all__ = [
     "FileIO",
     "HTTPBearerAuth",
     "IOContext",
-    "IOInstanceSpec",
     "InterloperError",
     "InterloperIOError",
     "LogLevel",
@@ -125,7 +122,6 @@ __all__ = [
     "RunResult",
     "Runner",
     "RunnerError",
-    "RunnerInstanceSpec",
     "SchemaError",
     "ScriptLoadError",
     "SerialBackfiller",

@@ -3,7 +3,7 @@
 import pytest
 
 import interloper as il
-from interloper.serialization.io import IOInstanceSpec
+from interloper.serialization.base import ComponentInstanceSpec, reconstruct_io
 from interloper.serialization.source import SourceInstanceSpec
 from interloper.source.base import Source
 
@@ -110,27 +110,26 @@ class TestSourceSpec:
         assert source.assets["asset_a"].materializable is True
         assert source.assets["asset_b"].materializable is True
 
-    # -- _reconstruct_io -----------------------------------------------------
+    # -- reconstruct_io (shared helper) ----------------------------------------
 
-    def test_reconstruct_io_none(self, spec: SourceInstanceSpec):
-        """_reconstruct_io returns None when io is None."""
-        assert spec._reconstruct_io(None) is None
+    def test_reconstruct_io_none(self):
+        """reconstruct_io returns None when io is None."""
+        assert reconstruct_io(None) is None
 
-    def test_reconstruct_io_single(self, spec: SourceInstanceSpec):
-        """_reconstruct_io reconstructs a single IOInstanceSpec."""
-        io_spec = IOInstanceSpec(path="interloper.io.memory.MemoryIO")
-        result = spec._reconstruct_io(io_spec)
+    def test_reconstruct_io_single(self):
+        """reconstruct_io reconstructs a single ComponentInstanceSpec."""
+        io_spec = ComponentInstanceSpec(path="interloper.io.memory.MemoryIO")
+        result = reconstruct_io(io_spec)
         assert isinstance(result, il.MemoryIO)
 
-    def test_reconstruct_io_dict(self, spec: SourceInstanceSpec):
-        """_reconstruct_io reconstructs a dict of IOInstanceSpecs."""
-        io_specs = {
-            "a": IOInstanceSpec(path="interloper.io.memory.MemoryIO"),
-            "b": IOInstanceSpec(path="interloper.io.memory.MemoryIO"),
-        }
-        result = spec._reconstruct_io(io_specs)
-        assert isinstance(result, dict)
-        assert "a" in result
-        assert "b" in result
-        assert isinstance(result["a"], il.MemoryIO)
-        assert isinstance(result["b"], il.MemoryIO)
+    def test_reconstruct_io_list(self):
+        """reconstruct_io reconstructs a list of ComponentInstanceSpecs."""
+        io_specs = [
+            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
+            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
+        ]
+        result = reconstruct_io(io_specs)
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert isinstance(result[0], il.MemoryIO)
+        assert isinstance(result[1], il.MemoryIO)

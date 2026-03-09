@@ -10,28 +10,34 @@ The module provides two families of specs:
 """
 
 from interloper.serialization.asset import AssetDefinitionSpec, AssetInstanceSpec
-from interloper.serialization.backfiller import BackfillerInstanceSpec
-from interloper.serialization.base import DefinitionSpec, PathInitSpec, Spec
+from interloper.serialization.base import (
+    Component,
+    ComponentDefinitionSpec,
+    ComponentInstanceSpec,
+    DefinitionSpec,
+    Spec,
+    reconstruct_config,
+    reconstruct_io,
+)
 from interloper.serialization.config import ConfigInstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
-from interloper.serialization.io import IOInstanceSpec
-from interloper.serialization.runner import RunnerInstanceSpec
 from interloper.serialization.schema import SchemaFieldSpec, extract_schema_fields
 from interloper.serialization.source import SourceDefinitionSpec, SourceInstanceSpec
 
 __all__ = [
     "AssetDefinitionSpec",
     "AssetInstanceSpec",
-    "BackfillerInstanceSpec",
+    "Component",
+    "ComponentDefinitionSpec",
+    "ComponentInstanceSpec",
     "ConfigInstanceSpec",
     "DAGInstanceSpec",
     "DefinitionSpec",
-    "IOInstanceSpec",
-    "PathInitSpec",
-    "RunnerInstanceSpec",
     "SchemaFieldSpec",
     "SourceDefinitionSpec",
     "SourceInstanceSpec",
     "Spec",
     "extract_schema_fields",
+    "reconstruct_config",
+    "reconstruct_io",
 ]
