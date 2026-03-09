@@ -11,8 +11,8 @@ from interloper.serialization.base import (
     ComponentDefinitionSpec,
     ComponentInstanceSpec,
     InstanceSpec,
+    reconstruct_components,
     reconstruct_config,
-    reconstruct_io,
 )
 from interloper.serialization.schema import SchemaFieldSpec
 from interloper.utils.imports import import_from_path
@@ -54,7 +54,7 @@ class AssetInstanceSpec(InstanceSpec):
         Returns:
             The reconstructed Asset instance.
         """
-        io = reconstruct_io(self.io)
+        io = reconstruct_components(self.io)
 
         if ":" in self.path:
             return self._from_source_def(io)

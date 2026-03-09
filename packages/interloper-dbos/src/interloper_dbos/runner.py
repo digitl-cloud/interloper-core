@@ -142,8 +142,7 @@ class DBOSRunner(Runner[str], DBOSConfiguredInstance):
         except Exception:
             self._wait_all()
             raise RunnerError(
-                f"Failed to materialize workflow. Failed assets: "
-                f"{[asset.key for asset in self.state.failed_assets]}"
+                f"Failed to materialize workflow. Failed assets: {[asset.key for asset in self.state.failed_assets]}"
             )
 
     @DBOS.workflow(name="execute_asset")

@@ -11,17 +11,11 @@ from interloper_sql.io.base import SqlIO
 
 
 class PostgresIO(SqlIO):
-    """PostgreSQL-specific IO manager.
-
-    Extends :class:`SqlIO` with PostgreSQL optimisations:
-
-    * Uses ``TRUNCATE`` (transactional in Postgres) instead of ``DELETE`` for
-      full-table replacements, which is significantly faster on large tables.
-    """
+    """PostgreSQL IO manager."""
 
     label: ClassVar[str] = "PostgreSQL"
 
-    host: str | None = None
+    host: str
     port: int = 5432
     database: str = "postgres"
     username: str = "postgres"
@@ -30,13 +24,12 @@ class PostgresIO(SqlIO):
 
     def model_post_init(self, context: Any, /) -> None:
         super().model_post_init(context)
-        if self.host is not None:
-            drivername = f"postgresql+{self.driver}" if self.driver else "postgresql"
-            url = URL.create(
-                drivername, self.username, self.password,
-                self.host, self.port, self.database,
-            )
-            self._init_engine(url)
+        drivername = f"postgresql+{self.driver}" if self.driver else "postgresql"
+        url = URL.create(
+            drivername, self.username, self.password,
+            self.host, self.port, self.database,
+        )
+        self._init_engine(url)
 
     def __str__(self) -> str:
         return f"PostgresIO({self.host}:{self.port}/{self.database})"

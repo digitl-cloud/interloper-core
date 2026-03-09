@@ -47,7 +47,7 @@ class DemoSource:
         context: il.ExecutionContext,
     ) -> pd.DataFrame:
         """Root asset. Returns a single row with the configured greeting."""
-        print(f"Hello from A {self.config.hello}")
+        context.logger.info(f"Hello {self.config.hello} from A")
         self.do()
         return pd.DataFrame([{"hello": self.config.hello}])
 
@@ -62,7 +62,7 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> b -> e)."""
-        print(f"Hello from B {self.config.hello}")
+        context.logger.info(f"Hello {self.config.hello} from B")
         self.do()
         return pd.DataFrame([{"hello": self.config.hello}])
 
@@ -77,7 +77,7 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> c -> e)."""
-        print(f"Hello from C {self.config.hello}")
+        context.logger.info(f"Hello {self.config.hello} from C")
         self.do()
         return pd.DataFrame([{"hello": self.config.hello}])
 
@@ -92,7 +92,7 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> d -> e)."""
-        print(f"Hello from D {self.config.hello}")
+        context.logger.info(f"Hello {self.config.hello} from D")
         self.do()
         return pd.DataFrame([{"hello": self.config.hello}])
 
@@ -109,7 +109,7 @@ class DemoSource:
         d: str,
     ) -> pd.DataFrame:
         """Depends on B, C, and D. Sink asset of the example DAG."""
-        print(f"Hello from E {self.config.hello}")
+        context.logger.info(f"Hello {self.config.hello} from E")
         self.do()
         return pd.DataFrame([{"hello": self.config.hello}])
 

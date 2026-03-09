@@ -8,13 +8,14 @@ from contextlib import contextmanager
 from enum import Enum
 from typing import Any
 
-from pydantic import field_serializer
+from pydantic import field_validator
 
 from interloper.errors import AdapterError
 from interloper.io.adapter import DataAdapter
 from interloper.io.base import IO
 from interloper.io.context import IOContext
 from interloper.partitioning.base import Partition, PartitionWindow
+from interloper.serialization.base import ComponentInstanceSpec, reconstruct_components
 
 
 class WriteDisposition(str, Enum):
@@ -42,28 +43,59 @@ class DatabaseIO(IO):
     parameters to every hook.  The IO instance itself holds **no** table
     identity and can be safely shared across multiple assets.
 
-    An optional :class:`~interloper.io.adapter.DataAdapter` can be provided to
-    convert between the asset's data type (e.g. a custom data format) and the
-    universal ``list[dict]`` row format used internally by every database hook.
+    One or more :class:`~interloper.io.adapter.DataAdapter` instances can be
+    provided to convert between the asset's data type (e.g. a DataFrame) and
+    the universal ``list[dict]`` row format used internally by every database
+    hook.  When multiple adapters are configured, writes try each in order
+    until one succeeds; reads use the first adapter.
     """
 
     write_disposition: WriteDisposition = WriteDisposition.APPEND
     chunk_size: int = 1000
-    adapter: DataAdapter | str | None = None
+    adapter: list[DataAdapter] | None = None
 
-    @field_serializer("adapter")
-    def _serialize_adapter(self, adapter: DataAdapter | str | None) -> str | None:
-        if adapter is not None and not isinstance(adapter, str):
-            return adapter.path
-        return adapter
+    @field_validator("adapter", mode="before")
+    @classmethod
+    def _normalize_adapter(cls, v: Any) -> list[DataAdapter] | None:
+        """Normalize adapter input before Pydantic validation.
 
-    def model_post_init(self, context: Any, /) -> None:
-        """Resolve adapter import paths."""
-        # Accept an import-path string so that IOSpec reconstruction works
-        if isinstance(self.adapter, str):
-            from interloper.utils.imports import import_from_path
+        Accepts a single ``DataAdapter``, a single import-path string,
+        a ``list[DataAdapter | str | dict]``, or ``None``.  Strings and
+        dicts are reconstructed via :func:`reconstruct_components`.
 
-            self.adapter = import_from_path(self.adapter)()
+        Returns:
+            Normalized adapter list, or ``None``.
+        """
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            v = [v]
+        return reconstruct_components(v)
+
+    def to_spec(self) -> ComponentInstanceSpec:
+        """Generate an instance spec, serializing adapters as nested specs.
+
+        Follows the same pattern as Source/Asset for nested Components:
+        adapters are excluded from ``model_dump()`` and serialized via
+        their own ``to_spec()``.
+
+        Returns:
+            A ComponentInstanceSpec capturing this instance's state.
+        """
+        config_data = self.model_dump(
+            mode="json",
+            exclude={"key", "adapter"},
+            exclude_none=True,
+        )
+        if self.adapter is not None:
+            config_data["adapter"] = [
+                a.to_spec().model_dump(exclude_none=True, exclude_defaults=True) for a in self.adapter
+            ]
+        return ComponentInstanceSpec(
+            path=self.path,
+            config=config_data or None,
+            init={"key": self.key} if self.key else {},
+        )
 
     # ------------------------------------------------------------------
     # Transaction hook
@@ -137,7 +169,11 @@ class DatabaseIO(IO):
 
     @abstractmethod
     def _select_partition(
-        self, table: str, schema: str | None, column: str, value: Any,
+        self,
+        table: str,
+        schema: str | None,
+        column: str,
+        value: Any,
     ) -> list[dict[str, Any]]:
         """Select rows matching a single partition value.
 
@@ -157,7 +193,10 @@ class DatabaseIO(IO):
 
     @abstractmethod
     def _count_by_partition(
-        self, table: str, schema: str | None, column: str,
+        self,
+        table: str,
+        schema: str | None,
+        column: str,
     ) -> dict[str, int]:
         """Return row counts grouped by the values of the given column.
 
@@ -196,9 +235,9 @@ class DatabaseIO(IO):
     def _to_rows(self, data: Any) -> list[dict[str, Any]]:
         """Convert input data to a list of row dicts.
 
-        If an :attr:`adapter` is configured, delegates to
-        :meth:`DataAdapter.to_rows`.  Otherwise accepts ``list[dict]``
-        directly.
+        When adapters are configured, tries each in order until one succeeds.
+        Falls back to accepting ``list[dict]`` directly if no adapter handles
+        the data (or if no adapters are configured).
 
         Args:
             data: Input data to convert
@@ -210,31 +249,37 @@ class DatabaseIO(IO):
             AdapterError: If the data type is not supported
         """
         if self.adapter is not None:
-            assert not isinstance(self.adapter, str)
-            return self.adapter.to_rows(data)
+            assert isinstance(self.adapter, list)
+            for adapter in self.adapter:
+                try:
+                    return adapter.to_rows(data)
+                except AdapterError:
+                    continue
         if isinstance(data, list):
             return data
+        configured = ", ".join(type(a).__name__ for a in self.adapter) if isinstance(self.adapter, list) else "none"
         raise AdapterError(
-            f"No adapter configured on {type(self).__name__} and data is not list[dict] "
-            f"(got {type(data).__name__}). Either pass list[dict] or configure a DataAdapter."
+            f"No adapter on {type(self).__name__} could handle {type(data).__name__} "
+            f"(configured: [{configured}]). "
+            f"Either pass list[dict] or configure a suitable DataAdapter."
         )
 
     def _from_rows(self, rows: list[dict[str, Any]]) -> Any:
         """Convert database rows back to the configured data format.
 
-        If an :attr:`adapter` is configured, delegates to
-        :meth:`DataAdapter.from_rows`.  Otherwise returns the raw
+        When adapters are configured, the first adapter in the list is used
+        to determine the read format.  Otherwise returns the raw
         ``list[dict]``.
 
         Args:
             rows: Raw rows from the database
 
         Returns:
-            Data in the adapter's format, or raw ``list[dict]``
+            Data in the first adapter's format, or raw ``list[dict]``
         """
-        if self.adapter is not None:
-            assert not isinstance(self.adapter, str)
-            return self.adapter.from_rows(rows)
+        if self.adapter:
+            assert isinstance(self.adapter, list)
+            return self.adapter[0].from_rows(rows)
         return rows
 
     # ------------------------------------------------------------------
@@ -297,10 +342,10 @@ class DatabaseIO(IO):
         When reading with a ``PartitionWindow``, returns a list of results, one
         per partition (matching the convention of ``FileIO`` / ``MemoryIO``).
 
-        The return type depends on the configured :attr:`adapter`:
+        The return type depends on the configured :attr:`adapter` list:
 
-        * No adapter → ``list[dict]`` (or ``list[list[dict]]`` for windows)
-        * With adapter → ``T`` (or ``list[T]`` for windows)
+        * No adapters → ``list[dict]`` (or ``list[list[dict]]`` for windows)
+        * With adapters → first adapter's format (or list thereof for windows)
 
         Args:
             context: IO context with asset and partition information
@@ -320,8 +365,7 @@ class DatabaseIO(IO):
             assert context.asset.partitioning
             col = context.asset.partitioning.column
             return [
-                self._from_rows(self._select_partition(table, schema, col, p.id))
-                for p in context.partition_or_window
+                self._from_rows(self._select_partition(table, schema, col, p.id)) for p in context.partition_or_window
             ]
 
         # Single partition
@@ -329,4 +373,3 @@ class DatabaseIO(IO):
         assert context.asset.partitioning
         col = context.asset.partitioning.column
         return self._from_rows(self._select_partition(table, schema, col, context.partition_or_window.id))
-

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Generic, TypeVar
 
 from interloper.errors import AdapterError
-from interloper.utils.imports import get_object_path
+from interloper.serialization.base import Component
 
 T = TypeVar("T")
 
 
-class DataAdapter(ABC, Generic[T]):
+class DataAdapter(Component, Generic[T]):
     """Converts between a typed data format and database rows (``list[dict]``).
 
     A ``DataAdapter`` is the bridge between an asset's output type and the
@@ -32,18 +32,6 @@ class DataAdapter(ABC, Generic[T]):
             def from_rows(self, rows):
                 return MyType.from_records(rows)
     """
-
-    @property
-    def path(self) -> str:
-        """The fully-qualified import path of this adapter class.
-
-        Used by :meth:`~interloper.io.database.DatabaseIO.to_spec` to persist the
-        adapter choice in an :class:`~interloper.serialization.io.IOSpec`.
-
-        Returns:
-            Import path string (e.g. ``interloper.io.adapter.RowAdapter``)
-        """
-        return get_object_path(type(self))
 
     @abstractmethod
     def to_rows(self, data: T) -> list[dict[str, Any]]:
@@ -89,9 +77,7 @@ class RowAdapter(DataAdapter[list[dict[str, Any]]]):
             AdapterError: If *data* is not a list
         """
         if not isinstance(data, list):
-            raise AdapterError(
-                f"RowAdapter expects list[dict], got {type(data).__name__}."
-            )
+            raise AdapterError(f"RowAdapter expects list[dict], got {type(data).__name__}.")
         return data
 
     def from_rows(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

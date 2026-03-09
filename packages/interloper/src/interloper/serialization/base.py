@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from interloper.utils.imports import get_object_path, import_from_path
 
 if TYPE_CHECKING:
-    from interloper.io.base import IO
     from interloper.source.config import Config
 
 
@@ -160,7 +159,7 @@ class Component(BaseModel, Serializable, ABC):
         """
         # Derive label by stripping known suffixes from the class name
         label = cls.__name__
-        for suffix in ("IO", "Runner", "Backfiller"):
+        for suffix in ("IO", "Runner", "Backfiller", "Adapter"):
             if label.endswith(suffix) and len(label) > len(suffix):
                 label = label[: -len(suffix)]
                 break
@@ -179,25 +178,49 @@ class Component(BaseModel, Serializable, ABC):
 # ---------------------------------------------------------------------------
 
 
-def reconstruct_io(
-    io_spec: Any,
-) -> IO | list[IO] | None:
-    """Reconstruct IO instance(s) from spec(s).
-
-    Handles single specs, lists of specs, and None. Used by both
-    ``SourceInstanceSpec`` and ``AssetInstanceSpec`` to avoid duplication.
+def _reconstruct_one(v: Any) -> Any:
+    """Reconstruct a single component from a spec, dict, or import-path string.
 
     Args:
-        io_spec: A ComponentInstanceSpec, list of ComponentInstanceSpecs, or None.
+        v: A ``ComponentInstanceSpec``, a dict with at least a ``"path"`` key,
+            or a dotted import-path string.
 
     Returns:
-        The reconstructed IO instance(s), or None.
+        The reconstructed component instance.
     """
-    if isinstance(io_spec, ComponentInstanceSpec):
-        return io_spec.reconstruct()
-    elif isinstance(io_spec, list):
-        return [v.reconstruct() for v in io_spec]
-    return None
+    if isinstance(v, ComponentInstanceSpec):
+        return v.reconstruct()
+    if isinstance(v, dict):
+        return ComponentInstanceSpec(**v).reconstruct()
+    if isinstance(v, str):
+        return ComponentInstanceSpec(path=v).reconstruct()
+    return v
+
+
+def reconstruct_components(
+    spec: Any,
+) -> Any | list[Any] | None:
+    """Reconstruct component instance(s) from spec(s).
+
+    Accepts a single item, a list, or ``None``.  Each item may be a
+    ``ComponentInstanceSpec``, a dict (spread into ``ComponentInstanceSpec``),
+    a dotted import-path string, or an already-instantiated component
+    (returned as-is).
+
+    Used by ``SourceInstanceSpec``, ``AssetInstanceSpec``, and
+    ``DatabaseIO`` to reconstruct nested components.
+
+    Args:
+        spec: A single spec/dict/string, a list thereof, or ``None``.
+
+    Returns:
+        The reconstructed component(s), or ``None``.
+    """
+    if spec is None:
+        return None
+    if isinstance(spec, list):
+        return [_reconstruct_one(v) for v in spec]
+    return _reconstruct_one(spec)
 
 
 def reconstruct_config(

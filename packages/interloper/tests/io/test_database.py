@@ -7,7 +7,7 @@ import pytest
 from pydantic import Field
 
 from interloper.errors import AdapterError
-from interloper.io.adapter import RowAdapter
+from interloper.io.adapter import DataAdapter, RowAdapter
 from interloper.io.context import IOContext
 from interloper.io.database import DatabaseIO, WriteDisposition
 from interloper.partitioning.time import TimePartition, TimePartitionConfig, TimePartitionWindow
@@ -200,7 +200,7 @@ class TestDatabaseIO:
 
     def test_to_rows_without_adapter_rejects_non_list(self, stub):
         """_to_rows without an adapter raises AdapterError for non-list data."""
-        with pytest.raises(AdapterError, match="No adapter configured"):
+        with pytest.raises(AdapterError, match="No adapter on"):
             stub._to_rows({"a": 1})
 
     # ---- to_spec / model_dump serialization ----
@@ -214,12 +214,18 @@ class TestDatabaseIO:
         }
 
     def test_to_spec_with_adapter(self):
-        """to_spec includes adapter path when an adapter is set."""
+        """to_spec includes adapter specs when an adapter is set."""
         db = StubDatabaseIO(adapter=RowAdapter())
         spec = db.to_spec()
-        assert spec.config["adapter"] == "interloper.io.adapter.RowAdapter"
+        assert spec.config["adapter"] == [{"path": "interloper.io.adapter.RowAdapter"}]
         assert spec.config["write_disposition"] == "append"
         assert spec.config["chunk_size"] == 1000
+
+    def test_to_spec_with_adapter_list(self):
+        """to_spec includes all adapter specs when a list is set."""
+        db = StubDatabaseIO(adapter=[RowAdapter()])
+        spec = db.to_spec()
+        assert spec.config["adapter"] == [{"path": "interloper.io.adapter.RowAdapter"}]
 
     def test_to_spec_custom_settings(self):
         """to_spec reflects non-default write_disposition and chunk_size."""
@@ -229,3 +235,98 @@ class TestDatabaseIO:
             "write_disposition": "replace",
             "chunk_size": 500,
         }
+
+
+class TestAdapterChain:
+    """Tests for adapter list (chain) support on DatabaseIO."""
+
+    def test_single_adapter_normalized_to_list(self):
+        """A single adapter is normalized to a list in model_post_init."""
+        db = StubDatabaseIO(adapter=RowAdapter())
+        assert isinstance(db.adapter, list)
+        assert len(db.adapter) == 1
+        assert isinstance(db.adapter[0], RowAdapter)
+
+    def test_string_adapter_resolved_to_list(self):
+        """A string adapter is imported and normalized to a list."""
+        db = StubDatabaseIO(adapter="interloper.io.adapter.RowAdapter")
+        assert isinstance(db.adapter, list)
+        assert len(db.adapter) == 1
+        assert isinstance(db.adapter[0], RowAdapter)
+
+    def test_list_of_strings_resolved(self):
+        """A list of strings is resolved to a list of adapter instances."""
+        db = StubDatabaseIO(adapter=["interloper.io.adapter.RowAdapter"])
+        assert isinstance(db.adapter, list)
+        assert len(db.adapter) == 1
+        assert isinstance(db.adapter[0], RowAdapter)
+
+    def test_to_rows_tries_adapters_in_order(self):
+        """_to_rows tries each adapter until one succeeds."""
+
+        class DictAdapter(DataAdapter):
+            def to_rows(self, data):
+                if not isinstance(data, dict):
+                    raise AdapterError("expected dict")
+                return [data]
+
+            def from_rows(self, rows):
+                return rows[0]
+
+        db = StubDatabaseIO(adapter=[RowAdapter(), DictAdapter()])
+
+        # list[dict] → handled by RowAdapter (first)
+        rows = db._to_rows([{"a": 1}])
+        assert rows == [{"a": 1}]
+
+        # dict → RowAdapter raises, DictAdapter handles it
+        rows = db._to_rows({"b": 2})
+        assert rows == [{"b": 2}]
+
+    def test_to_rows_falls_back_to_list_passthrough(self):
+        """_to_rows falls back to list[dict] passthrough when no adapter handles it."""
+
+        class StrictAdapter(DataAdapter):
+            def to_rows(self, data):
+                raise AdapterError("nope")
+
+            def from_rows(self, rows):
+                return rows
+
+        db = StubDatabaseIO(adapter=[StrictAdapter()])
+        # Falls back to list[dict] passthrough
+        data = [{"a": 1}]
+        assert db._to_rows(data) is data
+
+    def test_to_rows_raises_when_nothing_handles(self):
+        """_to_rows raises AdapterError when no adapter handles and data is not list."""
+
+        class StrictAdapter(DataAdapter):
+            def to_rows(self, data):
+                raise AdapterError("nope")
+
+            def from_rows(self, rows):
+                return rows
+
+        db = StubDatabaseIO(adapter=[StrictAdapter()])
+        with pytest.raises(AdapterError, match="StrictAdapter"):
+            db._to_rows({"a": 1})
+
+    def test_from_rows_uses_first_adapter(self):
+        """_from_rows uses the first adapter in the list."""
+
+        class WrappingAdapter(DataAdapter):
+            def to_rows(self, data):
+                return data
+
+            def from_rows(self, rows):
+                return {"wrapped": rows}
+
+        db = StubDatabaseIO(adapter=[WrappingAdapter(), RowAdapter()])
+        result = db._from_rows([{"a": 1}])
+        assert result == {"wrapped": [{"a": 1}]}
+
+    def test_key_derived_with_adapter(self):
+        """DatabaseIO key derivation works even with adapter set (super() called)."""
+        db = StubDatabaseIO(adapter=RowAdapter())
+        assert db.key == "stubdatabase"

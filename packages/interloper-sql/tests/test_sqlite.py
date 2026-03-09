@@ -33,10 +33,10 @@ def _make_context(name="test_table", dataset=None):
 class TestSqliteIOInit:
     """SqliteIO constructor and defaults."""
 
-    def test_default_memory_database(self):
-        """Default database is None (no connection)."""
-        io = SqliteIO()
-        assert io.database is None
+    def test_database_is_required(self):
+        """Constructing SqliteIO without database raises a validation error."""
+        with pytest.raises(Exception):
+            SqliteIO()
 
     def test_explicit_memory_database(self):
         """Explicitly passing :memory: works."""

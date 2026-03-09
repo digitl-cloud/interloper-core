@@ -6,8 +6,8 @@ from interloper_google_cloud import BigQueryIO
 il.subscribe(print)
 
 io = BigQueryIO(
-    project="dc-int-connectors-prd",
-    default_dataset="interloper",
+    # project="dc-int-connectors-prd",
+    # default_dataset="interloper",
 )
 
 

@@ -3,7 +3,7 @@
 import pytest
 
 import interloper as il
-from interloper.serialization.base import ComponentInstanceSpec, reconstruct_io
+from interloper.serialization.base import ComponentInstanceSpec, reconstruct_components
 from interloper.serialization.source import SourceInstanceSpec
 from interloper.source.base import Source
 
@@ -110,25 +110,25 @@ class TestSourceSpec:
         assert source.assets["asset_a"].materializable is True
         assert source.assets["asset_b"].materializable is True
 
-    # -- reconstruct_io (shared helper) ----------------------------------------
+    # -- reconstruct_components (shared helper) ----------------------------------------
 
-    def test_reconstruct_io_none(self):
-        """reconstruct_io returns None when io is None."""
-        assert reconstruct_io(None) is None
+    def test_reconstruct_components_none(self):
+        """reconstruct_components returns None when io is None."""
+        assert reconstruct_components(None) is None
 
-    def test_reconstruct_io_single(self):
-        """reconstruct_io reconstructs a single ComponentInstanceSpec."""
+    def test_reconstruct_components_single(self):
+        """reconstruct_components reconstructs a single ComponentInstanceSpec."""
         io_spec = ComponentInstanceSpec(path="interloper.io.memory.MemoryIO")
-        result = reconstruct_io(io_spec)
+        result = reconstruct_components(io_spec)
         assert isinstance(result, il.MemoryIO)
 
-    def test_reconstruct_io_list(self):
-        """reconstruct_io reconstructs a list of ComponentInstanceSpecs."""
+    def test_reconstruct_components_list(self):
+        """reconstruct_components reconstructs a list of ComponentInstanceSpecs."""
         io_specs = [
             ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
             ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
         ]
-        result = reconstruct_io(io_specs)
+        result = reconstruct_components(io_specs)
         assert isinstance(result, list)
         assert len(result) == 2
         assert isinstance(result[0], il.MemoryIO)

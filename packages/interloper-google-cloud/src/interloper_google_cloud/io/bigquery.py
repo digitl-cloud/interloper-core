@@ -53,7 +53,7 @@ class BigQueryIO(DatabaseIO):
     fallback.
     """
 
-    project: str | None = None
+    project: str
     default_dataset: str | None = None
     location: str = "EU"
     service_account_key: str | None = None
@@ -61,7 +61,7 @@ class BigQueryIO(DatabaseIO):
 
     def model_post_init(self, context: Any, /) -> None:
         super().model_post_init(context)
-        if self.project is not None and self.service_account_key is not None:
+        if self.service_account_key is not None:
             import json
 
             key_info = json.loads(self.service_account_key)
@@ -69,6 +69,11 @@ class BigQueryIO(DatabaseIO):
             self._client = bigquery.Client(
                 project=self.project,
                 credentials=credentials,
+                location=self.location,
+            )
+        else:
+            self._client = bigquery.Client(
+                project=self.project,
                 location=self.location,
             )
 
@@ -156,7 +161,6 @@ class BigQueryIO(DatabaseIO):
             schema: Schema (dataset) override.
         """
         dataset = self._resolve_dataset(schema)
-        assert self.project is not None, "BigQueryIO.project must be set to ensure datasets"
         dataset_ref = bigquery.DatasetReference(self.project, dataset)
         try:
             self._client.get_dataset(dataset_ref)

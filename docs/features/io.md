@@ -126,7 +126,7 @@ from interloper_sql import SqliteIO
 
 io = SqliteIO(database="data/local.db")
 # or in-memory:
-io = SqliteIO()
+io = SqliteIO(database=":memory:")
 ```
 
 All SQL IO backends support `write_disposition` and `chunk_size` as model fields.

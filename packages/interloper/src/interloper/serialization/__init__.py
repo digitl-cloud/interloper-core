@@ -16,8 +16,8 @@ from interloper.serialization.base import (
     ComponentInstanceSpec,
     DefinitionSpec,
     Spec,
+    reconstruct_components,
     reconstruct_config,
-    reconstruct_io,
 )
 from interloper.serialization.config import ConfigInstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
@@ -38,6 +38,6 @@ __all__ = [
     "SourceInstanceSpec",
     "Spec",
     "extract_schema_fields",
+    "reconstruct_components",
     "reconstruct_config",
-    "reconstruct_io",
 ]

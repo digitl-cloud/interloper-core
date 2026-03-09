@@ -11,8 +11,8 @@ from interloper.serialization.base import (
     ComponentDefinitionSpec,
     ComponentInstanceSpec,
     InstanceSpec,
+    reconstruct_components,
     reconstruct_config,
-    reconstruct_io,
 )
 from interloper.utils.imports import import_from_path
 
@@ -52,7 +52,7 @@ class SourceInstanceSpec(InstanceSpec):
         """
         from interloper.source.base import SourceDefinition
 
-        io = reconstruct_io(self.io)
+        io = reconstruct_components(self.io)
         source_def = import_from_path(self.path, SourceDefinition)
         config = reconstruct_config(source_def, self.config)
 

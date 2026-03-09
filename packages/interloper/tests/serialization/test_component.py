@@ -11,8 +11,8 @@ from interloper.serialization.base import (
     ComponentDefinitionSpec,
     ComponentInstanceSpec,
     Serializable,
+    reconstruct_components,
     reconstruct_config,
-    reconstruct_io,
 )
 
 # ---------------------------------------------------------------------------
@@ -182,13 +182,13 @@ class TestComponentDefinitionSpec:
 # ---------------------------------------------------------------------------
 
 
-class TestReconstructIo:
+class TestReconstructComponents:
     def test_none(self) -> None:
-        assert reconstruct_io(None) is None
+        assert reconstruct_components(None) is None
 
     def test_single_spec(self) -> None:
         spec = ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem"})
-        result = reconstruct_io(spec)
+        result = reconstruct_components(spec)
         assert result is not None
         assert not isinstance(result, list)
         assert result.key == "mem"
@@ -198,7 +198,7 @@ class TestReconstructIo:
             ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem1"}),
             ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem2"}),
         ]
-        result = reconstruct_io(specs)
+        result = reconstruct_components(specs)
         assert isinstance(result, list)
         assert len(result) == 2
         assert result[0].key == "mem1"

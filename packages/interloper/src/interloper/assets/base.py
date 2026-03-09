@@ -207,6 +207,9 @@ class Asset(Component):
         if self.io is None:
             self.io = MemoryIO.singleton()
 
+        if isinstance(self.io, list) and len(self.io) == 1:
+            self.io = self.io[0]
+
         if isinstance(self.io, list):
             validate_io_keys(self.io, self.key)
             if not self.default_io_key:

@@ -68,13 +68,14 @@ class TestAssetPartitionRowCounts:
         assert counts["2025-01-01"] == 1
 
     def test_multi_io_invalid_key_raises(self):
-        io = SqliteIO(key="primary", database=":memory:")
+        io1 = SqliteIO(key="primary", database=":memory:")
+        io2 = SqliteIO(key="secondary", database=":memory:")
 
         @il.asset(partitioning=il.TimePartitionConfig(column="ds"))
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return []
 
-        asset = my_asset(io=[io], default_io_key="primary")
+        asset = my_asset(io=[io1, io2], default_io_key="primary")
         with pytest.raises(il.ConfigError, match="IO key 'missing'"):
             asset.partition_row_counts(io_key="missing")
 
