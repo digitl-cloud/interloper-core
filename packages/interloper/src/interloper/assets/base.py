@@ -197,12 +197,7 @@ class Asset(Component):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def model_post_init(self, __context: Any, /) -> None:
-        """Apply defaults after initialization.
-
-        Raises:
-            ConfigError: If multiple IOs are configured without a valid
-                ``default_io_key``, or if IO keys collide.
-        """
+        """Apply defaults after initialization."""
         if not self.label:
             self.label = self.definition.label
 
@@ -214,17 +209,17 @@ class Asset(Component):
 
         if isinstance(self.io, list):
             validate_io_keys(self.io, self.key)
-            if not self.default_io_key:
-                raise ConfigError(
-                    f"Asset '{self.key}' has multiple IOs but no default_io_key. "
-                    "Set default_io_key to specify which IO to use for upstream reads."
-                )
-            if not any(io.key == self.default_io_key for io in self.io):
-                available = sorted(io.key for io in self.io)
-                raise ConfigError(
-                    f"default_io_key '{self.default_io_key}' not found in IO list "
-                    f"for asset '{self.key}'. Available keys: {available}"
-                )
+            # if not self.default_io_key:
+            #     raise ConfigError(
+            #         f"Asset '{self.key}' has multiple IOs but no default_io_key. "
+            #         "Set default_io_key to specify which IO to use for upstream reads."
+            #     )
+            # if not any(io.key == self.default_io_key for io in self.io):
+            #     available = sorted(io.key for io in self.io)
+            #     raise ConfigError(
+            #         f"default_io_key '{self.default_io_key}' not found in IO list "
+            #         f"for asset '{self.key}'. Available keys: {available}"
+            #     )
 
         if self.partitioning is not None and self.schema is not None:
             schema_fields = set(self.schema.model_fields.keys())
@@ -503,9 +498,14 @@ class Asset(Component):
 
         Raises:
             AssetError: If no IO is found or the read fails.
+            ConfigError: If the upstream asset has multiple IOs but no default_io_key.
         """
         if isinstance(upstream_asset.io, list):
-            # default_io_key is guaranteed non-None (validated in model_post_init)
+            if not self.default_io_key:
+                raise ConfigError(
+                    f"Asset '{self.key}' has multiple IOs but no default_io_key. "
+                    "Set default_io_key to specify which IO to use for upstream reads."
+                )
             read_io_key = upstream_asset.default_io_key
             read_io = next(io for io in upstream_asset.io if io.key == read_io_key)
         else:

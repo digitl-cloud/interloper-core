@@ -50,9 +50,9 @@ class TestSqliteIOInit:
         assert io.database == db_path
 
     def test_default_write_disposition(self):
-        """Default write disposition is APPEND."""
+        """Default write disposition is REPLACE."""
         io = SqliteIO(database=":memory:")
-        assert io.write_disposition is WriteDisposition.APPEND
+        assert io.write_disposition is WriteDisposition.REPLACE
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""
@@ -90,7 +90,7 @@ class TestSqliteIOSpec:
 
         assert spec.path == "interloper_sql.io.sqlite.SqliteIO"
         assert spec.config["database"] == ":memory:"
-        assert spec.config["write_disposition"] == "append"
+        assert spec.config["write_disposition"] == "replace"
         assert spec.config["chunk_size"] == 1000
 
     def test_to_spec_custom(self):
@@ -132,7 +132,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_then_read(self):
         """Write rows, then read them back."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("simple")
         rows = [{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}]
 
@@ -143,7 +143,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_empty_rows_is_noop(self):
         """Writing an empty list should not create a table."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("empty_table")
 
         io.write(ctx, [])
@@ -153,7 +153,7 @@ class TestSqliteIOReadWrite:
 
     def test_read_nonexistent_table_raises(self):
         """Reading a table that doesn't exist raises TableNotFoundError."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("no_such_table")
 
         with pytest.raises(TableNotFoundError):
@@ -183,7 +183,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_various_types(self):
         """Rows containing int, float, str, bool persist correctly."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("types_test")
         rows = [{"i": 42, "f": 3.14, "s": "hello", "b": True}]
 
@@ -199,7 +199,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_large_batch_chunked(self):
         """Rows exceeding chunk_size are still written completely."""
-        io = SqliteIO(database=":memory:", chunk_size=3)
+        io = SqliteIO(database=":memory:", chunk_size=3, write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("chunked")
         rows = [{"n": i} for i in range(10)]
 
@@ -220,7 +220,7 @@ class TestSqliteIOTableCreation:
 
     def test_table_created_on_first_write(self):
         """Writing to a non-existent table creates it automatically."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("auto_create")
 
         io.write(ctx, [{"col_a": "value"}])
@@ -231,7 +231,7 @@ class TestSqliteIOTableCreation:
 
     def test_inferred_column_types(self):
         """Column types are inferred from the first row's Python types."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("infer_types")
         rows = [
             {
@@ -259,7 +259,7 @@ class TestSqliteIOTableCreation:
 
     def test_multiple_tables_same_io(self):
         """A single SqliteIO can manage multiple tables."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx_a = _make_context("table_a")
         ctx_b = _make_context("table_b")
 
@@ -280,7 +280,7 @@ class TestSqliteIODispose:
 
     def test_dispose_clears_cache(self):
         """After dispose(), the internal table cache is empty."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("dispose_test")
         io.write(ctx, [{"a": 1}])
 

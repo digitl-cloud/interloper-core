@@ -68,9 +68,9 @@ class TestPostgresIOInit:
         assert io.driver == "psycopg2"
 
     def test_default_write_disposition(self):
-        """Default write disposition is APPEND."""
+        """Default write disposition is REPLACE."""
         io = PostgresIO(host="localhost")
-        assert io.write_disposition is WriteDisposition.APPEND
+        assert io.write_disposition is WriteDisposition.REPLACE
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""

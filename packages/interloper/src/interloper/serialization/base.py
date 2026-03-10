@@ -164,7 +164,7 @@ class Component(BaseModel, Serializable, ABC):
                 label = label[: -len(suffix)]
                 break
 
-        config_schema = cls.model_json_schema()
+        config_schema = cls.model_json_schema(mode="serialization")
         return ComponentDefinitionSpec(
             key=cls.__name__,
             label=label,

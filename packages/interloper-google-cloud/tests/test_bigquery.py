@@ -10,102 +10,102 @@ from interloper.errors import ConfigError
 from interloper.io.database import WriteDisposition
 from interloper.serialization.base import ComponentInstanceSpec
 
-from interloper_google_cloud.io.bigquery import BigQueryIO, _bq_param_type, _infer_bq_type
+from interloper_google_cloud.io.bigquery import BigQueryIO, _bq_to_py_type, _py_to_bq_type
 
 # A minimal service account key JSON for testing.
 _SA_KEY = json.dumps({"type": "service_account", "project_id": "test-proj"})
 
 # ------------------------------------------------------------------
-# _infer_bq_type
+# _py_to_bq_type
 # ------------------------------------------------------------------
 
 
-class TestInferBqType:
-    """Map Python values to BigQuery field types."""
+class TestPyToBqType:
+    """Map BigQuery field types to Python values."""
 
     def test_bool(self):
-        assert _infer_bq_type(True) == "BOOLEAN"
-        assert _infer_bq_type(False) == "BOOLEAN"
+        assert _py_to_bq_type(True) == "BOOLEAN"
+        assert _py_to_bq_type(False) == "BOOLEAN"
 
     def test_int(self):
-        assert _infer_bq_type(42) == "INTEGER"
-        assert _infer_bq_type(0) == "INTEGER"
-        assert _infer_bq_type(-1) == "INTEGER"
+        assert _py_to_bq_type(42) == "INTEGER"
+        assert _py_to_bq_type(0) == "INTEGER"
+        assert _py_to_bq_type(-1) == "INTEGER"
 
     def test_float(self):
-        assert _infer_bq_type(3.14) == "FLOAT"
-        assert _infer_bq_type(0.0) == "FLOAT"
+        assert _py_to_bq_type(3.14) == "FLOAT"
+        assert _py_to_bq_type(0.0) == "FLOAT"
 
     def test_decimal(self):
-        assert _infer_bq_type(Decimal("9.99")) == "NUMERIC"
+        assert _py_to_bq_type(Decimal("9.99")) == "NUMERIC"
 
     def test_datetime(self):
-        assert _infer_bq_type(datetime.datetime(2024, 1, 1, 12, 0)) == "TIMESTAMP"
+        assert _py_to_bq_type(datetime.datetime(2024, 1, 1, 12, 0)) == "TIMESTAMP"
 
     def test_date(self):
-        assert _infer_bq_type(datetime.date(2024, 1, 1)) == "DATE"
+        assert _py_to_bq_type(datetime.date(2024, 1, 1)) == "DATE"
 
     def test_bytes(self):
-        assert _infer_bq_type(b"raw") == "BYTES"
+        assert _py_to_bq_type(b"raw") == "BYTES"
 
     def test_string(self):
-        assert _infer_bq_type("hello") == "STRING"
+        assert _py_to_bq_type("hello") == "STRING"
 
     def test_none_falls_back_to_string(self):
-        assert _infer_bq_type(None) == "STRING"
+        assert _py_to_bq_type(None) == "STRING"
 
     def test_list_falls_back_to_string(self):
-        assert _infer_bq_type([1, 2, 3]) == "STRING"
+        assert _py_to_bq_type([1, 2, 3]) == "STRING"
 
     def test_dict_falls_back_to_string(self):
-        assert _infer_bq_type({"a": 1}) == "STRING"
+        assert _py_to_bq_type({"a": 1}) == "STRING"
 
     def test_bool_before_int(self):
         """bool is a subclass of int -- ensure bool wins."""
         # True is also isinstance(True, int), so order matters
-        assert _infer_bq_type(True) == "BOOLEAN"
-        assert _infer_bq_type(True) != "INTEGER"
+        assert _py_to_bq_type(True) == "BOOLEAN"
+        assert _py_to_bq_type(True) != "INTEGER"
 
 
 # ------------------------------------------------------------------
-# _bq_param_type
+# _py_to_bq_type
 # ------------------------------------------------------------------
 
 
-class TestBqParamType:
+class TestBqToPyType:
     """Map Python values to BigQuery query parameter types."""
 
     def test_bool(self):
-        assert _bq_param_type(True) == "BOOL"
-        assert _bq_param_type(False) == "BOOL"
+        assert _bq_to_py_type(True) == "BOOL"
+        assert _bq_to_py_type(False) == "BOOL"
 
     def test_int(self):
-        assert _bq_param_type(42) == "INT64"
+        assert _bq_to_py_type(42) == "INT64"
 
     def test_float(self):
-        assert _bq_param_type(3.14) == "FLOAT64"
+        assert _bq_to_py_type(3.14) == "FLOAT64"
 
     def test_decimal(self):
-        assert _bq_param_type(Decimal("1.5")) == "NUMERIC"
+        assert _bq_to_py_type(Decimal("1.5")) == "NUMERIC"
 
     def test_datetime(self):
-        assert _bq_param_type(datetime.datetime(2024, 6, 15, 8, 30)) == "TIMESTAMP"
+        assert _bq_to_py_type(datetime.datetime(2024, 6, 15, 8, 30)) == "TIMESTAMP"
 
     def test_date(self):
-        assert _bq_param_type(datetime.date(2024, 6, 15)) == "DATE"
+        assert _bq_to_py_type(datetime.date(2024, 6, 15)) == "DATE"
 
     def test_bytes(self):
-        assert _bq_param_type(b"\x00") == "BYTES"
+        assert _bq_to_py_type(b"\x00") == "BYTES"
 
     def test_string(self):
-        assert _bq_param_type("text") == "STRING"
+        assert _bq_to_py_type("text") == "STRING"
 
     def test_none_falls_back_to_string(self):
-        assert _bq_param_type(None) == "STRING"
+        assert _bq_to_py_type(None) == "STRING"
 
     def test_bool_before_int(self):
         """bool is a subclass of int -- ensure bool wins."""
-        assert _bq_param_type(True) == "BOOL"
+        assert _bq_to_py_type(True) == "BOOL"
 
 
 # ------------------------------------------------------------------
@@ -125,7 +125,7 @@ class TestBigQueryIOInit:
         assert io.project == "my-project"
         assert io.default_dataset is None
         assert io.location == "EU"
-        assert io.write_disposition == WriteDisposition.APPEND
+        assert io.write_disposition == WriteDisposition.REPLACE
         assert io.chunk_size == 1000
         mock_client_cls.assert_called_once_with(project="my-project", credentials=mock_creds, location="EU")
 
@@ -242,7 +242,7 @@ class TestToSpec:
         assert spec.config["location"] == "EU"
         assert spec.config["service_account_key"] == _SA_KEY
         assert "default_dataset" not in spec.config
-        assert spec.config["write_disposition"] == "append"
+        assert spec.config["write_disposition"] == "replace"
         assert spec.config["chunk_size"] == 1000
 
     @patch("interloper_google_cloud.io.bigquery.service_account")

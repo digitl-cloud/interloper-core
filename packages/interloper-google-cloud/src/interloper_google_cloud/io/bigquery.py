@@ -16,57 +16,6 @@ from interloper.io.database import DatabaseIO
 from pydantic import PrivateAttr
 
 
-def _json_default(o: Any) -> Any:
-    """JSON serializer for types not handled by the default encoder.
-
-    Used by :meth:`BigQueryIO._insert` to convert rows to JSON-safe dicts
-    before passing them to ``load_table_from_json``.
-
-    Args:
-        o: Object to serialize.
-
-    Returns:
-        A JSON-serializable representation.
-
-    Raises:
-        TypeError: If the object type is not supported.
-    """
-    if isinstance(o, (datetime.date, datetime.datetime)):
-        return o.isoformat()
-    if isinstance(o, Decimal):
-        return str(o)
-    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
-
-
-def _infer_bq_type(value: Any) -> str:
-    """Infer a BigQuery field type from a Python value.
-
-    Args:
-        value: A sample Python value used to determine the field type.
-
-    Returns:
-        A BigQuery standard SQL type name.
-    """
-    import datetime
-    from decimal import Decimal
-
-    if isinstance(value, bool):
-        return "BOOLEAN"
-    if isinstance(value, int):
-        return "INTEGER"
-    if isinstance(value, float):
-        return "FLOAT"
-    if isinstance(value, Decimal):
-        return "NUMERIC"
-    if isinstance(value, datetime.datetime):
-        return "TIMESTAMP"
-    if isinstance(value, datetime.date):
-        return "DATE"
-    if isinstance(value, bytes):
-        return "BYTES"
-    return "STRING"
-
-
 class BigQueryIO(DatabaseIO):
     """BigQuery IO manager.
 
@@ -173,7 +122,7 @@ class BigQueryIO(DatabaseIO):
             rows: Row data (at least one row required for schema inference).
         """
         sample = rows[0]
-        bq_schema = [bigquery.SchemaField(name, _infer_bq_type(value)) for name, value in sample.items()]
+        bq_schema = [bigquery.SchemaField(name, _py_to_bq_type(value)) for name, value in sample.items()]
         bq_table = bigquery.Table(self._table_ref(table, schema), schema=bq_schema)
         self._client.create_table(bq_table)
 
@@ -252,7 +201,7 @@ class BigQueryIO(DatabaseIO):
         ref = self._table_ref(table, schema)
         query = f"DELETE FROM `{ref}` WHERE `{column}` = @partition_value"
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_param_type(value), value)],
+            query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_to_py_type(value), value)],
         )
         self._client.query(query, job_config=job_config).result()
 
@@ -297,7 +246,7 @@ class BigQueryIO(DatabaseIO):
         ref = self._table_ref(table, schema)
         query = f"SELECT * FROM `{ref}` WHERE `{column}` = @partition_value"
         job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_param_type(value), value)],
+            query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_to_py_type(value), value)],
         )
         rows = self._client.query(query, job_config=job_config).result()
         return [dict(row) for row in rows]
@@ -348,7 +297,58 @@ class BigQueryIO(DatabaseIO):
             self._client.close()
 
 
-def _bq_param_type(value: Any) -> str:
+def _json_default(o: Any) -> Any:
+    """JSON serializer for types not handled by the default encoder.
+
+    Used by :meth:`BigQueryIO._insert` to convert rows to JSON-safe dicts
+    before passing them to ``load_table_from_json``.
+
+    Args:
+        o: Object to serialize.
+
+    Returns:
+        A JSON-serializable representation.
+
+    Raises:
+        TypeError: If the object type is not supported.
+    """
+    if isinstance(o, (datetime.date, datetime.datetime)):
+        return o.isoformat()
+    if isinstance(o, Decimal):
+        return str(o)
+    raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+
+def _py_to_bq_type(value: Any) -> str:
+    """Infer a BigQuery field type from a Python value.
+
+    Args:
+        value: A sample Python value used to determine the field type.
+
+    Returns:
+        A BigQuery standard SQL type name.
+    """
+    import datetime
+    from decimal import Decimal
+
+    if isinstance(value, bool):
+        return "BOOLEAN"
+    if isinstance(value, int):
+        return "INTEGER"
+    if isinstance(value, float):
+        return "FLOAT"
+    if isinstance(value, Decimal):
+        return "NUMERIC"
+    if isinstance(value, datetime.datetime):
+        return "TIMESTAMP"
+    if isinstance(value, datetime.date):
+        return "DATE"
+    if isinstance(value, bytes):
+        return "BYTES"
+    return "STRING"
+
+
+def _bq_to_py_type(value: Any) -> str:
     """Map a Python value to a BigQuery query parameter type.
 
     Args:

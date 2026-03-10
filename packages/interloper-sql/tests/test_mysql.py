@@ -64,9 +64,9 @@ class TestMySQLIOInit:
         assert io.driver == "pymysql"
 
     def test_default_write_disposition(self):
-        """Default write disposition is APPEND."""
+        """Default write disposition is REPLACE."""
         io = MySQLIO(**_DEFAULT_KWARGS)
-        assert io.write_disposition is WriteDisposition.APPEND
+        assert io.write_disposition is WriteDisposition.REPLACE
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""

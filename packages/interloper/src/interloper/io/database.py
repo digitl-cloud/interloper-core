@@ -50,7 +50,7 @@ class DatabaseIO(IO):
     until one succeeds; reads use the first adapter.
     """
 
-    write_disposition: WriteDisposition = WriteDisposition.APPEND
+    write_disposition: WriteDisposition = WriteDisposition.REPLACE
     chunk_size: int = 1000
     adapter: list[DataAdapter] | None = None
 

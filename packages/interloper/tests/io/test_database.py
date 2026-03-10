@@ -98,19 +98,20 @@ class TestDatabaseIO:
     # ---- init defaults ----
 
     def test_init_defaults(self):
-        """Default init uses APPEND, chunk_size=1000, no adapter."""
+        """Default init uses REPLACE, chunk_size=1000, no adapter."""
         db = StubDatabaseIO()
-        assert db.write_disposition is WriteDisposition.APPEND
+        assert db.write_disposition is WriteDisposition.REPLACE
         assert db.chunk_size == 1000
         assert db.adapter is None
 
     # ---- write: append / no partition ----
 
-    def test_write_append_no_partition(self, stub, unpartitioned_ctx):
+    def test_write_append_no_partition(self, unpartitioned_ctx):
         """Append write without partitioning calls _insert only."""
-        stub.write(unpartitioned_ctx, [{"a": 1}])
-        assert len(stub.calls) == 1
-        assert stub.calls[0][0] == "insert"
+        db = StubDatabaseIO(write_disposition=WriteDisposition.APPEND)
+        db.write(unpartitioned_ctx, [{"a": 1}])
+        assert len(db.calls) == 1
+        assert db.calls[0][0] == "insert"
 
     # ---- write: replace / no partition ----
 
@@ -124,11 +125,12 @@ class TestDatabaseIO:
 
     # ---- write: append / single partition ----
 
-    def test_write_append_single_partition(self, stub, partitioned_ctx):
+    def test_write_append_single_partition(self, partitioned_ctx):
         """Append write with a single partition calls _insert only."""
-        stub.write(partitioned_ctx, [{"a": 1}])
-        assert len(stub.calls) == 1
-        assert stub.calls[0][0] == "insert"
+        db = StubDatabaseIO(write_disposition=WriteDisposition.APPEND)
+        db.write(partitioned_ctx, [{"a": 1}])
+        assert len(db.calls) == 1
+        assert db.calls[0][0] == "insert"
 
     # ---- write: replace / single partition ----
 
@@ -210,16 +212,16 @@ class TestDatabaseIO:
         """to_spec returns correct spec for default settings."""
         spec = stub.to_spec()
         assert spec.config == {
-            "write_disposition": "append",
+            "write_disposition": "replace",
             "chunk_size": 1000,
         }
 
     def test_to_spec_with_adapter(self):
         """to_spec includes adapter specs when an adapter is set."""
-        db = StubDatabaseIO(adapter=RowAdapter())
+        db = StubDatabaseIO(adapter=RowAdapter(), write_disposition=WriteDisposition.REPLACE)
         spec = db.to_spec()
         assert spec.config["adapter"] == [{"path": "interloper.io.adapter.RowAdapter"}]
-        assert spec.config["write_disposition"] == "append"
+        assert spec.config["write_disposition"] == "replace"
         assert spec.config["chunk_size"] == 1000
 
     def test_to_spec_with_adapter_list(self):
