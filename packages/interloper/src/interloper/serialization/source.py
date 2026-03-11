@@ -39,10 +39,10 @@ class SourceInstanceSpec(InstanceSpec):
 
     type: Literal["source"] = Field(default="source", init=False, frozen=True)
     path: str
-    io: ComponentInstanceSpec | list[ComponentInstanceSpec] | None = None
+    destinations: ComponentInstanceSpec | list[ComponentInstanceSpec] | None = None
     config: dict[str, Any] | None = None  # dict to initialize the config Pydantic model
     assets: list[str] | None = None  # asset local keys to mark as materializable
-    default_io_key: str | None = None
+    default_destination_key: str | None = None
 
     def reconstruct(self) -> Source:
         """Reconstruct a Source from this spec.
@@ -52,11 +52,13 @@ class SourceInstanceSpec(InstanceSpec):
         """
         from interloper.source.base import SourceDefinition
 
-        io = reconstruct_components(self.io)
+        destination = reconstruct_components(self.destinations)
         source_def = import_from_path(self.path, SourceDefinition)
         config = reconstruct_config(source_def, self.config)
 
-        source = source_def(config=config, io=io, default_io_key=self.default_io_key)
+        source = source_def(
+            config=config, destination=destination, default_destination_key=self.default_destination_key,
+        )
 
         if self.assets is not None:
             for asset in source.assets.values():

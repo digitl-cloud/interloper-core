@@ -61,8 +61,8 @@ class TestSourceSpec:
         assert spec.path == source_path
 
     def test_optional_fields_default_to_none(self, spec: SourceInstanceSpec):
-        """io, config, and assets default to None."""
-        assert spec.io is None
+        """destinations, config, and assets default to None."""
+        assert spec.destinations is None
         assert spec.config is None
         assert spec.assets is None
 
@@ -74,7 +74,7 @@ class TestSourceSpec:
         parsed = SourceInstanceSpec.model_validate_json(json_str)
         assert parsed.path == spec.path
         assert parsed.type == "source"
-        assert parsed.io is None
+        assert parsed.destinations is None
         assert parsed.config is None
         assert parsed.assets is None
 
@@ -113,23 +113,23 @@ class TestSourceSpec:
     # -- reconstruct_components (shared helper) ----------------------------------------
 
     def test_reconstruct_components_none(self):
-        """reconstruct_components returns None when io is None."""
+        """reconstruct_components returns None when destinations is None."""
         assert reconstruct_components(None) is None
 
     def test_reconstruct_components_single(self):
         """reconstruct_components reconstructs a single ComponentInstanceSpec."""
-        io_spec = ComponentInstanceSpec(path="interloper.io.memory.MemoryIO")
-        result = reconstruct_components(io_spec)
-        assert isinstance(result, il.MemoryIO)
+        dest_spec = ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination")
+        result = reconstruct_components(dest_spec)
+        assert isinstance(result, il.MemoryDestination)
 
     def test_reconstruct_components_list(self):
         """reconstruct_components reconstructs a list of ComponentInstanceSpecs."""
-        io_specs = [
-            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
-            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO"),
+        dest_specs = [
+            ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination"),
+            ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination"),
         ]
-        result = reconstruct_components(io_specs)
+        result = reconstruct_components(dest_specs)
         assert isinstance(result, list)
         assert len(result) == 2
-        assert isinstance(result[0], il.MemoryIO)
-        assert isinstance(result[1], il.MemoryIO)
+        assert isinstance(result[0], il.MemoryDestination)
+        assert isinstance(result[1], il.MemoryDestination)

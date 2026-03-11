@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from interloper.assets.base import AssetDefinition
 from interloper.assets.keys import AssetDefinitionKey
-from interloper.io.base import IO
+from interloper.destination.base import Destination
 from interloper.partitioning.base import PartitionConfig
 from interloper.source.config import Config
 
@@ -28,8 +28,8 @@ def asset(
     key: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    io: IO | list[IO] | None = None,
-    default_io_key: str | None = None,
+    destination: Destination | list[Destination] | None = None,
+    default_destination_key: str | None = None,
     normalizer: Normalizer | None = None,
     strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
@@ -46,8 +46,8 @@ def asset(
     key: str | None = None,
     schema: type[BaseModel] | None = None,
     config: type[Config] | None = None,
-    io: IO | list[IO] | None = None,
-    default_io_key: str | None = None,
+    destination: Destination | list[Destination] | None = None,
+    default_destination_key: str | None = None,
     normalizer: Normalizer | None = None,
     strategy: MaterializationStrategy | None = None,
     partitioning: PartitionConfig | None = None,
@@ -76,8 +76,8 @@ def asset(
             key=key or "",
             schema=schema,
             config=config,
-            io=io,
-            default_io_key=default_io_key,
+            destination=destination,
+            default_destination_key=default_destination_key,
             normalizer=normalizer,
             strategy=strategy,
             partitioning=partitioning,

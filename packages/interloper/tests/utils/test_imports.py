@@ -12,8 +12,8 @@ class TestImportFromPath:
 
     def test_import_class(self):
         """Imports a class by dotted path."""
-        cls = import_from_path("interloper.io.file.FileIO")
-        assert cls.__name__ == "FileIO"
+        cls = import_from_path("interloper.destination.file.FileDestination")
+        assert cls.__name__ == "FileDestination"
 
     def test_import_function(self):
         """Imports a function by dotted path."""
@@ -22,13 +22,13 @@ class TestImportFromPath:
 
     def test_type_validation_passes(self):
         """Type validation passes for matching types."""
-        cls = import_from_path("interloper.io.file.FileIO", type)
-        assert cls.__name__ == "FileIO"
+        cls = import_from_path("interloper.destination.file.FileDestination", type)
+        assert cls.__name__ == "FileDestination"
 
     def test_type_validation_fails(self):
         """Type validation raises ValueError for mismatched types."""
         with pytest.raises(ValueError, match="is not a"):
-            import_from_path("interloper.io.file.FileIO", int)
+            import_from_path("interloper.destination.file.FileDestination", int)
 
     def test_invalid_module(self):
         """Invalid module raises ImportError."""
@@ -38,7 +38,7 @@ class TestImportFromPath:
     def test_invalid_attribute(self):
         """Missing attribute raises AttributeError."""
         with pytest.raises(AttributeError):
-            import_from_path("interloper.io.file.NonExistentClass")
+            import_from_path("interloper.destination.file.NonExistentClass")
 
 
 class TestGetObjectPath:
@@ -46,9 +46,9 @@ class TestGetObjectPath:
 
     def test_class_path(self):
         """Returns correct dotted path for a class."""
-        from interloper.io.file import FileIO
+        from interloper.destination.file import FileDestination
 
-        assert get_object_path(FileIO) == "interloper.io.file.FileIO"
+        assert get_object_path(FileDestination) == "interloper.destination.file.FileDestination"
 
     def test_function_path(self):
         """Returns correct dotted path for a function."""

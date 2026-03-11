@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from interloper.backfillers.base import Backfiller
 from interloper.dag.base import DAG
-from interloper.io.base import IO
+from interloper.destination.base import Destination
 from interloper.runners.base import Runner
 from interloper.serialization.config import ConfigInstanceSpec
 
@@ -16,7 +16,7 @@ class Config:
     dag: DAG
     backfiller: Backfiller | None = None
     runner: Runner | None = None
-    io: list[IO] = field(default_factory=list)
+    destinations: list[Destination] = field(default_factory=list)
 
     def to_spec(self) -> ConfigInstanceSpec:
         """Convert to a serializable ConfigSpec.
@@ -27,7 +27,7 @@ class Config:
         return ConfigInstanceSpec(
             backfiller=self.backfiller.to_spec() if self.backfiller is not None else None,
             runner=self.runner.to_spec() if self.runner is not None else None,
-            io=[v.to_spec() for v in self.io],
+            destinations=[v.to_spec() for v in self.destinations],
             dag=self.dag.to_spec(),
         )
 

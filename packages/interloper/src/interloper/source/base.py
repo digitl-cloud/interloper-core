@@ -13,8 +13,8 @@ from typing import Any, cast
 from pydantic import Field
 
 from interloper.assets.base import Asset, AssetDefinition
+from interloper.destination.base import Destination, validate_destination_keys
 from interloper.errors import ConfigError, SourceError
-from interloper.io.base import IO, validate_io_keys
 from interloper.normalizer.base import Normalizer
 from interloper.normalizer.strategy import MaterializationStrategy
 from interloper.serialization.base import Component, HasDefinitionSpec
@@ -99,8 +99,8 @@ class SourceDefinition(HasDefinitionSpec):
         key: str | None = None,
         dataset: str | None = None,
         config: Config | None = None,
-        io: IO | list[IO] | None = None,
-        default_io_key: str | None = None,
+        destination: Destination | list[Destination] | None = None,
+        default_destination_key: str | None = None,
         assets: Sequence[str] | dict[str, str] | None = None,
         strategy: MaterializationStrategy | None = None,
     ) -> Source:
@@ -270,8 +270,8 @@ class SourceDefinition(HasDefinitionSpec):
             asset_instance = asset_def(
                 key=asset_key,
                 config=asset_config,
-                io=io,
-                default_io_key=default_io_key,
+                destination=destination,
+                default_destination_key=default_destination_key,
                 dataset=self.dataset if asset_def.dataset is None else None,
             )
 
@@ -296,8 +296,8 @@ class SourceDefinition(HasDefinitionSpec):
             key=key or self.key,
             dataset=dataset or key or self.dataset or self.key,
             config=resolved_config,
-            io=io,
-            default_io_key=default_io_key,
+            destination=destination,
+            default_destination_key=default_destination_key,
             assets=asset_instances,
         )
 
@@ -324,8 +324,8 @@ class Source(Component):
     label: str = ""
     dataset: str | None = None
     config: Config | None = None
-    io: IO | list[IO] | None = None
-    default_io_key: str | None = None
+    destination: Destination | list[Destination] | None = None
+    default_destination_key: str | None = None
     assets: dict[str, Asset] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -334,8 +334,8 @@ class Source(Component):
         if not self.label:
             self.label = self.definition.label
 
-        if isinstance(self.io, list):
-            validate_io_keys(self.io, self.key)
+        if isinstance(self.destination, list):
+            validate_destination_keys(self.destination, self.key)
 
         for asset in self.assets.values():
             asset.source = self
@@ -344,7 +344,7 @@ class Source(Component):
     def copy(
         self,
         config: Config | None = None,
-        io: IO | list[IO] | None = None,
+        destination: Destination | list[Destination] | None = None,
     ) -> Source:
         """Create an independent copy of this source with optional overrides.
 
@@ -354,8 +354,8 @@ class Source(Component):
         source = copy.copy(self)
         if config is not None:
             source.config = config
-        if io is not None:
-            source.io = io
+        if destination is not None:
+            source.destination = destination
 
         # Deep-copy assets so the new source is fully independent
         source.assets = {k: copy.copy(asset) for k, asset in self.assets.items()}
@@ -400,20 +400,20 @@ class Source(Component):
         """
         # TODO: serialize assets by setting the source spec `assets` field
 
-        io_spec = None
-        if isinstance(self.io, list):
-            io_spec = [io.to_spec() for io in self.io]
-        elif self.io is not None:
-            io_spec = self.io.to_spec()
+        dest_spec = None
+        if isinstance(self.destination, list):
+            dest_spec = [d.to_spec() for d in self.destination]
+        elif self.destination is not None:
+            dest_spec = self.destination.to_spec()
 
         materializable_assets = [str(asset.key) for asset in self.assets.values() if asset.materializable]
 
         return SourceInstanceSpec(
             path=self.path,
-            io=io_spec,
+            destinations=dest_spec,
             assets=materializable_assets,
             config=self.config.model_dump() if self.config is not None else None,
-            default_io_key=self.default_io_key,
+            default_destination_key=self.default_destination_key,
         )
 
 

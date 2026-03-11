@@ -39,9 +39,9 @@ class TestConfigSpec:
             dag=dag_spec,
             backfiller=ComponentInstanceSpec(path="interloper.backfillers.serial.SerialBackfiller"),
             runner=ComponentInstanceSpec(path="interloper.runners.serial.SerialRunner"),
-            io=[
+            destinations=[
                 ComponentInstanceSpec(
-                    path="interloper.io.file.FileIO",
+                    path="interloper.destination.file.FileDestination",
                     config={"base_path": "/tmp"},
                     init={"key": "default"},
                 ),
@@ -61,16 +61,16 @@ class TestConfigSpec:
         """ComponentInstanceSpec defaults to None when not provided."""
         assert spec.runner is None
 
-    def test_optional_io_defaults_to_empty_list(self, spec: ConfigInstanceSpec):
+    def test_optional_destinations_defaults_to_empty_list(self, spec: ConfigInstanceSpec):
         """ComponentInstanceSpec defaults to an empty list when not provided."""
-        assert spec.io == []
+        assert spec.destinations == []
 
     def test_creation_with_all_fields(self, full_spec: ConfigInstanceSpec):
         """ConfigInstanceSpec stores all optional fields when provided."""
         assert full_spec.backfiller is not None
         assert full_spec.runner is not None
-        assert len(full_spec.io) == 1
-        assert full_spec.io[0].init.get("key") == "default"
+        assert len(full_spec.destinations) == 1
+        assert full_spec.destinations[0].init.get("key") == "default"
 
     def test_json_roundtrip_minimal(self, spec: ConfigInstanceSpec):
         """Minimal ConfigInstanceSpec survives JSON roundtrip."""
@@ -78,7 +78,7 @@ class TestConfigSpec:
         parsed = ConfigInstanceSpec.model_validate_json(json_str)
         assert parsed.backfiller is None
         assert parsed.runner is None
-        assert parsed.io == []
+        assert parsed.destinations == []
         assert len(parsed.dag.assets) == 1
 
     def test_json_roundtrip_full(self, full_spec: ConfigInstanceSpec):
@@ -89,7 +89,7 @@ class TestConfigSpec:
         assert parsed.backfiller.path == full_spec.backfiller.path
         assert parsed.runner is not None
         assert parsed.runner.path == full_spec.runner.path
-        assert len(parsed.io) == 1
-        assert parsed.io[0].path == full_spec.io[0].path
-        assert parsed.io[0].init.get("key") == "default"
+        assert len(parsed.destinations) == 1
+        assert parsed.destinations[0].path == full_spec.destinations[0].path
+        assert parsed.destinations[0].init.get("key") == "default"
         assert len(parsed.dag.assets) == len(full_spec.dag.assets)

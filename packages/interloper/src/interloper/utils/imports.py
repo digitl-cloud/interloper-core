@@ -28,8 +28,8 @@ def import_from_path(path: str, target_type: type[T] | None = None) -> Any:
         ValueError: If *target_type* is given and the object does not match.
 
     Example:
-        >>> import_from_path("interloper.io.file.FileIO")
-        <class 'interloper.io.file.FileIO'>
+        >>> import_from_path("interloper.destination.file.FileDestination")
+        <class 'interloper.destination.file.FileDestination'>
     """
     parts = path.split(".")
     module_path = ".".join(parts[:-1])
@@ -52,9 +52,9 @@ def get_object_path(obj: Any) -> str:
         Dotted path string like ``"module.submodule.ClassName"``.
 
     Example:
-        >>> from interloper.io.file import FileIO
-        >>> get_object_path(FileIO)
-        'interloper.io.file.FileIO'
+        >>> from interloper.destination.file import FileDestination
+        >>> get_object_path(FileDestination)
+        'interloper.destination.file.FileDestination'
     """
     # Handle mock objects in tests
     if hasattr(obj, "_mock_name") and hasattr(obj, "_mock_parent"):

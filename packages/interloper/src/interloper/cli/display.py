@@ -59,9 +59,9 @@ class AssetState:
     start_time: dt.datetime | None = None
     end_time: dt.datetime | None = None
     error: str | None = None
-    io_reads: int = 0
-    io_writes: int = 0
-    io_errors: int = 0
+    destination_reads: int = 0
+    destination_writes: int = 0
+    destination_errors: int = 0
 
     # Operation tracking — "pending" or "done".
     # When the asset fails, the incomplete op is inferred (pending + failed status = red).
@@ -220,19 +220,19 @@ def _fmt_time(seconds: float | None) -> str:
     return f"{minutes}m{secs:04.1f}s"
 
 
-def _fmt_io(asset: AssetState) -> str:
-    """Format IO read/write/error counts for display.
+def _fmt_destination(asset: AssetState) -> str:
+    """Format destination read/write/error counts for display.
 
     Returns:
-        The formatted IO counts string.
+        The formatted destination counts string.
     """
     parts: list[str] = []
-    if asset.io_reads:
-        parts.append(f"R:{asset.io_reads}")
-    if asset.io_writes:
-        parts.append(f"W:{asset.io_writes}")
-    if asset.io_errors:
-        parts.append(f"E:{asset.io_errors}")
+    if asset.destination_reads:
+        parts.append(f"R:{asset.destination_reads}")
+    if asset.destination_writes:
+        parts.append(f"W:{asset.destination_writes}")
+    if asset.destination_errors:
+        parts.append(f"E:{asset.destination_errors}")
     return " ".join(parts) or "-"
 
 
@@ -553,33 +553,33 @@ class RichView:
             if asset is not None:
                 asset.phase = None
 
-        # --- IO lifecycle -------------------------------------------------
-        elif etype == EventType.IO_READ_STARTED:
+        # --- Destination lifecycle ----------------------------------------
+        elif etype == EventType.DESTINATION_READ_STARTED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.phase = PHASE_READING
 
-        elif etype == EventType.IO_READ_COMPLETED:
+        elif etype == EventType.DESTINATION_READ_COMPLETED:
             asset = self._find_asset(m)
             if asset is not None:
-                asset.io_reads += 1
+                asset.destination_reads += 1
                 asset.phase = None
 
-        elif etype == EventType.IO_WRITE_STARTED:
+        elif etype == EventType.DESTINATION_WRITE_STARTED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.phase = PHASE_WRITING
 
-        elif etype == EventType.IO_WRITE_COMPLETED:
+        elif etype == EventType.DESTINATION_WRITE_COMPLETED:
             asset = self._find_asset(m)
             if asset is not None:
-                asset.io_writes += 1
+                asset.destination_writes += 1
                 asset.phase = None
 
-        elif etype in (EventType.IO_READ_FAILED, EventType.IO_WRITE_FAILED):
+        elif etype in (EventType.DESTINATION_READ_FAILED, EventType.DESTINATION_WRITE_FAILED):
             asset = self._find_asset(m)
             if asset is not None:
-                asset.io_errors += 1
+                asset.destination_errors += 1
                 asset.phase = None
 
     # ------------------------------------------------------------------
@@ -742,15 +742,16 @@ class RichView:
         table.add_column("Ops", min_width=3)
         table.add_column("Status", min_width=8)
         table.add_column("Time", min_width=6, justify="right", style="dim")
-        table.add_column("IO", style="dim")
+        table.add_column("Dest", style="dim")
 
         spinner: RenderableType = Spinner("dots") if asset.status == Status.RUNNING else ""
         ops = _render_ops(asset) if asset.status != Status.WAITING else Text("\u00b7\u00b7\u00b7", style="dim")
         status = _status_text(asset)
         time_str = _fmt_time(asset.elapsed) if asset.status != Status.WAITING else ""
-        io_str = _fmt_io(asset) if (asset.io_reads or asset.io_writes or asset.io_errors) else ""
+        has_dest_activity = asset.destination_reads or asset.destination_writes or asset.destination_errors
+        dest_str = _fmt_destination(asset) if has_dest_activity else ""
 
-        table.add_row(asset.name, spinner, ops, status, time_str, io_str)
+        table.add_row(asset.name, spinner, ops, status, time_str, dest_str)
         return table
 
     # ------------------------------------------------------------------

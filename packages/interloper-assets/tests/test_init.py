@@ -2,7 +2,7 @@
 
 import interloper as il
 import pytest
-from interloper.io.base import IO
+from interloper.destination.base import Destination
 
 
 class TestPackageExports:
@@ -127,122 +127,122 @@ class TestGetAllSources:
         assert result == SOURCE_REGISTRY
 
 
-class TestPackageIOExports:
-    """IO-related symbols are importable from interloper_assets."""
+class TestPackageDestinationExports:
+    """Destination-related symbols are importable from interloper_assets."""
 
-    def test_import_io_registry(self):
-        """IO_REGISTRY is importable and is a dict."""
-        from interloper_assets import IO_REGISTRY
+    def test_import_destination_registry(self):
+        """DESTINATION_REGISTRY is importable and is a dict."""
+        from interloper_assets import DESTINATION_REGISTRY
 
-        assert isinstance(IO_REGISTRY, dict)
+        assert isinstance(DESTINATION_REGISTRY, dict)
 
-    def test_import_get_io(self):
-        """get_io is importable and callable."""
-        from interloper_assets import get_io
+    def test_import_get_destination(self):
+        """get_destination is importable and callable."""
+        from interloper_assets import get_destination
 
-        assert callable(get_io)
+        assert callable(get_destination)
 
-    def test_import_get_all_ios(self):
-        """get_all_ios is importable and callable."""
-        from interloper_assets import get_all_ios
+    def test_import_get_all_destinations(self):
+        """get_all_destinations is importable and callable."""
+        from interloper_assets import get_all_destinations
 
-        assert callable(get_all_ios)
+        assert callable(get_all_destinations)
 
 
-class TestIORegistry:
-    """IO_REGISTRY contents and structure."""
+class TestDestinationRegistry:
+    """DESTINATION_REGISTRY contents and structure."""
 
     def test_registry_is_non_empty(self):
         """Registry contains at least one entry."""
-        from interloper_assets import IO_REGISTRY
+        from interloper_assets import DESTINATION_REGISTRY
 
-        assert len(IO_REGISTRY) > 0
+        assert len(DESTINATION_REGISTRY) > 0
 
     def test_postgres_in_registry(self):
         """PostgreSQL is registered."""
-        from interloper_assets import IO_REGISTRY
+        from interloper_assets import DESTINATION_REGISTRY
 
-        assert "PostgreSQL" in IO_REGISTRY
+        assert "PostgreSQL" in DESTINATION_REGISTRY
 
     def test_mysql_in_registry(self):
         """MySQL is registered."""
-        from interloper_assets import IO_REGISTRY
+        from interloper_assets import DESTINATION_REGISTRY
 
-        assert "MySQL" in IO_REGISTRY
+        assert "MySQL" in DESTINATION_REGISTRY
 
     def test_bigquery_in_registry(self):
         """BigQuery is registered."""
-        from interloper_assets import IO_REGISTRY
+        from interloper_assets import DESTINATION_REGISTRY
 
-        assert "BigQuery" in IO_REGISTRY
+        assert "BigQuery" in DESTINATION_REGISTRY
 
-    def test_registry_values_are_io_classes(self):
-        """Each registry value is an IO subclass."""
-        from interloper_assets import IO_REGISTRY
+    def test_registry_values_are_destination_classes(self):
+        """Each registry value is a Destination subclass."""
+        from interloper_assets import DESTINATION_REGISTRY
 
-        for key, io_cls in IO_REGISTRY.items():
-            assert issubclass(io_cls, IO), f"Registry entry '{key}' is not an IO subclass"
+        for key, dest_cls in DESTINATION_REGISTRY.items():
+            assert issubclass(dest_cls, Destination), f"Registry entry '{key}' is not a Destination subclass"
 
 
-class TestGetIO:
-    """get_io lookup function."""
+class TestGetDestination:
+    """get_destination lookup function."""
 
     def test_returns_postgres(self):
-        """Looking up 'PostgreSQL' returns the correct IO class."""
-        from interloper_sql import PostgresIO
+        """Looking up 'PostgreSQL' returns the correct Destination class."""
+        from interloper_sql import PostgresDestination
 
-        from interloper_assets import get_io
+        from interloper_assets import get_destination
 
-        io_cls = get_io("PostgreSQL")
-        assert io_cls is PostgresIO
+        dest_cls = get_destination("PostgreSQL")
+        assert dest_cls is PostgresDestination
 
     def test_returns_mysql(self):
-        """Looking up 'MySQL' returns the correct IO class."""
-        from interloper_sql import MySQLIO
+        """Looking up 'MySQL' returns the correct Destination class."""
+        from interloper_sql import MySQLDestination
 
-        from interloper_assets import get_io
+        from interloper_assets import get_destination
 
-        io_cls = get_io("MySQL")
-        assert io_cls is MySQLIO
+        dest_cls = get_destination("MySQL")
+        assert dest_cls is MySQLDestination
 
     def test_returns_bigquery(self):
-        """Looking up 'BigQuery' returns the correct IO class."""
-        from interloper_google_cloud import BigQueryIO
+        """Looking up 'BigQuery' returns the correct Destination class."""
+        from interloper_google_cloud import BigQueryDestination
 
-        from interloper_assets import get_io
+        from interloper_assets import get_destination
 
-        io_cls = get_io("BigQuery")
-        assert io_cls is BigQueryIO
+        dest_cls = get_destination("BigQuery")
+        assert dest_cls is BigQueryDestination
 
     def test_unknown_key_raises(self):
         """Looking up an unknown key raises ConfigError."""
-        from interloper_assets import get_io
+        from interloper_assets import get_destination
 
         with pytest.raises(il.ConfigError):
-            get_io("nonexistent_io_xyz")
+            get_destination("nonexistent_destination_xyz")
 
 
-class TestGetAllIOs:
-    """get_all_ios function."""
+class TestGetAllDestinations:
+    """get_all_destinations function."""
 
     def test_returns_dict(self):
         """Returns a dict."""
-        from interloper_assets import get_all_ios
+        from interloper_assets import get_all_destinations
 
-        result = get_all_ios()
+        result = get_all_destinations()
         assert isinstance(result, dict)
 
     def test_contains_postgres(self):
         """Returned dict contains PostgreSQL."""
-        from interloper_assets import get_all_ios
+        from interloper_assets import get_all_destinations
 
-        result = get_all_ios()
+        result = get_all_destinations()
         assert "PostgreSQL" in result
 
     def test_returns_copy(self):
         """Returned dict is a copy, not the original registry."""
-        from interloper_assets import IO_REGISTRY, get_all_ios
+        from interloper_assets import DESTINATION_REGISTRY, get_all_destinations
 
-        result = get_all_ios()
-        assert result is not IO_REGISTRY
-        assert result == IO_REGISTRY
+        result = get_all_destinations()
+        assert result is not DESTINATION_REGISTRY
+        assert result == DESTINATION_REGISTRY

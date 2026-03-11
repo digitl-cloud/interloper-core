@@ -25,8 +25,8 @@ from interloper.errors import (
 from interloper.runners.results import ExecutionStatus
 
 
-def _fio(tmp_path):
-    return il.FileIO(base_path=str(tmp_path))
+def _fdest(tmp_path):
+    return il.FileDestination(base_path=str(tmp_path))
 
 
 class TestDAGInitialization:
@@ -311,7 +311,11 @@ class TestDAGStructure:
         def asset_c(context: il.ExecutionContext, asset_b: str) -> str:
             return asset_b + "c"
 
-        dag = il.DAG(asset_a(io=_fio(tmp_path)), asset_b(io=_fio(tmp_path)), asset_c(io=_fio(tmp_path)))
+        dag = il.DAG(
+            asset_a(destination=_fdest(tmp_path)),
+            asset_b(destination=_fdest(tmp_path)),
+            asset_c(destination=_fdest(tmp_path)),
+        )
         assert dag.predecessors["asset_b"] == ["asset_a"]
         assert dag.predecessors["asset_c"] == ["asset_b"]
 
@@ -328,7 +332,11 @@ class TestDAGStructure:
         def asset_c(context: il.ExecutionContext, asset_a: str, asset_b: str) -> str:
             return asset_a + asset_b
 
-        dag = il.DAG(asset_a(io=_fio(tmp_path)), asset_b(io=_fio(tmp_path)), asset_c(io=_fio(tmp_path)))
+        dag = il.DAG(
+            asset_a(destination=_fdest(tmp_path)),
+            asset_b(destination=_fdest(tmp_path)),
+            asset_c(destination=_fdest(tmp_path)),
+        )
         assert set(dag.predecessors["asset_c"]) == {"asset_a", "asset_b"}
 
     def test_definition_dependencies_build_correctly(self):
@@ -353,7 +361,7 @@ class TestDAGStructure:
             return asset_a
 
         with pytest.raises(CircularDependencyError, match="Circular dependency"):
-            il.DAG(asset_a(io=_fio(tmp_path)), asset_b(io=_fio(tmp_path)))
+            il.DAG(asset_a(destination=_fdest(tmp_path)), asset_b(destination=_fdest(tmp_path)))
 
     def test_missing_upstream_param_raises(self, tmp_path):
         @il.asset
@@ -361,7 +369,7 @@ class TestDAGStructure:
             return missing_asset
 
         with pytest.raises(DependencyNotFoundError):
-            il.DAG(my_asset(io=_fio(tmp_path)))
+            il.DAG(my_asset(destination=_fdest(tmp_path)))
 
 
 class TestDAGPartitioning:
@@ -378,7 +386,7 @@ class TestDAGPartitioning:
         def daily_asset(context: il.ExecutionContext, config_asset: str) -> str:
             return f"{config_asset}_{context.partition_date}"
 
-        dag = il.DAG(config_asset(io=_fio(tmp_path)), daily_asset(io=_fio(tmp_path)))
+        dag = il.DAG(config_asset(destination=_fdest(tmp_path)), daily_asset(destination=_fdest(tmp_path)))
         assert "config_asset" in dag.predecessors["daily_asset"]
 
     def test_partitioned_to_non_partitioned_raises(self, tmp_path):
@@ -393,7 +401,7 @@ class TestDAGPartitioning:
             return daily_asset
 
         with pytest.raises(DAGError):
-            il.DAG(daily_asset(io=_fio(tmp_path)), summary_asset(io=_fio(tmp_path)))
+            il.DAG(daily_asset(destination=_fdest(tmp_path)), summary_asset(destination=_fdest(tmp_path)))
 
 
 class TestDAGMaterialize:
@@ -404,7 +412,7 @@ class TestDAGMaterialize:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         result = dag.materialize()
         assert isinstance(result, il.RunResult)
 
@@ -415,7 +423,7 @@ class TestDAGMaterialize:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         result = dag.materialize(partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
         assert isinstance(result, il.RunResult)
 
@@ -427,7 +435,7 @@ class TestDAGMaterialize:
             start, end = context.partition_date_window
             return [{"start": start, "end": end}]
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         result = dag.materialize(
             partition_or_window=il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 7))
         )
@@ -440,7 +448,7 @@ class TestDAGMaterialize:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         with pytest.raises(PartitionError, match="Windowed runs require all partitioned assets"):
             dag.materialize(
                 partition_or_window=il.TimePartitionWindow(
@@ -462,7 +470,10 @@ class TestDAGGraphTraversal:
         def downstream_asset(context: il.ExecutionContext, upstream_asset: str) -> str:
             return upstream_asset + "_processed"
 
-        dag = il.DAG(upstream_asset(io=_fio(tmp_path)), downstream_asset(io=_fio(tmp_path)))
+        dag = il.DAG(
+            upstream_asset(destination=_fdest(tmp_path)),
+            downstream_asset(destination=_fdest(tmp_path)),
+        )
         preds = dag.get_predecessors("downstream_asset")
         assert preds == ["upstream_asset"]
 
@@ -479,7 +490,11 @@ class TestDAGGraphTraversal:
         def asset_c(context: il.ExecutionContext, asset_a: str, asset_b: str) -> str:
             return asset_a + asset_b
 
-        dag = il.DAG(asset_a(io=_fio(tmp_path)), asset_b(io=_fio(tmp_path)), asset_c(io=_fio(tmp_path)))
+        dag = il.DAG(
+            asset_a(destination=_fdest(tmp_path)),
+            asset_b(destination=_fdest(tmp_path)),
+            asset_c(destination=_fdest(tmp_path)),
+        )
         preds = dag.get_predecessors("asset_c")
         assert set(preds) == {"asset_a", "asset_b"}
 
@@ -488,7 +503,7 @@ class TestDAGGraphTraversal:
         def root_asset(context: il.ExecutionContext) -> str:
             return "root"
 
-        dag = il.DAG(root_asset(io=_fio(tmp_path)))
+        dag = il.DAG(root_asset(destination=_fdest(tmp_path)))
         assert dag.get_predecessors("root_asset") == []
 
     def test_get_successors_single(self, tmp_path):
@@ -500,7 +515,10 @@ class TestDAGGraphTraversal:
         def downstream_asset(context: il.ExecutionContext, upstream_asset: str) -> str:
             return upstream_asset + "_processed"
 
-        dag = il.DAG(upstream_asset(io=_fio(tmp_path)), downstream_asset(io=_fio(tmp_path)))
+        dag = il.DAG(
+            upstream_asset(destination=_fdest(tmp_path)),
+            downstream_asset(destination=_fdest(tmp_path)),
+        )
         succs = dag.get_successors("upstream_asset")
         assert succs == ["downstream_asset"]
 
@@ -517,7 +535,11 @@ class TestDAGGraphTraversal:
         def asset_c(context: il.ExecutionContext, asset_a: str) -> str:
             return asset_a + "_c"
 
-        dag = il.DAG(asset_a(io=_fio(tmp_path)), asset_b(io=_fio(tmp_path)), asset_c(io=_fio(tmp_path)))
+        dag = il.DAG(
+            asset_a(destination=_fdest(tmp_path)),
+            asset_b(destination=_fdest(tmp_path)),
+            asset_c(destination=_fdest(tmp_path)),
+        )
         succs = dag.get_successors("asset_a")
         assert set(succs) == {"asset_b", "asset_c"}
 
@@ -526,7 +548,7 @@ class TestDAGGraphTraversal:
         def leaf_asset(context: il.ExecutionContext) -> str:
             return "leaf"
 
-        dag = il.DAG(leaf_asset(io=_fio(tmp_path)))
+        dag = il.DAG(leaf_asset(destination=_fdest(tmp_path)))
         assert dag.get_successors("leaf_asset") == []
 
     def test_get_predecessors_invalid_key_raises(self, tmp_path):
@@ -534,7 +556,7 @@ class TestDAGGraphTraversal:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         with pytest.raises(AssetNotFoundError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_predecessors("invalid_key")
 
@@ -543,7 +565,7 @@ class TestDAGGraphTraversal:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        dag = il.DAG(my_asset(io=_fio(tmp_path)))
+        dag = il.DAG(my_asset(destination=_fdest(tmp_path)))
         with pytest.raises(AssetNotFoundError, match="Asset 'invalid_key' not found in DAG"):
             dag.get_successors("invalid_key")
 
@@ -564,8 +586,11 @@ class TestDAGGraphTraversal:
         def asset_d(context: il.ExecutionContext, asset_b: str, asset_c: str) -> str:
             return asset_b + "_" + asset_c
 
-        io = _fio(tmp_path)
-        dag = il.DAG(asset_a(io=io), asset_b(io=io), asset_c(io=io), asset_d(io=io))
+        destination = _fdest(tmp_path)
+        dag = il.DAG(
+            asset_a(destination=destination), asset_b(destination=destination),
+            asset_c(destination=destination), asset_d(destination=destination),
+        )
 
         assert dag.get_predecessors("asset_a") == []
         assert set(dag.get_successors("asset_a")) == {"asset_b", "asset_c"}
@@ -585,10 +610,10 @@ class TestDAGGraphTraversal:
         def downstream_asset(context: il.ExecutionContext, external: str) -> str:
             return f"downstream_{external}"
 
-        io = _fio(tmp_path)
+        destination = _fdest(tmp_path)
         dag = il.DAG(
-            upstream_asset(io=io),
-            downstream_asset(io=io, deps={"external": "upstream_asset"}),
+            upstream_asset(destination=destination),
+            downstream_asset(destination=destination, deps={"external": "upstream_asset"}),
         )
 
         assert dag.get_predecessors("downstream_asset") == ["upstream_asset"]

@@ -1,8 +1,8 @@
 import interloper as il
+from interloper.destination.base import Destination
 from interloper.errors import ConfigError, SourceError
-from interloper.io.base import IO
-from interloper_google_cloud import BigQueryIO
-from interloper_sql import MySQLIO, PostgresIO
+from interloper_google_cloud import BigQueryDestination
+from interloper_sql import MySQLDestination, PostgresDestination
 
 from interloper_assets.adservice.source import Adservice, AdserviceConfig
 from interloper_assets.adup.source import Adup, AdupConfig
@@ -81,47 +81,47 @@ def get_all_sources() -> dict[str, tuple[il.SourceDefinition, type[il.Config] | 
     return dict(SOURCE_REGISTRY)
 
 
-IO_REGISTRY: dict[str, type[IO]] = {
-    "PostgreSQL": PostgresIO,
-    "MySQL":      MySQLIO,
-    "BigQuery":   BigQueryIO,
+DESTINATION_REGISTRY: dict[str, type[Destination]] = {
+    "PostgreSQL": PostgresDestination,
+    "MySQL":      MySQLDestination,
+    "BigQuery":   BigQueryDestination,
 }
 
 
-def get_io(key: str) -> type[IO]:
-    """Get an IO class by destination key.
+def get_destination(key: str) -> type[Destination]:
+    """Get a Destination class by key.
 
-    The IO class carries its own config as model fields, so no separate
-    config class lookup is needed.
+    The Destination class carries its own config as model fields, so no
+    separate config class lookup is needed.
 
     Args:
         key: Destination type identifier (e.g. "PostgreSQL", "BigQuery")
 
     Returns:
-        The IO class registered under *key*.
+        The Destination class registered under *key*.
 
     Raises:
         ConfigError: If the key is not found in the registry.
     """
-    if key not in IO_REGISTRY:
-        raise ConfigError(f"Unknown IO key: {key}")
-    return IO_REGISTRY[key]
+    if key not in DESTINATION_REGISTRY:
+        raise ConfigError(f"Unknown destination key: {key}")
+    return DESTINATION_REGISTRY[key]
 
 
-def get_all_ios() -> dict[str, type[IO]]:
-    """Get all registered IO backends.
+def get_all_destinations() -> dict[str, type[Destination]]:
+    """Get all registered destination backends.
 
     Returns:
-        Dictionary mapping destination keys to IO classes.
+        Dictionary mapping destination keys to Destination classes.
     """
-    return dict(IO_REGISTRY)
+    return dict(DESTINATION_REGISTRY)
 
 
 __all__ = [
-    "IO_REGISTRY",
+    "DESTINATION_REGISTRY",
     "SOURCE_REGISTRY",
-    "get_all_ios",
+    "get_all_destinations",
     "get_all_sources",
-    "get_io",
+    "get_destination",
     "get_source_and_config",
 ]

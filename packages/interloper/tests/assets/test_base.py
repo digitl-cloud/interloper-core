@@ -194,17 +194,17 @@ class TestAssetDefinition:
         asset_instance = asset_def(config=config)
         assert isinstance(asset_instance, il.Asset)
 
-    def test_callable_with_io_override(self):
-        """Test calling AssetDefinition with IO override."""
+    def test_callable_with_destination_override(self):
+        """Test calling AssetDefinition with Destination override."""
 
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
         asset_def = il.AssetDefinition(func)
-        new_io = il.FileIO(base_path="override/")
-        asset_instance = asset_def(io=new_io)
+        new_destination = il.FileDestination(base_path="override/")
+        asset_instance = asset_def(destination=new_destination)
         assert isinstance(asset_instance, il.Asset)
-        assert asset_instance.io == new_io
+        assert asset_instance.destination == new_destination
 
 
 class TestAsset:
@@ -224,7 +224,7 @@ class TestAsset:
         assert asset_instance.schema is None
         assert asset_instance.config is None
         assert asset_instance.dataset is None
-        assert isinstance(asset_instance.io, il.MemoryIO)
+        assert isinstance(asset_instance.destination, il.MemoryDestination)
 
     def test_key_with_source(self):
         """Test key property with source context."""
@@ -389,17 +389,17 @@ class TestAsset:
         assert isinstance(asset_instance, il.Asset)
         assert asset_instance.config == config
 
-    def test_with_io(self, tmp_path):
-        """Test Asset with IO passed at call time."""
+    def test_with_destination(self, tmp_path):
+        """Test Asset with Destination passed at call time."""
 
         @il.asset
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        io = il.FileIO(base_path=str(tmp_path))
-        asset_instance = my_asset(io=io)
+        destination = il.FileDestination(base_path=str(tmp_path))
+        asset_instance = my_asset(destination=destination)
         assert isinstance(asset_instance, il.Asset)
-        assert asset_instance.io is io
+        assert asset_instance.destination is destination
 
     def test_run_without_partition(self):
         """Test Asset.run() without partition."""
@@ -457,7 +457,7 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        asset_instance = my_asset(io=il.FileIO(base_path=str(tmp_path)))
+        asset_instance = my_asset(destination=il.FileDestination(base_path=str(tmp_path)))
         value = asset_instance.materialize()
         assert value == "value"
 
@@ -468,12 +468,12 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> list[dict]:
             return [{"date": context.partition_date}]
 
-        asset_instance = my_asset(io=il.FileIO(base_path=str(tmp_path)))
+        asset_instance = my_asset(destination=il.FileDestination(base_path=str(tmp_path)))
         value = asset_instance.materialize(partition_or_window=il.TimePartition(dt.date(2025, 1, 1)))
         assert value == [{"date": dt.date(2025, 1, 1)}]
 
-    def test_materialize_with_multiple_ios(self, tmp_path):
-        """Test Asset.materialize() with multiple IOs."""
+    def test_materialize_with_multiple_destinations(self, tmp_path):
+        """Test Asset.materialize() with multiple Destinations."""
         local_dir = tmp_path / "local"
         local_dir.mkdir(parents=True)
         cloud_dir = tmp_path / "cloud"
@@ -483,11 +483,11 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
-        ios = [
-            il.FileIO(key="local", base_path=str(local_dir)),
-            il.FileIO(key="cloud", base_path=str(cloud_dir)),
+        destinations = [
+            il.FileDestination(key="local", base_path=str(local_dir)),
+            il.FileDestination(key="cloud", base_path=str(cloud_dir)),
         ]
-        asset_instance = my_asset(io=ios, default_io_key="local")
+        asset_instance = my_asset(destination=destinations, default_destination_key="local")
         value = asset_instance.materialize()
         assert value == "value"
 
@@ -504,7 +504,7 @@ class TestAsset:
 
     def test_dependency_resolution(self, tmp_path):
         """Test asset with dependencies requires DAG."""
-        io = il.FileIO(base_path=str(tmp_path))
+        destination = il.FileDestination(base_path=str(tmp_path))
 
         @il.asset
         def upstream(context: il.ExecutionContext) -> str:
@@ -515,8 +515,8 @@ class TestAsset:
             return upstream + "b"
 
         # Dependencies cannot be resolved without a DAG
-        # This should fail because upstream data needs to be loaded from IO
-        downstream_instance = downstream(io=io)
+        # This should fail because upstream data needs to be loaded from Destination
+        downstream_instance = downstream(destination=destination)
         with pytest.raises(AssetError, match="Pass a DAG to run\\(\\) or materialize\\(\\) for dependency resolution"):
             # Will fail: cannot resolve 'upstream' parameter
             value = downstream_instance.run()
@@ -532,16 +532,18 @@ class TestAsset:
         def my_asset(context: il.ExecutionContext, config: Cfg) -> str:
             return "value"
 
-        original = my_asset(io=il.FileIO(base_path=str(tmp_path)), deps={"a": "ds.up"})
+        original = my_asset(destination=il.FileDestination(base_path=str(tmp_path)), deps={"a": "ds.up"})
 
         new_cfg = Cfg(key="y")
-        new_io = il.FileIO(base_path=str(tmp_path / "other"))
+        new_destination = il.FileDestination(base_path=str(tmp_path / "other"))
         new_deps = {"b": "ds2.other"}
 
-        copied = original.copy(config=new_cfg, io=new_io, deps=new_deps, dataset="new_ds", materializable=False)
+        copied = original.copy(
+            config=new_cfg, destination=new_destination, deps=new_deps, dataset="new_ds", materializable=False,
+        )
 
         # Original unchanged
-        assert isinstance(original.io, il.FileIO)
+        assert isinstance(original.destination, il.FileDestination)
         assert original.config is not new_cfg
         assert original.deps == {"a": "ds.up"}
         assert original.dataset == "ds"
@@ -552,7 +554,7 @@ class TestAsset:
         assert copied.func is original.func
         assert copied.definition is original.definition
         assert copied.config == new_cfg
-        assert copied.io is new_io
+        assert copied.destination is new_destination
         assert copied.deps == new_deps
         assert copied.dataset == "new_ds"
         assert copied.materializable is False
@@ -561,7 +563,7 @@ class TestAsset:
         """Asset.copy should retain the .source reference when the asset is part of a Source."""
         import interloper as il
 
-        io = il.FileIO(base_path=str(tmp_path))
+        destination = il.FileDestination(base_path=str(tmp_path))
 
         @il.source
         class Src:
@@ -569,7 +571,7 @@ class TestAsset:
             def a(self, context: il.ExecutionContext) -> str:
                 return "v"
 
-        source_instance = Src(io=io)
+        source_instance = Src(destination=destination)
         asset_from_source = source_instance.assets["a"]
 
         copied = asset_from_source.copy()

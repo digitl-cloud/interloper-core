@@ -72,7 +72,7 @@ class TestDAGSpec:
     def test_complex_dag_serialization(self):
         """Complex DAGInstanceSpec with multiple assets serializes correctly."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_io = il.FileIO(base_path=temp_dir)
+            file_dest = il.FileDestination(base_path=temp_dir)
 
             @il.asset
             def source_asset():
@@ -86,7 +86,11 @@ class TestDAGSpec:
             def final_asset(processed_asset):
                 return f"final_{processed_asset}"
 
-            dag = il.DAG(source_asset(io=file_io), processed_asset(io=file_io), final_asset(io=file_io))
+            dag = il.DAG(
+                source_asset(destination=file_dest),
+                processed_asset(destination=file_dest),
+                final_asset(destination=file_dest),
+            )
             dag_spec = dag.to_spec()
             assert isinstance(dag_spec, DAGInstanceSpec)
             assert len(dag_spec.assets) == 3

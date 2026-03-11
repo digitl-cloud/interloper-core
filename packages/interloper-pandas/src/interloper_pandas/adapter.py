@@ -5,15 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
+from interloper.destination.adapter import DataAdapter
 from interloper.errors import AdapterError
-from interloper.io.adapter import DataAdapter
 
 
 class DataFrameAdapter(DataAdapter):
     """Adapter for pandas ``DataFrame``.
 
     Converts between ``DataFrame`` and ``list[dict]`` row format used by
-    :class:`~interloper.io.database.DatabaseIO`.
+    :class:`~interloper.destination.database.DatabaseDestination`.
     """
 
     def to_rows(self, data: Any) -> list[dict[str, Any]]:

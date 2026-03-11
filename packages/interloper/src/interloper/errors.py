@@ -87,26 +87,23 @@ class NormalizerError(InterloperError, TypeError):
 
 
 # ---------------------------------------------------------------------------
-# IO
+# Destination
 # ---------------------------------------------------------------------------
 
 
-class InterloperIOError(InterloperError):
-    """Base class for IO-related errors.
-
-    Named ``InterloperIOError`` to avoid shadowing Python's built-in ``IOError``.
-    """
+class InterloperDestinationError(InterloperError):
+    """Base class for destination-related errors."""
 
 
-class DataNotFoundError(InterloperIOError, KeyError):
-    """No data was found in the IO backend for the requested key."""
+class DataNotFoundError(InterloperDestinationError, KeyError):
+    """No data was found in the destination backend for the requested key."""
 
 
-class TableNotFoundError(InterloperIOError, ValueError):
+class TableNotFoundError(InterloperDestinationError, ValueError):
     """A database table does not exist."""
 
 
-class AdapterError(InterloperIOError, TypeError):
+class AdapterError(InterloperDestinationError, TypeError):
     """A data adapter received data of an unexpected type."""
 
 

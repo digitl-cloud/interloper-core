@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, LargeBinary, Numeric, Text
 
-from interloper_sql.io.base import _infer_sa_type
+from interloper_sql.destination.base import _infer_sa_type
 
 
 class TestInferSaType:

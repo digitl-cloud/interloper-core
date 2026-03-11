@@ -1,28 +1,28 @@
-"""Tests for SqliteIO using in-memory SQLite databases."""
+"""Tests for SqliteDestination using in-memory SQLite databases."""
 
 import datetime
 
 import interloper as il
 import pytest
+from interloper.destination.database import WriteDisposition
 from interloper.errors import TableNotFoundError
-from interloper.io.database import WriteDisposition
 from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Text
 from sqlalchemy import inspect as sa_inspect
 
-from interloper_sql import SqliteIO
+from interloper_sql import SqliteDestination
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _make_context(name="test_table", dataset=None):
-    """Build an IOContext for a dummy asset with the given table name and dataset."""
+    """Build a DestinationContext for a dummy asset with the given table name and dataset."""
 
     @il.asset(key=name, dataset=dataset)
     def _dummy():
         return None
 
-    return il.IOContext(asset=_dummy())
+    return il.DestinationContext(asset=_dummy())
 
 
 # ---------------------------------------------------------------------------
@@ -30,49 +30,49 @@ def _make_context(name="test_table", dataset=None):
 # ---------------------------------------------------------------------------
 
 
-class TestSqliteIOInit:
-    """SqliteIO constructor and defaults."""
+class TestSqliteDestinationInit:
+    """SqliteDestination constructor and defaults."""
 
     def test_database_is_required(self):
-        """Constructing SqliteIO without database raises a validation error."""
+        """Constructing SqliteDestination without database raises a validation error."""
         with pytest.raises(Exception):
-            SqliteIO()
+            SqliteDestination()
 
     def test_explicit_memory_database(self):
         """Explicitly passing :memory: works."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteDestination(database=":memory:")
         assert io.database == ":memory:"
 
     def test_file_path_database(self, tmp_path):
         """A file path is accepted as the database."""
         db_path = str(tmp_path / "test.db")
-        io = SqliteIO(database=db_path)
+        io = SqliteDestination(database=db_path)
         assert io.database == db_path
 
     def test_default_write_disposition(self):
         """Default write disposition is REPLACE."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteDestination(database=":memory:")
         assert io.write_disposition is WriteDisposition.REPLACE
 
     def test_custom_write_disposition(self):
         """Explicit write disposition is preserved."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.APPEND)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.APPEND)
         assert io.write_disposition is WriteDisposition.APPEND
 
     def test_default_chunk_size(self):
         """Default chunk_size is 1000."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteDestination(database=":memory:")
         assert io.chunk_size == 1000
 
     def test_custom_chunk_size(self):
         """Explicit chunk_size is preserved."""
-        io = SqliteIO(database=":memory:", chunk_size=500)
+        io = SqliteDestination(database=":memory:", chunk_size=500)
         assert io.chunk_size == 500
 
     def test_is_io_subclass(self):
-        """SqliteIO is an IO subclass."""
-        io = SqliteIO(database=":memory:")
-        assert isinstance(io, il.IO)
+        """SqliteDestination is a Destination subclass."""
+        io = SqliteDestination(database=":memory:")
+        assert isinstance(io, il.Destination)
 
 
 # ---------------------------------------------------------------------------
@@ -80,22 +80,22 @@ class TestSqliteIOInit:
 # ---------------------------------------------------------------------------
 
 
-class TestSqliteIOSpec:
+class TestSqliteDestinationSpec:
     """Serialization via to_spec and reconstruction."""
 
     def test_to_spec_default(self):
         """to_spec captures default constructor arguments."""
-        io = SqliteIO(database=":memory:")
+        io = SqliteDestination(database=":memory:")
         spec = io.to_spec()
 
-        assert spec.path == "interloper_sql.io.sqlite.SqliteIO"
+        assert spec.path == "interloper_sql.destination.sqlite.SqliteDestination"
         assert spec.config["database"] == ":memory:"
         assert spec.config["write_disposition"] == "replace"
         assert spec.config["chunk_size"] == 1000
 
     def test_to_spec_custom(self):
         """to_spec captures custom constructor arguments."""
-        io = SqliteIO(
+        io = SqliteDestination(
             database="/tmp/test.db",
             write_disposition=WriteDisposition.APPEND,
             chunk_size=500,
@@ -107,8 +107,8 @@ class TestSqliteIOSpec:
         assert spec.config["chunk_size"] == 500
 
     def test_roundtrip(self):
-        """to_spec -> reconstruct produces an equivalent SqliteIO."""
-        io = SqliteIO(
+        """to_spec -> reconstruct produces an equivalent SqliteDestination."""
+        io = SqliteDestination(
             database=":memory:",
             write_disposition=WriteDisposition.APPEND,
             chunk_size=250,
@@ -116,7 +116,7 @@ class TestSqliteIOSpec:
         spec = io.to_spec()
         restored = spec.reconstruct()
 
-        assert isinstance(restored, SqliteIO)
+        assert isinstance(restored, SqliteDestination)
         assert restored.database == ":memory:"
         assert restored.write_disposition is WriteDisposition.APPEND
         assert restored.chunk_size == 250
@@ -127,12 +127,12 @@ class TestSqliteIOSpec:
 # ---------------------------------------------------------------------------
 
 
-class TestSqliteIOReadWrite:
-    """Write and read through the DatabaseIO interface using an in-memory SQLite."""
+class TestSqliteDestinationReadWrite:
+    """Write and read through the DatabaseDestination interface using an in-memory SQLite."""
 
     def test_write_then_read(self):
         """Write rows, then read them back."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("simple")
         rows = [{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}]
 
@@ -143,7 +143,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_empty_rows_is_noop(self):
         """Writing an empty list should not create a table."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("empty_table")
 
         io.write(ctx, [])
@@ -153,7 +153,7 @@ class TestSqliteIOReadWrite:
 
     def test_read_nonexistent_table_raises(self):
         """Reading a table that doesn't exist raises TableNotFoundError."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("no_such_table")
 
         with pytest.raises(TableNotFoundError):
@@ -161,7 +161,7 @@ class TestSqliteIOReadWrite:
 
     def test_multiple_writes_replace_mode(self):
         """With REPLACE disposition, a second write replaces the first."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("replace_test")
 
         io.write(ctx, [{"v": 1}])
@@ -172,7 +172,7 @@ class TestSqliteIOReadWrite:
 
     def test_multiple_writes_append_mode(self):
         """With APPEND disposition, writes accumulate."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.APPEND)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.APPEND)
         ctx = _make_context("append_test")
 
         io.write(ctx, [{"v": 1}])
@@ -183,7 +183,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_various_types(self):
         """Rows containing int, float, str, bool persist correctly."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("types_test")
         rows = [{"i": 42, "f": 3.14, "s": "hello", "b": True}]
 
@@ -199,7 +199,7 @@ class TestSqliteIOReadWrite:
 
     def test_write_large_batch_chunked(self):
         """Rows exceeding chunk_size are still written completely."""
-        io = SqliteIO(database=":memory:", chunk_size=3, write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", chunk_size=3, write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("chunked")
         rows = [{"n": i} for i in range(10)]
 
@@ -215,12 +215,12 @@ class TestSqliteIOReadWrite:
 # ---------------------------------------------------------------------------
 
 
-class TestSqliteIOTableCreation:
+class TestSqliteDestinationTableCreation:
     """Automatic table creation and schema inference."""
 
     def test_table_created_on_first_write(self):
         """Writing to a non-existent table creates it automatically."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("auto_create")
 
         io.write(ctx, [{"col_a": "value"}])
@@ -231,7 +231,7 @@ class TestSqliteIOTableCreation:
 
     def test_inferred_column_types(self):
         """Column types are inferred from the first row's Python types."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("infer_types")
         rows = [
             {
@@ -258,8 +258,8 @@ class TestSqliteIOTableCreation:
         assert isinstance(columns["datetime_col"], DateTime)
 
     def test_multiple_tables_same_io(self):
-        """A single SqliteIO can manage multiple tables."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        """A single SqliteDestination can manage multiple tables."""
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx_a = _make_context("table_a")
         ctx_b = _make_context("table_b")
 
@@ -275,12 +275,12 @@ class TestSqliteIOTableCreation:
 # ---------------------------------------------------------------------------
 
 
-class TestSqliteIODispose:
+class TestSqliteDestinationDispose:
     """Engine disposal."""
 
     def test_dispose_clears_cache(self):
         """After dispose(), the internal table cache is empty."""
-        io = SqliteIO(database=":memory:", write_disposition=WriteDisposition.REPLACE)
+        io = SqliteDestination(database=":memory:", write_disposition=WriteDisposition.REPLACE)
         ctx = _make_context("dispose_test")
         io.write(ctx, [{"a": 1}])
 

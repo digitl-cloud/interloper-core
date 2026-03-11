@@ -14,8 +14,8 @@ dotenv.load_dotenv()
 
 data_path = os.path.abspath("./data")
 partitioning = il.TimePartitionConfig(column="date")
-io = il.FileIO("/tmp/data")
-dag = il.DAG(Adup(io=io))
+destination = il.FileDestination("/tmp/data")
+dag = il.DAG(Adup(destination=destination))
 window = il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 2))
 
 # NOTE: In DinD, child containers created via the Docker socket see volumes from the host's perspective,

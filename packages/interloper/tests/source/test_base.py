@@ -106,8 +106,8 @@ class TestSourceDefinition:
         source_instance = MySource(config=config)
         assert source_instance.asset1.config == config
 
-    def test_callable_with_io_override(self):
-        """Test calling SourceDefinition with IO override."""
+    def test_callable_with_destination_override(self):
+        """Test calling SourceDefinition with Destination override."""
 
         @il.source
         class MySource:
@@ -115,12 +115,12 @@ class TestSourceDefinition:
             def asset1(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-        io = il.FileIO(base_path="data2")
-        source_instance = MySource(io=io)
-        assert source_instance.io == io
+        destination = il.FileDestination(base_path="data2")
+        source_instance = MySource(destination=destination)
+        assert source_instance.destination == destination
 
-    def test_callable_with_asset_io_override(self):
-        """Test calling SourceDefinition with asset IO override."""
+    def test_callable_with_asset_destination_override(self):
+        """Test calling SourceDefinition with asset Destination override."""
 
         @il.source()
         class MySource:
@@ -128,9 +128,9 @@ class TestSourceDefinition:
             def asset1(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-        io = il.FileIO(base_path="data2")
-        source_instance = MySource(io=io)
-        assert source_instance.assets["asset1"].io == io
+        destination = il.FileDestination(base_path="data2")
+        source_instance = MySource(destination=destination)
+        assert source_instance.assets["asset1"].destination == destination
 
     def test_callable_with_config_type_error(self):
         """Test calling SourceDefinition with config type error."""
@@ -445,9 +445,9 @@ class TestSource:
         assert source_instance.assets["asset1"].config == config
         assert source_instance.config == config
 
-    def test_io_inheritance(self, tmp_path):
-        """Test that assets inherit IO from source when passed at call time."""
-        io = il.FileIO(base_path=str(tmp_path))
+    def test_destination_inheritance(self, tmp_path):
+        """Test that assets inherit Destination from source when passed at call time."""
+        destination = il.FileDestination(base_path=str(tmp_path))
 
         @il.source
         class MySource:
@@ -455,10 +455,10 @@ class TestSource:
             def asset1(self, context: il.ExecutionContext) -> str:
                 return "value"
 
-        source_instance = MySource(io=io)
-        # Assets should inherit the IO
-        assert source_instance.assets["asset1"].io is io
-        assert source_instance.io is io
+        source_instance = MySource(destination=destination)
+        # Assets should inherit the Destination
+        assert source_instance.assets["asset1"].destination is destination
+        assert source_instance.destination is destination
 
     def test_dataset_inheritance(self):
         """Test that assets inherit dataset from source."""
@@ -517,14 +517,14 @@ class TestSource:
         assert source_instance.assets["inherits"].dataset == "source_dataset"
         assert source_instance.assets["overrides"].dataset == "asset_dataset"
 
-    def test_source_copy_overrides_config_and_io(self, tmp_path):
-        """Source.copy should override provided config and IO without mutating original."""
+    def test_source_copy_overrides_config_and_destination(self, tmp_path):
+        """Source.copy should override provided config and Destination without mutating original."""
 
         class Cfg(il.Config):
             api_key: str = "a"
 
-        io1 = il.FileIO(base_path=str(tmp_path))
-        io2 = il.FileIO(base_path=str(tmp_path / "other"))
+        destination1 = il.FileDestination(base_path=str(tmp_path))
+        destination2 = il.FileDestination(base_path=str(tmp_path / "other"))
 
         @il.source(config=Cfg)
         class Src:
@@ -532,19 +532,19 @@ class TestSource:
             def a(self, context: il.ExecutionContext) -> str:
                 return "v"
 
-        original = Src(io=io1)
+        original = Src(destination=destination1)
 
         new_cfg = Cfg(api_key="b")
-        copied = original.copy(config=new_cfg, io=io2)
+        copied = original.copy(config=new_cfg, destination=destination2)
 
         # Original unchanged
         assert original.config is None or original.config != new_cfg
-        assert original.io is io1
+        assert original.destination is destination1
 
         # Copied has overrides
         assert copied is not original
         assert copied.config == new_cfg
-        assert copied.io is io2
+        assert copied.destination is destination2
 
     def test_source_copy_produces_independent_copy(self):
         """Source.copy produces independent assets that point to the new source."""

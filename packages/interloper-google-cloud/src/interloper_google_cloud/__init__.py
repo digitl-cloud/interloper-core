@@ -1,7 +1,7 @@
-"""Interloper Google Cloud integration for BigQuery IO."""
+"""Interloper Google Cloud integration for BigQuery destinations."""
 
-from interloper_google_cloud.io import BigQueryIO
+from interloper_google_cloud.destination import BigQueryDestination
 
 __all__ = [
-    "BigQueryIO",
+    "BigQueryDestination",
 ]

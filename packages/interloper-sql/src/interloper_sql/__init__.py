@@ -1,10 +1,10 @@
-"""Interloper SQL integration for relational database IO via SQLAlchemy."""
+"""Interloper SQL integration for relational database destinations via SQLAlchemy."""
 
-from interloper_sql.io import MySQLIO, PostgresIO, SqlIO, SqliteIO
+from interloper_sql.destination import MySQLDestination, PostgresDestination, SqlDestination, SqliteDestination
 
 __all__ = [
-    "MySQLIO",
-    "PostgresIO",
-    "SqlIO",
-    "SqliteIO",
+    "MySQLDestination",
+    "PostgresDestination",
+    "SqlDestination",
+    "SqliteDestination",
 ]

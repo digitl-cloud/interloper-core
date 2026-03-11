@@ -354,7 +354,7 @@ class TestAssetWithNormalizer:
 
     def test_materialize_applies_normalizer(self):
         """Asset.materialize() applies normalizer."""
-        @il.asset(normalizer=Normalizer(infer=False), io=il.MemoryIO())
+        @il.asset(normalizer=Normalizer(infer=False), destination=il.MemoryDestination())
         def my_asset():
             return [{"UserName": "alice"}]
 

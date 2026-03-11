@@ -53,26 +53,26 @@ def custom_runner():
 @pytest.fixture
 def simple_dag(tmp_path):
     """A minimal DAG for testing command/job building."""
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
 
     @il.asset
     def my_asset(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 1}]
 
-    return il.DAG(my_asset(io=io))
+    return il.DAG(my_asset(destination=destination))
 
 
 @pytest.fixture
 def partitioned_dag(tmp_path):
     """A partitioned DAG for testing partition command building."""
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset(partitioning=part)
     def my_asset(context: il.ExecutionContext) -> list[dict]:
         return [{"date": context.partition_date, "v": 1}]
 
-    return il.DAG(my_asset(io=io))
+    return il.DAG(my_asset(destination=destination))
 
 
 # ---------------------------------------------------------------------------

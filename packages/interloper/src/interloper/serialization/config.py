@@ -14,11 +14,11 @@ if TYPE_CHECKING:
 
 
 class ConfigInstanceSpec(InstanceSpec):
-    """Top-level InstanceSpec that bundles a DAG with its runner, IO, and backfiller settings."""
+    """Top-level InstanceSpec that bundles a DAG with its runner, destination, and backfiller settings."""
 
     backfiller: ComponentInstanceSpec | None = None
     runner: ComponentInstanceSpec | None = None
-    io: list[ComponentInstanceSpec] = Field(default_factory=list)
+    destinations: list[ComponentInstanceSpec] = Field(default_factory=list)
     dag: DAGInstanceSpec
 
     def reconstruct(self) -> Config:
@@ -30,13 +30,13 @@ class ConfigInstanceSpec(InstanceSpec):
         from interloper.cli.config import Config
 
         dag = self.dag.reconstruct()
-        io = [v.reconstruct() for v in self.io]
+        destinations = [v.reconstruct() for v in self.destinations]
         backfiller = self.backfiller.reconstruct() if self.backfiller is not None else None
         runner = self.runner.reconstruct() if self.runner is not None else None
 
         return Config(
             dag=dag,
-            io=io,
+            destinations=destinations,
             backfiller=backfiller,
             runner=runner,
         )

@@ -45,7 +45,7 @@ class TestAssetSpec:
         # Test that the spec can be parsed from JSON
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert parsed_spec.io == spec.io
+        assert parsed_spec.destinations == spec.destinations
 
     def test_assetspec_with_config_roundtrip(self):
         """Test AssetInstanceSpec roundtrip with config."""
@@ -68,61 +68,61 @@ class TestAssetSpec:
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
 
-    def test_assetspec_with_io_roundtrip(self):
-        """Test AssetInstanceSpec roundtrip with IO."""
-        file_io = il.FileIO(base_path="data")
+    def test_assetspec_with_destination_roundtrip(self):
+        """Test AssetInstanceSpec roundtrip with Destination."""
+        file_dest = il.FileDestination(base_path="data")
 
         @il.asset
-        def io_asset():
+        def dest_asset():
             return "value"
 
         # Convert to spec
-        spec = io_asset(io=file_io).to_spec()
-        assert spec.path.split(".")[-1] == "io_asset"
+        spec = dest_asset(destination=file_dest).to_spec()
+        assert spec.path.split(".")[-1] == "dest_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
-        assert isinstance(spec.io, ComponentInstanceSpec)
-        assert spec.io.path == "interloper.io.file.FileIO"
-        assert spec.io.config["base_path"] == "data"
+        assert isinstance(spec.destinations, ComponentInstanceSpec)
+        assert spec.destinations.path == "interloper.destination.file.FileDestination"
+        assert spec.destinations.config["base_path"] == "data"
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert isinstance(parsed_spec.io, ComponentInstanceSpec)
+        assert isinstance(parsed_spec.destinations, ComponentInstanceSpec)
 
-    def test_assetspec_with_multiple_io_roundtrip(self):
-        """Test AssetInstanceSpec roundtrip with multiple IOs."""
-        file_io1 = il.FileIO(key="io1", base_path="data1")
-        file_io2 = il.FileIO(key="io2", base_path="data2")
+    def test_assetspec_with_multiple_destinations_roundtrip(self):
+        """Test AssetInstanceSpec roundtrip with multiple Destinations."""
+        file_dest1 = il.FileDestination(key="dest1", base_path="data1")
+        file_dest2 = il.FileDestination(key="dest2", base_path="data2")
 
         @il.asset
-        def multi_io_asset():
+        def multi_dest_asset():
             return "value"
 
         # Convert to spec
-        spec = multi_io_asset(io=[file_io1, file_io2], default_io_key="io1").to_spec()
-        assert spec.path.split(".")[-1] == "multi_io_asset"
+        spec = multi_dest_asset(destination=[file_dest1, file_dest2], default_destination_key="dest1").to_spec()
+        assert spec.path.split(".")[-1] == "multi_dest_asset"
         assert "test_asset" in spec.path or "serialization" in spec.path
-        assert isinstance(spec.io, list)
-        assert len(spec.io) == 2
-        assert isinstance(spec.io[0], ComponentInstanceSpec)
-        assert isinstance(spec.io[1], ComponentInstanceSpec)
-        assert spec.io[0].init.get("key") == "io1"
-        assert spec.io[1].init.get("key") == "io2"
+        assert isinstance(spec.destinations, list)
+        assert len(spec.destinations) == 2
+        assert isinstance(spec.destinations[0], ComponentInstanceSpec)
+        assert isinstance(spec.destinations[1], ComponentInstanceSpec)
+        assert spec.destinations[0].init.get("key") == "dest1"
+        assert spec.destinations[1].init.get("key") == "dest2"
 
         # Test JSON serialization
         json_str = spec.model_dump_json()
         parsed_spec = AssetInstanceSpec.model_validate_json(json_str)
         assert parsed_spec.path == spec.path
-        assert isinstance(parsed_spec.io, list)
-        assert len(parsed_spec.io) == 2
+        assert isinstance(parsed_spec.destinations, list)
+        assert len(parsed_spec.destinations) == 2
 
     def test_assetspec_validation(self):
         """Test AssetInstanceSpec Pydantic validation."""
         # Valid spec
         spec = AssetInstanceSpec(path="myapp.assets.my_asset")
         assert spec.path == "myapp.assets.my_asset"
-        assert spec.io is None
+        assert spec.destinations is None
 
         # Invalid path (None should be invalid)
         with pytest.raises(ValidationError):

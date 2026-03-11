@@ -11,8 +11,8 @@ from interloper_docker.runner import DockerRunner
 dotenv.load_dotenv()
 
 
-io = il.FileIO("/tmp/data")
-source = DemoSource(io=io)
+destination = il.FileDestination("/tmp/data")
+source = DemoSource(destination=destination)
 dag = il.DAG(source)
 partition = il.TimePartition(value=dt.date(2025, 1, 1))
 

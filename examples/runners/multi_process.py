@@ -2,30 +2,30 @@
 
 import interloper as il
 
-io = il.FileIO("data")
+destination = il.FileDestination("data")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def a() -> None:
     print("A")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def b(a: str) -> None:
     print("B")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def c(a: str) -> None:
     print("C")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def d(a: str) -> None:
     print("D")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def e(b: str, c: str, d: str) -> None:
     print("E")
 

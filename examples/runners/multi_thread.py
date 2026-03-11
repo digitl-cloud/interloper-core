@@ -2,30 +2,30 @@
 
 import interloper as il
 
-io = il.FileIO(base_path="data")
+destination = il.FileDestination(base_path="data")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def a(context: il.ExecutionContext) -> None:
     context.logger.info("Hello from A")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def b(context: il.ExecutionContext) -> None:
     context.logger.info("Hello from B")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def c(context: il.ExecutionContext) -> None:
     context.logger.info("Hello from C")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def d(context: il.ExecutionContext) -> None:
     context.logger.info("Hello from D")
 
 
-@il.asset(io=io)
+@il.asset(destination=destination)
 def e(context: il.ExecutionContext) -> None:
     context.logger.info("Hello from E")
 

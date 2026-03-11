@@ -79,7 +79,7 @@ class ComponentInstanceSpec(InstanceSpec):
 class ComponentDefinitionSpec(DefinitionSpec):
     """Universal definition spec for API exposure.
 
-    Every entity type (IO, Runner, Backfiller, Source, Asset) produces a
+    Every entity type (Destination, Runner, Backfiller, Source, Asset) produces a
     ``ComponentDefinitionSpec`` (or subclass) so the daemon can serve them
     all with a consistent shape.
     """
@@ -131,12 +131,12 @@ warnings.filterwarnings("ignore", message='Field name "schema"')
 class Component(BaseModel, HasInstanceSpec, HasDefinitionSpec, ABC):
     """Fundamental building block: locatable, configurable, serializable.
 
-    Every entity in the framework (IO, Runner, Backfiller, Source, Asset)
+    Every entity in the framework (Destination, Runner, Backfiller, Source, Asset)
     extends ``Component``. It provides:
 
     - **Auto ``to_spec()``** — generates a :class:`ComponentInstanceSpec` from
       the instance's model fields via ``model_dump()``.
-      Source/Asset override this for their nested-IO complexity.
+      Source/Asset override this for their nested-destination complexity.
     - **``definition_spec()``** — classmethod that generates a
       :class:`ComponentDefinitionSpec` from class-level metadata.
     """
@@ -163,14 +163,14 @@ class Component(BaseModel, HasInstanceSpec, HasDefinitionSpec, ABC):
         """Generate a definition spec for API exposure.
 
         Builds a :class:`ComponentDefinitionSpec` from the class's JSON
-        schema, name, and docstring.  Used by IO, Runner, and Backfiller.
+        schema, name, and docstring.  Used by Destination, Runner, and Backfiller.
 
         Returns:
             A ComponentDefinitionSpec describing this component type.
         """
         # Derive label by stripping known suffixes from the class name
         label = cls.__name__
-        for suffix in ("IO", "Runner", "Backfiller", "Adapter"):
+        for suffix in ("Destination", "Runner", "Backfiller", "Adapter"):
             if label.endswith(suffix) and len(label) > len(suffix):
                 label = label[: -len(suffix)]
                 break
@@ -218,7 +218,7 @@ def reconstruct_components(
     (returned as-is).
 
     Used by ``SourceInstanceSpec``, ``AssetInstanceSpec``, and
-    ``DatabaseIO`` to reconstruct nested components.
+    ``DatabaseDestination`` to reconstruct nested components.
 
     Args:
         spec: A single spec/dict/string, a list thereof, or ``None``.

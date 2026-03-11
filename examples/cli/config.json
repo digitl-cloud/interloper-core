@@ -5,9 +5,9 @@
   "runner": {
     "path": "interloper.MultiThreadRunner"
   },
-  "io": {
+  "destinations": {
     "file": {
-      "path": "interloper.FileIO",
+      "path": "interloper.FileDestination",
       "init": {
         "base_path": "data"
       }

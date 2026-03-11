@@ -1,7 +1,7 @@
 import interloper as il
 from interloper_assets.demo.source import DemoSource
 
-io = il.FileIO("data/")
+destination = il.FileDestination("data/")
 partitioning = il.TimePartitionConfig(column="date")
 
 demo1 = DemoSource(key="demo1")

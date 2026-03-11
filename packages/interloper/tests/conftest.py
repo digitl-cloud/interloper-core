@@ -57,7 +57,7 @@ def dag(tmp_path):
     Returns:
         il.DAG: A DAG with multiple parallelizable levels.
     """
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
 
     @il.asset
     def a(context: il.ExecutionContext) -> list[dict]:
@@ -88,7 +88,11 @@ def dag(tmp_path):
         return [{"v": int(e[0]["v"] + f[0]["v"])}]
 
     # Build DAG and replace asset functions with mocks
-    assets = [a(io=io), b(io=io), c(io=io), d(io=io), e(io=io), f(io=io), g(io=io)]
+    assets = [
+        a(destination=destination), b(destination=destination), c(destination=destination),
+        d(destination=destination), e(destination=destination), f(destination=destination),
+        g(destination=destination),
+    ]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -113,7 +117,7 @@ def dag_partitioned(tmp_path):
     Returns:
         il.DAG: A partitioned DAG with daily time partitions.
     """
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset(partitioning=part)
@@ -145,7 +149,11 @@ def dag_partitioned(tmp_path):
         return [{"date": context.partition_date, "v": int(e[0]["v"] + f[0]["v"])}]
 
     # Build DAG and replace asset functions with mocks
-    assets = [a(io=io), b(io=io), c(io=io), d(io=io), e(io=io), f(io=io), g(io=io)]
+    assets = [
+        a(destination=destination), b(destination=destination), c(destination=destination),
+        d(destination=destination), e(destination=destination), f(destination=destination),
+        g(destination=destination),
+    ]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -174,7 +182,7 @@ def dag_mixed(tmp_path):
     Returns:
         il.DAG: A mixed DAG with non-partitioned and partitioned assets.
     """
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.asset
@@ -195,7 +203,10 @@ def dag_mixed(tmp_path):
         # partitioned, depends on non-partitioned b and partitioned c
         return [{"date": context.partition_date, "v": int(b[0]["v"] + c[0]["v"])}]
 
-    assets = [a(io=io), b(io=io), c(io=io), e(io=io)]
+    assets = [
+        a(destination=destination), b(destination=destination),
+        c(destination=destination), e(destination=destination),
+    ]
     dag = il.DAG(*assets)
 
     # Replace each asset's func with a MagicMock that preserves the original signature
@@ -217,7 +228,7 @@ def double_source_dag(tmp_path):
     Returns:
         il.DAG: A DAG with two sources.
     """
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
     part = il.TimePartitionConfig(column="date")
 
     @il.source
@@ -241,7 +252,7 @@ def double_source_dag(tmp_path):
             return [{"date": context.partition_date, "v": 2}]
 
     # Build DAG and replace asset functions with mocks
-    dag = il.DAG(Source1(io=io), Source2(io=io))
+    dag = il.DAG(Source1(destination=destination), Source2(destination=destination))
 
     # Replace each asset's func with a MagicMock that preserves the original signature
     import inspect
@@ -265,11 +276,11 @@ def file_based_dag(tmp_path):
     Returns:
         il.DAG: A DAG with real, importable functions that write to files.
     """
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
 
-    # Use the module-level assets defined above, override IO to use tmp_path
-    a = asset_a()(io=io)  # type: ignore[attr-defined]
-    b = asset_b()(io=io)  # type: ignore[attr-defined]
-    c = asset_c(io=io, deps={"a": "asset_a"})  # type: ignore[attr-defined]
+    # Use the module-level assets defined above, override destination to use tmp_path
+    a = asset_a()(destination=destination)  # type: ignore[attr-defined]
+    b = asset_b()(destination=destination)  # type: ignore[attr-defined]
+    c = asset_c(destination=destination, deps={"a": "asset_a"})  # type: ignore[attr-defined]
 
     return il.DAG(a, b, c)

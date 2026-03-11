@@ -5,12 +5,12 @@ from time import sleep
 
 import interloper as il
 
-io = il.FileIO("data")
+destination = il.FileDestination("data")
 partitioning = il.TimePartitionConfig(column="date")
 partition_window = il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 3))
 
 
-@il.asset(io=io, partitioning=partitioning)
+@il.asset(destination=destination, partitioning=partitioning)
 def a(
     context: il.ExecutionContext,
 ) -> None:
@@ -18,25 +18,25 @@ def a(
     sleep(0.5)
 
 
-@il.asset(io=io, partitioning=partitioning)
+@il.asset(destination=destination, partitioning=partitioning)
 def b(context: il.ExecutionContext, a: str) -> None:
     print("B", context.partition_date)
     sleep(0.5)
 
 
-@il.asset(io=io, partitioning=partitioning)
+@il.asset(destination=destination, partitioning=partitioning)
 def c(context: il.ExecutionContext, a: str) -> None:
     print("C", context.partition_date)
     sleep(0.5)
 
 
-@il.asset(io=io, partitioning=partitioning)
+@il.asset(destination=destination, partitioning=partitioning)
 def d(context: il.ExecutionContext, a: str) -> None:
     print("D", context.partition_date)
     sleep(0.5)
 
 
-@il.asset(io=io, partitioning=partitioning)
+@il.asset(destination=destination, partitioning=partitioning)
 def e(context: il.ExecutionContext, b: str, c: str, d: str) -> None:
     print("E", context.partition_date)
     sleep(0.5)

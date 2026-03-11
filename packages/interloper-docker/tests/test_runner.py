@@ -46,13 +46,13 @@ def runner_custom(mock_docker_client):
 @pytest.fixture
 def simple_dag(tmp_path):
     """A minimal DAG with a single asset for command-building tests."""
-    io = il.FileIO(base_path=str(tmp_path))
+    destination = il.FileDestination(base_path=str(tmp_path))
 
     @il.asset(partitioning=il.TimePartitionConfig(column="date"))
     def my_asset(context: il.ExecutionContext) -> list[dict]:
         return [{"date": context.partition_date, "v": 1}]
 
-    return il.DAG(my_asset(io=io))
+    return il.DAG(my_asset(destination=destination))
 
 
 class TestDockerRunnerInit:

@@ -19,7 +19,7 @@ from interloper.utils.imports import import_from_path
 
 if TYPE_CHECKING:
     from interloper.assets.base import Asset
-    from interloper.io.base import IO
+    from interloper.destination.base import Destination
 
 
 class AssetDefinitionSpec(ComponentDefinitionSpec):
@@ -45,10 +45,10 @@ class AssetInstanceSpec(InstanceSpec):
 
     type: Literal["asset"] = Field(default="asset", init=False, frozen=True)
     path: str
-    io: ComponentInstanceSpec | list[ComponentInstanceSpec] | None = None
+    destinations: ComponentInstanceSpec | list[ComponentInstanceSpec] | None = None
     config: dict[str, Any] | None = None  # dict to initialize the config Pydantic model
     materializable: bool = True
-    default_io_key: str | None = None
+    default_destination_key: str | None = None
 
     def reconstruct(self) -> Asset:
         """Reconstruct an Asset from this spec.
@@ -56,14 +56,14 @@ class AssetInstanceSpec(InstanceSpec):
         Returns:
             The reconstructed Asset instance.
         """
-        io = reconstruct_components(self.io)
+        destination = reconstruct_components(self.destinations)
 
         if ":" in self.path:
-            return self._from_source_def(io)
+            return self._from_source_def(destination)
         else:
-            return self._from_asset_def(io)
+            return self._from_asset_def(destination)
 
-    def _from_asset_def(self, io: IO | list[IO] | None) -> Asset:
+    def _from_asset_def(self, destination: Destination | list[Destination] | None) -> Asset:
         """Reconstruct asset from a standalone AssetDefinition.
 
         Returns:
@@ -74,13 +74,13 @@ class AssetInstanceSpec(InstanceSpec):
         asset_def = import_from_path(self.path, AssetDefinition)
         config = reconstruct_config(asset_def, self.config)
         return asset_def(
-            io=io,
+            destination=destination,
             config=config,
             materializable=self.materializable,
-            default_io_key=self.default_io_key,
+            default_destination_key=self.default_destination_key,
         )
 
-    def _from_source_def(self, io: IO | list[IO] | None) -> Asset:
+    def _from_source_def(self, destination: Destination | list[Destination] | None) -> Asset:
         """Reconstruct asset by extracting it from a SourceDefinition.
 
         Returns:
@@ -102,8 +102,8 @@ class AssetInstanceSpec(InstanceSpec):
             raise AssetError(f"Asset '{asset_name}' not found in source '{source_path}'") from None
 
         copy = asset.copy(materializable=self.materializable)
-        if io is not None:
-            copy.io = io
-        if self.default_io_key is not None:
-            copy.default_io_key = self.default_io_key
+        if destination is not None:
+            copy.destination = destination
+        if self.default_destination_key is not None:
+            copy.default_destination_key = self.default_destination_key
         return copy

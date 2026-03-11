@@ -14,12 +14,12 @@ from pydantic import BaseModel, Field
 
 from interloper.assets.context import ExecutionContext
 from interloper.assets.keys import AssetDefinitionKey, AssetInstanceKey
+from interloper.destination.base import Destination, validate_destination_keys
+from interloper.destination.context import DestinationContext
+from interloper.destination.memory import MemoryDestination
 from interloper.errors import AssetError, ConfigError, DependencyNotFoundError, PartitionError
 from interloper.events import get_asset_event_metadata
 from interloper.events.base import EventType, emit
-from interloper.io.base import IO, validate_io_keys
-from interloper.io.context import IOContext
-from interloper.io.memory import MemoryIO
 from interloper.partitioning.base import Partition, PartitionConfig, PartitionWindow
 from interloper.serialization.asset import AssetDefinitionSpec, AssetInstanceSpec
 from interloper.serialization.base import Component, HasDefinitionSpec
@@ -45,8 +45,8 @@ class AssetDefinition(HasDefinitionSpec):
     label: str = ""
     schema: type[BaseModel] | None = None
     config: type[Config] | None = None
-    io: IO | list[IO] | None = None
-    default_io_key: str | None = None
+    destination: Destination | list[Destination] | None = None
+    default_destination_key: str | None = None
     normalizer: Normalizer | None = None
     strategy: MaterializationStrategy | None = None
     tags: tuple[str, ...] = ()
@@ -104,10 +104,10 @@ class AssetDefinition(HasDefinitionSpec):
         *,
         key: str | None = None,
         config: Config | None = None,
-        io: IO | list[IO] | None = None,
+        destination: Destination | list[Destination] | None = None,
         deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
-        default_io_key: str | None = None,
+        default_destination_key: str | None = None,
         materializable: bool = True,
         strategy: MaterializationStrategy | None = None,
     ) -> Asset:
@@ -116,10 +116,10 @@ class AssetDefinition(HasDefinitionSpec):
         Args:
             key: Override the asset key.
             config: Override the config instance.
-            io: Override the IO backend (single IO or list of IOs keyed by ``io.key``).
+            destination: Override the destination backend (single or list keyed by ``destination.key``).
             deps: Explicit dependency mapping (param name to asset instance key).
             dataset: Override the dataset name.
-            default_io_key: Default IO key for multi-IO setups.
+            default_destination_key: Default destination key for multi-destination setups.
             materializable: Whether the asset can be materialized.
             strategy: Override the materialization strategy.
 
@@ -164,12 +164,12 @@ class AssetDefinition(HasDefinitionSpec):
             key=AssetInstanceKey(key or self.key),
             schema=self.schema,
             config=resolved_config,
-            io=io or self.io,
+            destination=destination or self.destination,
             normalizer=self.normalizer,
             strategy=strategy or self.strategy,
             partitioning=self.partitioning,
             dataset=dataset or self.dataset,
-            default_io_key=default_io_key or self.default_io_key,
+            default_destination_key=default_destination_key or self.default_destination_key,
             deps=deps or {},
             definition=self,
             materializable=materializable,
@@ -185,12 +185,12 @@ class Asset(Component):
     label: str = ""
     schema: type[BaseModel] | None = None
     config: Config | None = None
-    io: IO | list[IO] | None = None
+    destination: Destination | list[Destination] | None = None
     normalizer: Normalizer | None = None
     strategy: MaterializationStrategy | None = None
     partitioning: PartitionConfig | None = None
     dataset: str | None = None
-    default_io_key: str | None = None
+    default_destination_key: str | None = None
     deps: dict[str, AssetInstanceKey] = Field(default_factory=dict)
     source: Source | None = Field(default=None, init=False, exclude=True, repr=False)
     materializable: bool = True
@@ -201,25 +201,14 @@ class Asset(Component):
         if not self.label:
             self.label = self.definition.label
 
-        if self.io is None:
-            self.io = MemoryIO.singleton()
+        if self.destination is None:
+            self.destination = MemoryDestination.singleton()
 
-        if isinstance(self.io, list) and len(self.io) == 1:
-            self.io = self.io[0]
+        if isinstance(self.destination, list) and len(self.destination) == 1:
+            self.destination = self.destination[0]
 
-        if isinstance(self.io, list):
-            validate_io_keys(self.io, self.qualified_key)
-            # if not self.default_io_key:
-            #     raise ConfigError(
-            #         f"Asset '{self.key}' has multiple IOs but no default_io_key. "
-            #         "Set default_io_key to specify which IO to use for upstream reads."
-            #     )
-            # if not any(io.key == self.default_io_key for io in self.io):
-            #     available = sorted(io.key for io in self.io)
-            #     raise ConfigError(
-            #         f"default_io_key '{self.default_io_key}' not found in IO list "
-            #         f"for asset '{self.key}'. Available keys: {available}"
-            #     )
+        if isinstance(self.destination, list):
+            validate_destination_keys(self.destination, self.qualified_key)
 
         if self.partitioning is not None and self.schema is not None:
             schema_fields = set(self.schema.model_fields.keys())
@@ -247,7 +236,7 @@ class Asset(Component):
     def copy(
         self,
         config: Config | None = None,
-        io: IO | list[IO] | None = None,
+        destination: Destination | list[Destination] | None = None,
         deps: dict[str, AssetInstanceKey] | None = None,
         dataset: str | None = None,
         materializable: bool | None = None,
@@ -257,8 +246,8 @@ class Asset(Component):
         asset = copy.copy(self)
         if config is not None:
             asset.config = config
-        if io is not None:
-            asset.io = io
+        if destination is not None:
+            asset.destination = destination
         if deps is not None:
             asset.deps = deps
         if dataset is not None:
@@ -285,17 +274,17 @@ class Asset(Component):
         metadata: dict[str, Any],
         partition_or_window: Partition | PartitionWindow | None = None,
         *,
-        io_key: str | None = None,
+        destination_key: str | None = None,
     ) -> dict[str, Any]:
         """Build the base event metadata dict for this asset.
 
-        Merges run-level metadata with asset identity fields.  IO methods
-        pass ``io_key`` to include the IO key in the metadata.
+        Merges run-level metadata with asset identity fields.  Destination methods
+        pass ``destination_key`` to include the destination key in the metadata.
 
         Args:
             metadata: Run-level metadata (e.g. run_id, backfill_id).
             partition_or_window: Current partition scope.
-            io_key: IO key for IO read/write events.
+            destination_key: Destination key for destination read/write events.
 
         Returns:
             The merged metadata dict (without ``message``).
@@ -305,8 +294,8 @@ class Asset(Component):
             **get_asset_event_metadata(self),
             "partition_or_window": str(partition_or_window) if partition_or_window else None,
         }
-        if io_key is not None:
-            base["io_key"] = io_key
+        if destination_key is not None:
+            base["destination_key"] = destination_key
         return base
 
     def run(
@@ -315,7 +304,7 @@ class Asset(Component):
         dag: DAG | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute the asset and return the result without writing to IO.
+        """Execute the asset and return the result without writing to destination.
 
         Resolves context, config, and upstream dependencies (via DAG), then
         runs the decorated function and applies schema validation.
@@ -418,9 +407,9 @@ class Asset(Component):
         dag: DAG | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute the asset and write the result to all configured IOs.
+        """Execute the asset and write the result to all configured destinations.
 
-        Equivalent to calling ``run()`` followed by writing to every IO target.
+        Equivalent to calling ``run()`` followed by writing to every destination target.
 
         Args:
             partition_or_window: Partition or PartitionWindow for this run.
@@ -435,63 +424,63 @@ class Asset(Component):
 
         metadata = metadata or {}
         result = self.run(partition_or_window, dag, metadata)
-        self._io_write(partition_or_window, metadata, result)
+        self._destination_write(partition_or_window, metadata, result)
         return result
 
-    def _io_write(
+    def _destination_write(
         self,
         partition_or_window: Partition | PartitionWindow | None,
         metadata: dict[str, Any],
         result: Any,
     ) -> None:
-        """Write the execution result to all configured IO targets.
+        """Write the execution result to all configured destination targets.
 
         Args:
             partition_or_window: Partition or PartitionWindow for this run.
             metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
             result: The value to write.
         """
-        if self.io is None:
+        if self.destination is None:
             return
 
-        io_context = IOContext(
+        dest_context = DestinationContext(
             asset=self,
             partition_or_window=partition_or_window if self.partitioning is not None else None,
             metadata=metadata,
         )
 
-        # Build list of IOs to write to
-        ios = self.io if isinstance(self.io, list) else [self.io]
+        # Build list of destinations to write to
+        destinations = self.destination if isinstance(self.destination, list) else [self.destination]
 
-        for io in ios:
-            io_key = io.key
-            io_label = f"{io}[{io_key}]"
-            io_metadata = self._event_metadata(metadata, partition_or_window, io_key=io_key)
-            msg = f"Writing '{self.qualified_key}' to {io_label}"
-            emit(EventType.IO_WRITE_STARTED, metadata={**io_metadata, "message": msg})
+        for dest in destinations:
+            dest_key = dest.key
+            dest_label = f"{dest}[{dest_key}]"
+            dest_metadata = self._event_metadata(metadata, partition_or_window, destination_key=dest_key)
+            msg = f"Writing '{self.qualified_key}' to {dest_label}"
+            emit(EventType.DESTINATION_WRITE_STARTED, metadata={**dest_metadata, "message": msg})
             try:
-                io.write(io_context, result)
-                msg = f"Wrote '{self.qualified_key}' to {io_label}"
-                emit(EventType.IO_WRITE_COMPLETED, metadata={**io_metadata, "message": msg})
+                dest.write(dest_context, result)
+                msg = f"Wrote '{self.qualified_key}' to {dest_label}"
+                emit(EventType.DESTINATION_WRITE_COMPLETED, metadata={**dest_metadata, "message": msg})
             except Exception as e:
                 emit(
-                    EventType.IO_WRITE_FAILED,
+                    EventType.DESTINATION_WRITE_FAILED,
                     metadata={
-                        **io_metadata,
+                        **dest_metadata,
                         "error": str(e),
                         "traceback": traceback.format_exc(),
-                        "message": f"Failed to write '{self.qualified_key}' to {io_label}: {e}",
+                        "message": f"Failed to write '{self.qualified_key}' to {dest_label}: {e}",
                     },
                 )
                 raise
 
-    def _io_read(
+    def _destination_read(
         self,
         upstream_asset: Asset,
         partition_or_window: Partition | PartitionWindow | None,
         metadata: dict[str, Any],
     ) -> Any:
-        """Read data from an upstream asset's IO.
+        """Read data from an upstream asset's destination.
 
         Args:
             upstream_asset: The upstream asset to read from.
@@ -499,57 +488,65 @@ class Asset(Component):
             metadata: Arbitrary metadata dict (e.g. run_id, backfill_id).
 
         Returns:
-            The data read from the upstream asset's IO.
+            The data read from the upstream asset's destination.
 
         Raises:
-            AssetError: If no IO is found or the read fails.
-            ConfigError: If the upstream asset has multiple IOs but no default_io_key.
+            AssetError: If no destination is found or the read fails.
+            ConfigError: If the upstream asset has multiple destinations but no default_destination_key.
         """
-        if isinstance(upstream_asset.io, list):
-            if not self.default_io_key:
+        if isinstance(upstream_asset.destination, list):
+            if not self.default_destination_key:
                 raise ConfigError(
-                    f"Asset '{self.qualified_key}' has multiple IOs but no default_io_key. "
-                    "Set default_io_key to specify which IO to use for upstream reads."
+                    f"Asset '{self.qualified_key}' has multiple destinations but no default_destination_key. "
+                    "Set default_destination_key to specify which destination to use for upstream reads."
                 )
-            read_io_key = upstream_asset.default_io_key
-            read_io = next(io for io in upstream_asset.io if io.key == read_io_key)
+            read_dest_key = upstream_asset.default_destination_key
+            read_dest = next(d for d in upstream_asset.destination if d.key == read_dest_key)
         else:
-            read_io_key = None
-            read_io = upstream_asset.io
+            read_dest_key = None
+            read_dest = upstream_asset.destination
 
-        if read_io is None:
-            raise AssetError(f"No IO found for upstream asset '{upstream_asset.qualified_key}'")
+        if read_dest is None:
+            raise AssetError(
+                f"No destination found for upstream asset '{upstream_asset.qualified_key}'"
+            )
 
         if upstream_asset.partitioning is not None:
             effective_partition_or_window = partition_or_window
         else:
             effective_partition_or_window = None
 
-        io_context = IOContext(
+        dest_context = DestinationContext(
             asset=upstream_asset,
             partition_or_window=effective_partition_or_window,
             metadata=metadata,
         )
 
-        io_label = f"{read_io}[{read_io_key}]" if read_io_key else str(read_io)
-        io_metadata = self._event_metadata(metadata, effective_partition_or_window, io_key=read_io_key)
-        msg = f"Reading '{upstream_asset.qualified_key}' from {io_label}"
-        emit(EventType.IO_READ_STARTED, metadata={**io_metadata, "message": msg})
+        dest_label = f"{read_dest}[{read_dest_key}]" if read_dest_key else str(read_dest)
+        dest_metadata = self._event_metadata(
+            metadata, effective_partition_or_window, destination_key=read_dest_key
+        )
+        msg = f"Reading '{upstream_asset.qualified_key}' from {dest_label}"
+        emit(EventType.DESTINATION_READ_STARTED, metadata={**dest_metadata, "message": msg})
         try:
-            result = read_io.read(io_context)
-            msg = f"Read '{upstream_asset.qualified_key}' from {io_label}"
-            emit(EventType.IO_READ_COMPLETED, metadata={**io_metadata, "message": msg})
+            result = read_dest.read(dest_context)
+            msg = f"Read '{upstream_asset.qualified_key}' from {dest_label}"
+            emit(EventType.DESTINATION_READ_COMPLETED, metadata={**dest_metadata, "message": msg})
         except Exception as e:
             emit(
-                EventType.IO_READ_FAILED,
+                EventType.DESTINATION_READ_FAILED,
                 metadata={
-                    **io_metadata,
+                    **dest_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": f"Failed to read '{upstream_asset.qualified_key}' from {io_label}: {e}",
+                    "message": (
+                        f"Failed to read '{upstream_asset.qualified_key}' from {dest_label}: {e}"
+                    ),
                 },
             )
-            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}") from e
+            raise AssetError(
+                f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}"
+            ) from e
 
         return result
 
@@ -563,7 +560,7 @@ class Asset(Component):
 
         Maps function parameters to their values: ``context`` and ``config``
         are injected directly, all other parameters are treated as upstream
-        dependencies and loaded from IO via the DAG.
+        dependencies and loaded from destination via the DAG.
 
         Args:
             context: Execution context for this run.
@@ -586,7 +583,7 @@ class Asset(Component):
             elif param_name == "config":
                 kwargs["config"] = self.config
             else:
-                # This is a dependency - load from IO via DAG
+                # This is a dependency - load from destination via DAG
                 if dag is None:
                     raise AssetError(
                         f"Asset '{self.qualified_key}' has dependencies but no DAG provided. "
@@ -601,46 +598,48 @@ class Asset(Component):
                     )
 
                 upstream_asset = dag.asset_map[upstream_key]
-                kwargs[param_name] = self._io_read(upstream_asset, partition_or_window, context.metadata)
+                kwargs[param_name] = self._destination_read(
+                    upstream_asset, partition_or_window, context.metadata
+                )
 
         return kwargs
 
-    def _resolve_io(self, io_key: str | None = None) -> IO:
-        """Resolve a single IO from this asset.
+    def _resolve_destination(self, destination_key: str | None = None) -> Destination:
+        """Resolve a single destination from this asset.
 
         Args:
-            io_key: For multi-IO assets, the key identifying which IO to use.
-                When ``None``, uses :attr:`default_io_key`.
+            destination_key: For multi-destination assets, the key identifying which
+                destination to use. When ``None``, uses :attr:`default_destination_key`.
 
         Returns:
-            The resolved IO instance.
+            The resolved destination instance.
 
         Raises:
-            ConfigError: If *io_key* is not found or no IO is configured.
+            ConfigError: If *destination_key* is not found or no destination is configured.
         """
-        if isinstance(self.io, list):
-            # default_io_key is guaranteed non-None (validated in model_post_init)
-            target_key = io_key or self.default_io_key
-            match = next((io for io in self.io if io.key == target_key), None)
+        if isinstance(self.destination, list):
+            target_key = destination_key or self.default_destination_key
+            match = next((d for d in self.destination if d.key == target_key), None)
             if match is None:
-                available = sorted(io.key for io in self.io)
+                available = sorted(d.key for d in self.destination)
                 raise ConfigError(
-                    f"IO key '{target_key}' not found on asset '{self.qualified_key}'. Available keys: {available}"
+                    f"Destination key '{target_key}' not found on asset "
+                    f"'{self.qualified_key}'. Available keys: {available}"
                 )
             return match
 
-        if self.io is None:
-            raise ConfigError(f"Asset '{self.qualified_key}' has no IO configured.")
+        if self.destination is None:
+            raise ConfigError(f"Asset '{self.qualified_key}' has no destination configured.")
 
-        return self.io
+        return self.destination
 
-    def partition_row_counts(self, *, io_key: str | None = None) -> dict[str, int]:
+    def partition_row_counts(self, *, destination_key: str | None = None) -> dict[str, int]:
         """Return row counts grouped by this asset's partition column.
 
-        Delegates to :meth:`IO.partition_row_counts` using the resolved IO.
+        Delegates to :meth:`Destination.partition_row_counts` using the resolved destination.
 
         Args:
-            io_key: For multi-IO assets, the IO key to query.
+            destination_key: For multi-destination assets, the destination key to query.
 
         Returns:
             Mapping from partition value (as string) to row count.
@@ -654,9 +653,9 @@ class Asset(Component):
                 "Cannot compute partition row counts without a partition column."
             )
 
-        io = self._resolve_io(io_key)
-        context = IOContext(asset=self)
-        return io.partition_row_counts(context)
+        dest = self._resolve_destination(destination_key)
+        context = DestinationContext(asset=self)
+        return dest.partition_row_counts(context)
 
     def _validate_schema(self, data: Any) -> None:
         """Validate data against schema.
@@ -686,17 +685,17 @@ class Asset(Component):
         Returns:
             An AssetSpec representing this asset.
         """
-        # Serialize IO if present
-        io_spec = None
-        if isinstance(self.io, list):
-            io_spec = [io.to_spec() for io in self.io]
-        elif self.io is not None:
-            io_spec = self.io.to_spec()
+        # Serialize destination if present
+        dest_spec = None
+        if isinstance(self.destination, list):
+            dest_spec = [d.to_spec() for d in self.destination]
+        elif self.destination is not None:
+            dest_spec = self.destination.to_spec()
 
         return AssetInstanceSpec(
             path=self.path,
-            io=io_spec,
+            destinations=dest_spec,
             materializable=self.materializable,
             config=self.config.model_dump() if self.config is not None else None,
-            default_io_key=self.default_io_key,
+            default_destination_key=self.default_destination_key,
         )

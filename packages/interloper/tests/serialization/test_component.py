@@ -140,13 +140,13 @@ class TestComponentDefinitionSpec:
         assert restored.key == spec.key
         assert restored.config_schema == spec.config_schema
 
-    def test_label_strips_io_suffix(self) -> None:
-        """Label is derived by stripping IO suffix in definition_spec()."""
+    def test_label_strips_destination_suffix(self) -> None:
+        """Label is derived by stripping Destination suffix in definition_spec()."""
 
-        class BigQueryIO(Component):
+        class BigQueryDestination(Component):
             pass
 
-        spec = BigQueryIO.definition_spec()
+        spec = BigQueryDestination.definition_spec()
         assert spec.label == "BigQuery"
 
     def test_label_strips_runner_suffix(self) -> None:
@@ -187,7 +187,7 @@ class TestReconstructComponents:
         assert reconstruct_components(None) is None
 
     def test_single_spec(self) -> None:
-        spec = ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem"})
+        spec = ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination", init={"key": "mem"})
         result = reconstruct_components(spec)
         assert result is not None
         assert not isinstance(result, list)
@@ -195,8 +195,8 @@ class TestReconstructComponents:
 
     def test_list_of_specs(self) -> None:
         specs = [
-            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem1"}),
-            ComponentInstanceSpec(path="interloper.io.memory.MemoryIO", init={"key": "mem2"}),
+            ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination", init={"key": "mem1"}),
+            ComponentInstanceSpec(path="interloper.destination.memory.MemoryDestination", init={"key": "mem2"}),
         ]
         result = reconstruct_components(specs)
         assert isinstance(result, list)

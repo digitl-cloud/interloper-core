@@ -20,7 +20,7 @@ from interloper.cli.display import (
     Status,
     _event_type_style,
     _fit_column,
-    _fmt_io,
+    _fmt_destination,
     _fmt_time,
     _fmt_ts,
     _partition_style,
@@ -58,7 +58,7 @@ def simple_dag():
     def my_asset(context: il.ExecutionContext) -> list[dict]:
         return [{"v": 1}]
 
-    return il.DAG(my_asset(io=il.MemoryIO()))
+    return il.DAG(my_asset(destination=il.MemoryDestination()))
 
 
 @pytest.fixture
@@ -225,34 +225,34 @@ class TestFmtTime:
 
 
 # ---------------------------------------------------------------------------
-# _fmt_io
+# _fmt_destination
 # ---------------------------------------------------------------------------
 
 
-class TestFmtIo:
-    """Verify IO count formatting."""
+class TestFmtDestination:
+    """Verify Destination count formatting."""
 
     def test_no_counts_returns_dash(self):
         state = AssetState(key=AssetInstanceKey("a"), name="a")
-        assert _fmt_io(state) == "-"
+        assert _fmt_destination(state) == "-"
 
     def test_reads_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), name="a", io_reads=3)
-        assert _fmt_io(state) == "R:3"
+        state = AssetState(key=AssetInstanceKey("a"), name="a", destination_reads=3)
+        assert _fmt_destination(state) == "R:3"
 
     def test_writes_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), name="a", io_writes=2)
-        assert _fmt_io(state) == "W:2"
+        state = AssetState(key=AssetInstanceKey("a"), name="a", destination_writes=2)
+        assert _fmt_destination(state) == "W:2"
 
     def test_errors_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), name="a", io_errors=1)
-        assert _fmt_io(state) == "E:1"
+        state = AssetState(key=AssetInstanceKey("a"), name="a", destination_errors=1)
+        assert _fmt_destination(state) == "E:1"
 
     def test_reads_writes_errors(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), name="a", io_reads=5, io_writes=3, io_errors=1
+            key=AssetInstanceKey("a"), name="a", destination_reads=5, destination_writes=3, destination_errors=1
         )
-        assert _fmt_io(state) == "R:5 W:3 E:1"
+        assert _fmt_destination(state) == "R:5 W:3 E:1"
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +317,7 @@ class TestEventTypeStyle:
 
     def test_completed_is_green(self):
         assert _event_type_style("RUN_COMPLETED") == "green"
-        assert _event_type_style("IO_WRITE_COMPLETED") == "green"
+        assert _event_type_style("DESTINATION_WRITE_COMPLETED") == "green"
 
     def test_started_is_cyan(self):
         assert _event_type_style("RUN_STARTED") == "cyan"
@@ -463,8 +463,8 @@ class TestRichViewStateUpdate:
         assert asset.error == "boom"
         assert asset.end_time == fail_ts
 
-    def test_io_read_completed_increments_counter(self, view, ts):
-        """IO_READ_COMPLETED increments io_reads on the asset."""
+    def test_destination_read_completed_increments_counter(self, view, ts):
+        """DESTINATION_READ_COMPLETED increments destination_reads on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -472,17 +472,17 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_READ_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_READ_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_READ_COMPLETED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_READ_COMPLETED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
-        assert asset.io_reads == 1
+        assert asset.destination_reads == 1
 
-    def test_io_write_completed_increments_counter(self, view, ts):
-        """IO_WRITE_COMPLETED increments io_writes on the asset."""
+    def test_destination_write_completed_increments_counter(self, view, ts):
+        """DESTINATION_WRITE_COMPLETED increments destination_writes on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -490,17 +490,17 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_WRITE_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_WRITE_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_WRITE_COMPLETED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_WRITE_COMPLETED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
-        assert asset.io_writes == 1
+        assert asset.destination_writes == 1
 
-    def test_io_read_failed_increments_errors(self, view, ts):
-        """IO_READ_FAILED increments io_errors on the asset."""
+    def test_destination_read_failed_increments_errors(self, view, ts):
+        """DESTINATION_READ_FAILED increments destination_errors on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -508,14 +508,14 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_READ_FAILED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_READ_FAILED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
-        assert asset.io_errors == 1
+        assert asset.destination_errors == 1
 
-    def test_io_write_failed_increments_errors(self, view, ts):
-        """IO_WRITE_FAILED increments io_errors on the asset."""
+    def test_destination_write_failed_increments_errors(self, view, ts):
+        """DESTINATION_WRITE_FAILED increments destination_errors on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -523,11 +523,11 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_WRITE_FAILED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_WRITE_FAILED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
-        assert asset.io_errors == 1
+        assert asset.destination_errors == 1
 
     def test_backfill_started_sets_mode(self, view, ts):
         """BACKFILL_STARTED sets mode to 'backfill'."""
@@ -581,8 +581,8 @@ class TestRichViewStateUpdate:
         assert asset.phase == PHASE_EXECUTING
         assert asset.op_read == "done"
 
-    def test_io_read_started_sets_phase(self, view, ts):
-        """IO_READ_STARTED sets phase to PHASE_READING."""
+    def test_destination_read_started_sets_phase(self, view, ts):
+        """DESTINATION_READ_STARTED sets phase to PHASE_READING."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -590,14 +590,14 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_READ_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_READ_STARTED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
         assert asset.phase == PHASE_READING
 
-    def test_io_write_started_sets_phase(self, view, ts):
-        """IO_WRITE_STARTED sets phase to PHASE_WRITING."""
+    def test_destination_write_started_sets_phase(self, view, ts):
+        """DESTINATION_WRITE_STARTED sets phase to PHASE_WRITING."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -605,7 +605,7 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.IO_WRITE_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DESTINATION_WRITE_STARTED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
@@ -696,7 +696,7 @@ class TestRichViewStateUpdate:
             def a(self, context: il.ExecutionContext) -> str:
                 return "v"
 
-        src = RenderSrc(io=il.MemoryIO())
+        src = RenderSrc(destination=il.MemoryDestination())
         dag = il.DAG(*src.assets.values())
         v = RichView(dag)
         v._update_state(_make_event(EventType.RUN_STARTED, ts))
@@ -842,7 +842,7 @@ class TestRichViewBackfill:
             def my_asset(self, context: il.ExecutionContext) -> list[dict]:
                 return [{"date": context.partition_date, "v": 1}]
 
-        return il.DAG(*BfSrc(io=il.MemoryIO()).assets.values())
+        return il.DAG(*BfSrc(destination=il.MemoryDestination()).assets.values())
 
     def test_partition_window_pre_populates_runs(self, ts):
         """PartitionWindow pre-populates partition runs."""

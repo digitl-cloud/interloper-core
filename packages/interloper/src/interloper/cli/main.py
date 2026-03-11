@@ -91,7 +91,7 @@ def _config_from_inline_json(json_data: str) -> Config:
     Example:
     ```bash
     interloper run --format inline --date 2025-01-01 \
-        '{"backfiller": {"type": "in_process"}, "io": {"file": {"path": "interloper.FileIO", "init": {"base_path": "data"}}}, "dag": {"assets": [{"type": "source", "path": "interloper_assets.adservice"}]}}'
+        '{"backfiller": {"type": "in_process"}, "destinations": {"file": {"path": "interloper.FileDestination", "init": {"base_path": "data"}}}, "dag": {"assets": [{"type": "source", "path": "interloper_assets.adservice"}]}}'
     ```
 
     Returns:

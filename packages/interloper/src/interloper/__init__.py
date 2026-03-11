@@ -7,6 +7,7 @@ from interloper.backfillers import Backfiller
 from interloper.backfillers.results import BackfillResult
 from interloper.backfillers.serial import SerialBackfiller
 from interloper.dag.base import DAG
+from interloper.destination import CsvDestination, Destination, DestinationContext, FileDestination, MemoryDestination
 from interloper.errors import (
     AdapterError,
     AssetError,
@@ -19,8 +20,8 @@ from interloper.errors import (
     DataNotFoundError,
     DependencyNotFoundError,
     EventError,
+    InterloperDestinationError,
     InterloperError,
-    InterloperIOError,
     NormalizerError,
     PartitionError,
     RunnerError,
@@ -40,7 +41,6 @@ from interloper.events.base import (
     subscribe,
     unsubscribe,
 )
-from interloper.io import IO, CsvIO, FileIO, IOContext, MemoryIO
 from interloper.normalizer import MaterializationStrategy, Normalizer
 from interloper.partitioning import (
     Partition,
@@ -67,7 +67,6 @@ __version__ = "0.1.0"
 
 __all__ = [
     "DAG",
-    "IO",
     "AdapterError",
     "Asset",
     "AssetDefinition",
@@ -87,11 +86,13 @@ __all__ = [
     "Config",
     "ConfigError",
     "ConfigInstanceSpec",
-    "CsvIO",
+    "CsvDestination",
     "DAGError",
     "DAGInstanceSpec",
     "DataNotFoundError",
     "DependencyNotFoundError",
+    "Destination",
+    "DestinationContext",
     "Event",
     "EventBus",
     "EventError",
@@ -99,14 +100,13 @@ __all__ = [
     "EventType",
     "ExecutionContext",
     "ExecutionStatus",
-    "FileIO",
+    "FileDestination",
     "HTTPBearerAuth",
-    "IOContext",
+    "InterloperDestinationError",
     "InterloperError",
-    "InterloperIOError",
     "LogLevel",
     "MaterializationStrategy",
-    "MemoryIO",
+    "MemoryDestination",
     "MultiProcessRunner",
     "MultiThreadRunner",
     "Normalizer",

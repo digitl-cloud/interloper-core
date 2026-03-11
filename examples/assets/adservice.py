@@ -8,8 +8,8 @@ load_dotenv()
 
 il.subscribe(print)
 
-io = il.FileIO("data/")
-source = Adservice(io=io)
+destination = il.FileDestination("data/")
+source = Adservice(destination=destination)
 dag = il.DAG(source)
 partition = il.TimePartition(dt.date(2024, 1, 1))
 result = dag.materialize(partition_or_window=partition)

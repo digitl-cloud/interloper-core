@@ -19,7 +19,7 @@ class TestConfig:
         assert config.dag is dag
         assert config.backfiller is None
         assert config.runner is None
-        assert config.io == []
+        assert config.destinations == []
 
     def test_creation_with_all_fields(self):
         """Config accepts all optional fields."""
@@ -30,12 +30,12 @@ class TestConfig:
         dag = il.DAG(a())
         runner = il.SerialRunner()
         backfiller = il.SerialBackfiller()
-        io = {"default": il.MemoryIO()}
+        destinations = [il.MemoryDestination()]
 
-        config = Config(dag=dag, runner=runner, backfiller=backfiller, io=io)
+        config = Config(dag=dag, runner=runner, backfiller=backfiller, destinations=destinations)
         assert config.runner is runner
         assert config.backfiller is backfiller
-        assert config.io == io
+        assert config.destinations == destinations
 
     def test_to_spec(self):
         """to_spec() returns a ConfigSpec."""
