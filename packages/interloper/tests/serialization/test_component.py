@@ -10,7 +10,7 @@ from interloper.serialization.base import (
     Component,
     ComponentDefinitionSpec,
     ComponentInstanceSpec,
-    Serializable,
+    HasInstanceSpec,
     reconstruct_components,
     reconstruct_config,
 )
@@ -233,7 +233,7 @@ class TestSerializable:
         """Serializable should not be generic — it was simplified."""
 
         @dataclass
-        class MySerializable(Serializable):
+        class MySerializable(HasInstanceSpec):
             def to_spec(self) -> ComponentInstanceSpec:
                 return ComponentInstanceSpec(path=self.path)
 

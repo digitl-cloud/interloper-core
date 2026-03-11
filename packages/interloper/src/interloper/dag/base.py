@@ -10,7 +10,7 @@ from interloper.assets.keys import AssetInstanceKey
 from interloper.errors import AssetNotFoundError, CircularDependencyError, DAGError, DependencyNotFoundError
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.runners.results import ExecutionStatus, RunResult
-from interloper.serialization.base import Serializable
+from interloper.serialization.base import HasInstanceSpec
 from interloper.serialization.dag import DAGInstanceSpec
 from interloper.source.base import Source, SourceDefinition
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from interloper.runners.state import RunState
 
 
-class DAG(Serializable):
+class DAG(HasInstanceSpec):
     """Represents a Directed Acyclic Graph of assets.
 
     Automatically infers dependencies between assets and provides

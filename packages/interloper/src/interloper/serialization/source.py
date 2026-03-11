@@ -57,7 +57,6 @@ class SourceInstanceSpec(InstanceSpec):
         config = reconstruct_config(source_def, self.config)
 
         source = source_def(config=config, io=io, default_io_key=self.default_io_key)
-        source.to_spec()
 
         if self.assets is not None:
             for asset in source.assets.values():

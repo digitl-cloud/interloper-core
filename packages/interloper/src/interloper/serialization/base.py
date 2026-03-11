@@ -91,11 +91,11 @@ class ComponentDefinitionSpec(DefinitionSpec):
     config_schema: dict[str, Any] | None = None
 
 
-class Serializable(ABC):
-    """Mixin for framework objects that can produce a Spec of themselves.
+class HasInstanceSpec(ABC):
+    """Mixin for runtime objects that can produce reconstruction specs.
 
-    Implementors define ``to_spec()`` to return a :class:`Spec` subclass
-    capturing whatever state is needed for serialization or later
+    Implementors define ``to_spec()`` to return an :class:`InstanceSpec`
+    subclass capturing whatever state is needed for cross-process
     reconstruction.
     """
 
@@ -105,8 +105,21 @@ class Serializable(ABC):
         return get_object_path(type(self))
 
     @abstractmethod
-    def to_spec(self) -> Spec:
-        """Convert this object into a serializable Spec."""
+    def to_spec(self) -> InstanceSpec:
+        """Convert this object into an InstanceSpec for reconstruction."""
+
+
+class HasDefinitionSpec(ABC):
+    """Mixin for objects that can produce definition metadata specs.
+
+    Implementors define ``definition_spec()`` to return a
+    :class:`DefinitionSpec` subclass capturing metadata for API
+    exposure and display.
+    """
+
+    @abstractmethod
+    def definition_spec(self) -> DefinitionSpec:
+        """Produce a DefinitionSpec describing this object's metadata."""
 
 
 # Pydantic warns when a field name shadows an inherited attribute.
@@ -115,7 +128,7 @@ class Serializable(ABC):
 warnings.filterwarnings("ignore", message='Field name "schema"')
 
 
-class Component(BaseModel, Serializable, ABC):
+class Component(BaseModel, HasInstanceSpec, HasDefinitionSpec, ABC):
     """Fundamental building block: locatable, configurable, serializable.
 
     Every entity in the framework (IO, Runner, Backfiller, Source, Asset)
@@ -151,8 +164,6 @@ class Component(BaseModel, Serializable, ABC):
 
         Builds a :class:`ComponentDefinitionSpec` from the class's JSON
         schema, name, and docstring.  Used by IO, Runner, and Backfiller.
-        Source and Asset definitions use ``to_spec()`` on their Definition
-        dataclasses instead.
 
         Returns:
             A ComponentDefinitionSpec describing this component type.
@@ -176,7 +187,6 @@ class Component(BaseModel, Serializable, ABC):
 # ---------------------------------------------------------------------------
 # Shared reconstruction helpers
 # ---------------------------------------------------------------------------
-
 
 def _reconstruct_one(v: Any) -> Any:
     """Reconstruct a single component from a spec, dict, or import-path string.

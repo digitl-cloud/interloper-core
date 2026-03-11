@@ -18,7 +18,7 @@ from interloper.errors import ConfigError, SourceError
 from interloper.io.base import IO, validate_io_keys
 from interloper.normalizer.base import Normalizer
 from interloper.normalizer.strategy import MaterializationStrategy
-from interloper.serialization.base import Component, Serializable
+from interloper.serialization.base import Component, HasDefinitionSpec
 from interloper.serialization.source import SourceDefinitionSpec, SourceInstanceSpec
 from interloper.source.config import Config
 from interloper.utils.imports import get_object_path
@@ -26,7 +26,7 @@ from interloper.utils.text import to_label, validate_key
 
 
 @dataclass(frozen=True)
-class SourceDefinition(Serializable):
+class SourceDefinition(HasDefinitionSpec):
     """Definition of a source created by the @source class decorator."""
 
     cls: type
@@ -69,8 +69,8 @@ class SourceDefinition(Serializable):
                 if param_name in self.asset_defs and param_name != asset_def.key:
                     asset_def.requires[param_name] = self.asset_defs[param_name].qualified_key
 
-    def to_spec(self) -> SourceDefinitionSpec:
-        """Convert to a definition spec describing this source's metadata.
+    def definition_spec(self) -> SourceDefinitionSpec:
+        """Produce a definition spec describing this source's metadata.
 
         Returns:
             A SourceDefinitionSpec capturing key, label, description,
@@ -86,7 +86,7 @@ class SourceDefinition(Serializable):
             description=self.cls.__doc__ or "",
             tags=list(self.tags),
             config_schema=config_schema,
-            assets=[ad.to_spec() for ad in self.asset_defs.values()],
+            assets=[ad.definition_spec() for ad in self.asset_defs.values()],
         )
 
     @property
@@ -385,6 +385,14 @@ class Source(Component):
             return assets[name]
         except KeyError:
             raise SourceError(f"Source has no asset with key '{name}'")
+
+    def definition_spec(self) -> SourceDefinitionSpec:
+        """Produce a definition spec by delegating to the underlying definition.
+
+        Returns:
+            A SourceDefinitionSpec describing this source's metadata.
+        """
+        return self.definition.definition_spec()
 
     def to_spec(self) -> SourceInstanceSpec:
         """Convert to serializable spec.
