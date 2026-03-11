@@ -427,8 +427,8 @@ class TestSource:
 
         source_instance = MySource()
         # Should be able to access assets by name
-        assert source_instance.asset_a.local_key == "asset_a"
-        assert source_instance.asset_b.local_key == "asset_b"
+        assert source_instance.asset_a.key == "asset_a"
+        assert source_instance.asset_b.key == "asset_b"
 
     def test_config_inheritance(self):
         """Test that assets inherit config from source."""
@@ -489,9 +489,9 @@ class TestSource:
         source_instance = MySource()
         # Assets should default to source name as dataset
         assert source_instance.assets["asset1"].dataset == "MySource"
-        assert source_instance.assets["asset1"].key == "MySource:asset1"
+        assert source_instance.assets["asset1"].qualified_key == "MySource:asset1"
         assert source_instance.assets["asset2"].dataset == "MySource"
-        assert source_instance.assets["asset2"].key == "MySource:asset2"
+        assert source_instance.assets["asset2"].qualified_key == "MySource:asset2"
 
         # DAG should be able to resolve dependencies
         dag = il.DAG(source_instance)

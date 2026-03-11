@@ -49,7 +49,6 @@ def _make_asset(*, name="my_table", dataset="my_schema", partitioning=None):
     """
     asset = MagicMock()
     asset.key = name
-    asset.local_key = name
     asset.dataset = dataset
     asset.partitioning = partitioning
     return asset

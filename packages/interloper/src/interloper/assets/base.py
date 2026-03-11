@@ -208,7 +208,7 @@ class Asset(Component):
             self.io = self.io[0]
 
         if isinstance(self.io, list):
-            validate_io_keys(self.io, self.key)
+            validate_io_keys(self.io, self.qualified_key)
             # if not self.default_io_key:
             #     raise ConfigError(
             #         f"Asset '{self.key}' has multiple IOs but no default_io_key. "
@@ -227,21 +227,22 @@ class Asset(Component):
                 import warnings
 
                 warnings.warn(
-                    f"Asset '{self.key}': partition column '{self.partitioning.column}' "
+                    f"Asset '{self.qualified_key}': partition column '{self.partitioning.column}' "
                     f"not found in schema fields {sorted(schema_fields)}.",
                     UserWarning,
                     stacklevel=2,
                 )
 
     @property
-    def local_key(self) -> str:
-        """Return the local (unqualified) key, stripping the source prefix if present."""
-        return self.key.rsplit(":", 1)[-1]
+    def qualified_key(self) -> AssetInstanceKey:
+        """Return the fully qualified instance key.
 
-    @property
-    def qualified_key(self) -> AssetDefinitionKey:
-        """Return the asset definition key."""
-        return self.definition.qualified_key
+        Format: ``{source-instance-key}:{asset-key}`` for source-bound assets,
+        or just ``{asset-key}`` for standalone assets.
+        """
+        if self.source:
+            return AssetInstanceKey(f"{self.source.key}:{self.key}")
+        return AssetInstanceKey(self.key)
 
     def copy(
         self,
@@ -274,7 +275,7 @@ class Asset(Component):
         For standalone assets: the import path of the decorated function.
         """
         if self.source:
-            path = f"{get_object_path(self.source.definition.cls)}:{self.local_key}"
+            path = f"{get_object_path(self.source.definition.cls)}:{self.key}"
         else:
             path = get_object_path(self.func)  # Points to the actual function
         return path
@@ -333,10 +334,14 @@ class Asset(Component):
         """
         # Warn if partition provided for non-partitioned asset
         if self.partitioning is None and partition_or_window is not None:
-            warnings.warn(f"Asset '{self.key}' is not partitioned, partition/partition_window will be ignored")
+            warnings.warn(
+                f"Asset '{self.qualified_key}' is not partitioned, partition/partition_window will be ignored"
+            )
 
         if self.partitioning is not None and partition_or_window is None:
-            raise PartitionError(f"Asset '{self.key}' is partitioned, but no partition/partition_window provided")
+            raise PartitionError(
+                f"Asset '{self.qualified_key}' is partitioned, but no partition/partition_window provided"
+            )
 
         if (
             self.partitioning is not None
@@ -344,13 +349,13 @@ class Asset(Component):
             and not self.partitioning.allow_window
         ):
             raise PartitionError(
-                f"Asset '{self.key}' does not support windowed runs (allow_window=False). "
+                f"Asset '{self.qualified_key}' does not support windowed runs (allow_window=False). "
                 "Use a partition window with backfill(windowed=False) to run one partition per run."
             )
 
         # Create context
         context = ExecutionContext(
-            asset_key=self.key,
+            asset_key=self.qualified_key,
             partition_or_window=partition_or_window,
             partitioning=self.partitioning,
             metadata=metadata,
@@ -361,11 +366,11 @@ class Asset(Component):
 
         # Execute core function
         exec_metadata = self._event_metadata(metadata or {}, partition_or_window)
-        msg = f"Executing '{self.key}'"
+        msg = f"Executing '{self.qualified_key}'"
         emit(EventType.ASSET_EXEC_STARTED, metadata={**exec_metadata, "message": msg})
         try:
             result = self.func(**kwargs)
-            msg = f"Executed '{self.key}'"
+            msg = f"Executed '{self.qualified_key}'"
             emit(EventType.ASSET_EXEC_COMPLETED, metadata={**exec_metadata, "message": msg})
         except Exception as e:
             emit(
@@ -374,7 +379,7 @@ class Asset(Component):
                     **exec_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": f"Execution of '{self.key}' failed: {e}",
+                    "message": f"Execution of '{self.qualified_key}' failed: {e}",
                 },
             )
             raise
@@ -388,12 +393,12 @@ class Asset(Component):
 
             if strategy == MaterializationStrategy.RECONCILE:
                 if self.schema is None:
-                    raise AssetError(f"Asset '{self.key}': strategy='reconcile' requires a schema.")
+                    raise AssetError(f"Asset '{self.qualified_key}': strategy='reconcile' requires a schema.")
                 result = self.normalizer.reconcile(result, self.schema)
 
             elif strategy == MaterializationStrategy.STRICT:
                 if self.schema is None:
-                    raise AssetError(f"Asset '{self.key}': strategy='strict' requires a schema.")
+                    raise AssetError(f"Asset '{self.qualified_key}': strategy='strict' requires a schema.")
                 self.normalizer.validate_schema(result, self.schema, strict=True)
 
             else:
@@ -462,11 +467,11 @@ class Asset(Component):
             io_key = io.key
             io_label = f"{io}[{io_key}]"
             io_metadata = self._event_metadata(metadata, partition_or_window, io_key=io_key)
-            msg = f"Writing '{self.key}' to {io_label}"
+            msg = f"Writing '{self.qualified_key}' to {io_label}"
             emit(EventType.IO_WRITE_STARTED, metadata={**io_metadata, "message": msg})
             try:
                 io.write(io_context, result)
-                msg = f"Wrote '{self.key}' to {io_label}"
+                msg = f"Wrote '{self.qualified_key}' to {io_label}"
                 emit(EventType.IO_WRITE_COMPLETED, metadata={**io_metadata, "message": msg})
             except Exception as e:
                 emit(
@@ -475,7 +480,7 @@ class Asset(Component):
                         **io_metadata,
                         "error": str(e),
                         "traceback": traceback.format_exc(),
-                        "message": f"Failed to write '{self.key}' to {io_label}: {e}",
+                        "message": f"Failed to write '{self.qualified_key}' to {io_label}: {e}",
                     },
                 )
                 raise
@@ -503,7 +508,7 @@ class Asset(Component):
         if isinstance(upstream_asset.io, list):
             if not self.default_io_key:
                 raise ConfigError(
-                    f"Asset '{self.key}' has multiple IOs but no default_io_key. "
+                    f"Asset '{self.qualified_key}' has multiple IOs but no default_io_key. "
                     "Set default_io_key to specify which IO to use for upstream reads."
                 )
             read_io_key = upstream_asset.default_io_key
@@ -513,7 +518,7 @@ class Asset(Component):
             read_io = upstream_asset.io
 
         if read_io is None:
-            raise AssetError(f"No IO found for upstream asset '{upstream_asset.key}'")
+            raise AssetError(f"No IO found for upstream asset '{upstream_asset.qualified_key}'")
 
         if upstream_asset.partitioning is not None:
             effective_partition_or_window = partition_or_window
@@ -528,11 +533,11 @@ class Asset(Component):
 
         io_label = f"{read_io}[{read_io_key}]" if read_io_key else str(read_io)
         io_metadata = self._event_metadata(metadata, effective_partition_or_window, io_key=read_io_key)
-        msg = f"Reading '{upstream_asset.key}' from {io_label}"
+        msg = f"Reading '{upstream_asset.qualified_key}' from {io_label}"
         emit(EventType.IO_READ_STARTED, metadata={**io_metadata, "message": msg})
         try:
             result = read_io.read(io_context)
-            msg = f"Read '{upstream_asset.key}' from {io_label}"
+            msg = f"Read '{upstream_asset.qualified_key}' from {io_label}"
             emit(EventType.IO_READ_COMPLETED, metadata={**io_metadata, "message": msg})
         except Exception as e:
             emit(
@@ -541,10 +546,10 @@ class Asset(Component):
                     **io_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": f"Failed to read '{upstream_asset.key}' from {io_label}: {e}",
+                    "message": f"Failed to read '{upstream_asset.qualified_key}' from {io_label}: {e}",
                 },
             )
-            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.key}': {e}") from e
+            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}") from e
 
         return result
 
@@ -584,7 +589,7 @@ class Asset(Component):
                 # This is a dependency - load from IO via DAG
                 if dag is None:
                     raise AssetError(
-                        f"Asset '{self.key}' has dependencies but no DAG provided. "
+                        f"Asset '{self.qualified_key}' has dependencies but no DAG provided. "
                         "Pass a DAG to run() or materialize() for dependency resolution."
                     )
 
@@ -592,7 +597,7 @@ class Asset(Component):
 
                 if upstream_key not in dag.asset_map:
                     raise DependencyNotFoundError(
-                        f"Dependency '{upstream_key}' not found in DAG for asset '{self.key}'"
+                        f"Dependency '{upstream_key}' not found in DAG for asset '{self.qualified_key}'"
                     )
 
                 upstream_asset = dag.asset_map[upstream_key]
@@ -619,11 +624,13 @@ class Asset(Component):
             match = next((io for io in self.io if io.key == target_key), None)
             if match is None:
                 available = sorted(io.key for io in self.io)
-                raise ConfigError(f"IO key '{target_key}' not found on asset '{self.key}'. Available keys: {available}")
+                raise ConfigError(
+                    f"IO key '{target_key}' not found on asset '{self.qualified_key}'. Available keys: {available}"
+                )
             return match
 
         if self.io is None:
-            raise ConfigError(f"Asset '{self.key}' has no IO configured.")
+            raise ConfigError(f"Asset '{self.qualified_key}' has no IO configured.")
 
         return self.io
 
@@ -643,7 +650,7 @@ class Asset(Component):
         """
         if self.partitioning is None:
             raise PartitionError(
-                f"Asset '{self.key}' is not partitioned. "
+                f"Asset '{self.qualified_key}' is not partitioned. "
                 "Cannot compute partition row counts without a partition column."
             )
 

@@ -1,8 +1,8 @@
 """Tests for DAG.
 
 Key semantics:
-- Standalone asset (no source): key = asset.key
-- Asset from a source: key = source.key + ":" + asset.local_key
+- Standalone asset (no source): qualified_key = asset.key
+- Asset from a source: qualified_key = source.key + ":" + asset.key
 
 Dependency resolution:
 - With no dataset, param name is used as upstream key (matches standalone keys).
@@ -39,7 +39,7 @@ class TestDAGInitialization:
 
         dag = il.DAG(my_asset())
         assert len(dag.assets) == 1
-        assert dag.asset_map["my_asset"].local_key == "my_asset"
+        assert dag.asset_map["my_asset"].key == "my_asset"
 
     def test_accepts_multiple_assets(self):
         @il.asset
@@ -91,7 +91,7 @@ class TestDAGInitialization:
 
         dag = il.DAG(my_asset)
         assert len(dag.assets) == 1
-        assert any(a.local_key == "my_asset" for a in dag.assets)
+        assert any(a.key == "my_asset" for a in dag.assets)
 
     def test_accepts_source_definition_instantiates(self):
         @il.source
@@ -106,8 +106,8 @@ class TestDAGInitialization:
 
         dag = il.DAG(MySource)
         assert len(dag.assets) == 2
-        assert any(a.local_key == "a1" for a in dag.assets)
-        assert any(a.local_key == "a2" for a in dag.assets)
+        assert any(a.key == "a1" for a in dag.assets)
+        assert any(a.key == "a2" for a in dag.assets)
 
     def test_accepts_mixed_definitions_and_instances(self):
         @il.asset
@@ -125,9 +125,9 @@ class TestDAGInitialization:
                 return "z"
 
         dag = il.DAG(from_def, from_instance(), SourceDef)
-        assert any(a.local_key == "from_def" for a in dag.assets)
-        assert any(a.local_key == "from_instance" for a in dag.assets)
-        assert any(a.local_key == "source_asset" for a in dag.assets)
+        assert any(a.key == "from_def" for a in dag.assets)
+        assert any(a.key == "from_instance" for a in dag.assets)
+        assert any(a.key == "source_asset" for a in dag.assets)
 
     def test_asset_definition_with_config_instantiates(self):
         class TestConfig(il.Config):
@@ -139,7 +139,7 @@ class TestDAGInitialization:
 
         dag = il.DAG(config_asset)
         assert len(dag.assets) == 1
-        assert any(a.local_key == "config_asset" for a in dag.assets)
+        assert any(a.key == "config_asset" for a in dag.assets)
 
     def test_source_definition_with_config_instantiates(self):
         class TestConfig(il.Config):
@@ -156,7 +156,7 @@ class TestDAGInitialization:
 
         dag = il.DAG(ConfigSource)
         assert len(dag.assets) == 1
-        assert any(a.local_key == "source_asset" for a in dag.assets)
+        assert any(a.key == "source_asset" for a in dag.assets)
 
     def test_rejects_invalid_type(self):
         with pytest.raises(DAGError, match="Expected Asset or Source"):
@@ -181,8 +181,8 @@ class TestDAGKeys:
 
         dag = il.DAG(asset1(), asset2())
         assert list(dag.asset_map.keys()) == ["asset1", "asset2"]
-        assert dag.asset_map["asset1"].local_key == "asset1"
-        assert dag.asset_map["asset2"].local_key == "asset2"
+        assert dag.asset_map["asset1"].key == "asset1"
+        assert dag.asset_map["asset2"].key == "asset2"
 
     def test_source_asset_key_equals_source_name_colon_asset_name(self):
         """Assets from a source use source_name:asset_name as key."""
@@ -750,9 +750,9 @@ class TestTopologicalGenerations:
         gens = dag.topological_generations()
 
         assert len(gens) == 3
-        assert [a.local_key for a in gens[0]] == ["asset_a"]
-        assert [a.local_key for a in gens[1]] == ["asset_b"]
-        assert [a.local_key for a in gens[2]] == ["asset_c"]
+        assert [a.key for a in gens[0]] == ["asset_a"]
+        assert [a.key for a in gens[1]] == ["asset_b"]
+        assert [a.key for a in gens[2]] == ["asset_c"]
 
     def test_diamond(self):
         """Diamond A->{B,C}->D yields three levels with B and C parallel."""
@@ -777,9 +777,9 @@ class TestTopologicalGenerations:
         gens = dag.topological_generations()
 
         assert len(gens) == 3
-        assert [a.local_key for a in gens[0]] == ["asset_a"]
-        assert sorted(a.local_key for a in gens[1]) == ["asset_b", "asset_c"]
-        assert [a.local_key for a in gens[2]] == ["asset_d"]
+        assert [a.key for a in gens[0]] == ["asset_a"]
+        assert sorted(a.key for a in gens[1]) == ["asset_b", "asset_c"]
+        assert [a.key for a in gens[2]] == ["asset_d"]
 
 
 class TestMiniDAG:

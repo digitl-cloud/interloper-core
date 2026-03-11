@@ -14,8 +14,8 @@ from interloper.partitioning.base import Partition, PartitionWindow
 class CsvIO(IO):
     """IO that reads and writes CSV files on the local filesystem.
 
-    Data is stored under ``{base_path}/{dataset}/{asset_local_key}/data.csv``
-    (or ``{base_path}/{asset_local_key}/data.csv`` when no dataset is set).
+    Data is stored under ``{base_path}/{dataset}/{asset_key}/data.csv``
+    (or ``{base_path}/{asset_key}/data.csv`` when no dataset is set).
     Partitioned assets add a ``{column}={id}`` subdirectory.
 
     Data must be ``list[dict]`` — each dict represents a row, and the keys
@@ -30,7 +30,7 @@ class CsvIO(IO):
 
     def _asset_path(self, context: IOContext) -> Path:
         """Return the base directory for an asset."""
-        return Path(self.base_path) / (context.asset.dataset or "") / context.asset.local_key
+        return Path(self.base_path) / (context.asset.dataset or "") / context.asset.key
 
     def _write_csv(self, file_path: Path, data: list[dict[str, Any]]) -> None:
         """Write a list of row dicts to a CSV file."""

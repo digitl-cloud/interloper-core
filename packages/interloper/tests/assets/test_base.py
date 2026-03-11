@@ -237,7 +237,8 @@ class TestAsset:
 
         source_instance = MySource()
 
-        assert source_instance.my_asset.key == "MySource:my_asset"
+        assert source_instance.my_asset.key == "my_asset"
+        assert source_instance.my_asset.qualified_key == "MySource:my_asset"
 
     def test_key_with_source_key_override(self):
         """Test key property with source key override."""
@@ -249,7 +250,8 @@ class TestAsset:
                 return "value"
 
         source_instance = MySource()
-        assert source_instance.my_asset.key == "new_source_name:my_asset"
+        assert source_instance.my_asset.key == "my_asset"
+        assert source_instance.my_asset.qualified_key == "new_source_name:my_asset"
 
     def test_key_with_multiple_sources_same_name(self):
         """Test that assets from different sources with same name get different keys."""
@@ -272,11 +274,11 @@ class TestAsset:
         asset1 = source1_instance.assets["my_asset"]
         asset2 = source2_instance.assets["my_asset"]
 
-        # Both assets have the same local_key but different keys
-        assert asset1.local_key == asset2.local_key == "my_asset"
-        assert asset1.key == "Source1:my_asset"
-        assert asset2.key == "Source2:my_asset"
-        assert asset1.key != asset2.key
+        # Both assets have the same key but different qualified_keys
+        assert asset1.key == asset2.key == "my_asset"
+        assert asset1.qualified_key == "Source1:my_asset"
+        assert asset2.qualified_key == "Source2:my_asset"
+        assert asset1.qualified_key != asset2.qualified_key
 
     def test_key_with_custom_source_key(self):
         """Test key property with custom source key."""
@@ -294,8 +296,9 @@ class TestAsset:
         assert asset_instance.source is not None
         assert asset_instance.source.key == "custom_source_name"
 
-        # Key should include custom source key
-        assert asset_instance.key == "custom_source_name:my_asset"
+        # Key is local, qualified_key includes custom source key
+        assert asset_instance.key == "my_asset"
+        assert asset_instance.qualified_key == "custom_source_name:my_asset"
 
     def test_with_dataset(self):
         """Test dataset property."""

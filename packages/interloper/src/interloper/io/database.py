@@ -39,7 +39,7 @@ class DatabaseIO(IO):
     implement a small set of abstract hooks for the actual database operations.
 
     The target table name and schema are derived from the asset at call time
-    (``asset.local_key`` → table, ``asset.dataset`` → schema) and passed as
+    (``asset.key`` → table, ``asset.dataset`` → schema) and passed as
     parameters to every hook.  The IO instance itself holds **no** table
     identity and can be safely shared across multiple assets.
 
@@ -124,7 +124,7 @@ class DatabaseIO(IO):
         Called inside a :meth:`_transaction` context during writes.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             rows: Row data as list of dicts
         """
@@ -137,7 +137,7 @@ class DatabaseIO(IO):
         :attr:`WriteDisposition.REPLACE` and no partition context.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
         """
 
@@ -149,7 +149,7 @@ class DatabaseIO(IO):
         :attr:`WriteDisposition.REPLACE`.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Partition column name
             value: Partition value to match
@@ -160,7 +160,7 @@ class DatabaseIO(IO):
         """Select all rows from the target table.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
 
         Returns:
@@ -178,7 +178,7 @@ class DatabaseIO(IO):
         """Select rows matching a single partition value.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Partition column name
             value: Partition value to match
@@ -201,7 +201,7 @@ class DatabaseIO(IO):
         """Return row counts grouped by the values of the given column.
 
         Args:
-            table: Target table name (from ``asset.local_key``)
+            table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Column to group by.
 
@@ -223,7 +223,7 @@ class DatabaseIO(IO):
         """
         assert context.asset.partitioning is not None
         return self._count_by_partition(
-            context.asset.local_key,
+            context.asset.key,
             context.asset.dataset,
             context.asset.partitioning.column,
         )
@@ -302,7 +302,7 @@ class DatabaseIO(IO):
             data: Data to write (type must match the configured adapter, or
                 ``list[dict]`` when no adapter is set)
         """
-        table = context.asset.local_key
+        table = context.asset.key
         schema = context.asset.dataset
         rows = self._to_rows(data)
 
@@ -366,7 +366,7 @@ class DatabaseIO(IO):
         Returns:
             Data in the adapter's format, or raw rows
         """
-        table = context.asset.local_key
+        table = context.asset.key
         schema = context.asset.dataset
 
         # No partitioning

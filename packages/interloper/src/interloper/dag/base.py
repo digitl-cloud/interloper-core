@@ -69,22 +69,22 @@ class DAG(HasInstanceSpec):
             else:
                 raise DAGError(f"Expected Asset or Source, got {type(item)}")
 
-        # Build asset map using key
-        self.asset_map = {asset.key: asset for asset in self.assets}
+        # Build asset map using qualified key
+        self.asset_map = {asset.qualified_key: asset for asset in self.assets}
 
         # Check for duplicate keys
         if len(self.asset_map) != len(self.assets):
             seen_keys = set()
             duplicates = []
             for asset in self.assets:
-                if asset.key in seen_keys:
-                    duplicates.append(asset.key)
-                seen_keys.add(asset.key)
+                if asset.qualified_key in seen_keys:
+                    duplicates.append(asset.qualified_key)
+                seen_keys.add(asset.qualified_key)
             raise DAGError(f"Duplicate key found: {duplicates}")
 
         # Initialize successors dict with empty lists
         for asset in self.assets:
-            self.successors[asset.key] = []
+            self.successors[asset.qualified_key] = []
 
         # Build dependency graph
         for asset in self.assets:
@@ -93,7 +93,7 @@ class DAG(HasInstanceSpec):
             if not asset.materializable:
                 continue
 
-            self.predecessors[asset.key] = []
+            self.predecessors[asset.qualified_key] = []
 
             # Inspect function signature for dependencies
             sig = inspect.signature(asset.func)
@@ -105,15 +105,15 @@ class DAG(HasInstanceSpec):
 
                 # This is a dependency
                 if upstream_key in self.asset_map:
-                    self.predecessors[asset.key].append(upstream_key)
-                    self.successors[upstream_key].append(asset.key)
-                    if asset.key not in self._dependency_params:
-                        self._dependency_params[asset.key] = {}
-                    self._dependency_params[asset.key][upstream_key] = param_name
+                    self.predecessors[asset.qualified_key].append(upstream_key)
+                    self.successors[upstream_key].append(asset.qualified_key)
+                    if asset.qualified_key not in self._dependency_params:
+                        self._dependency_params[asset.qualified_key] = {}
+                    self._dependency_params[asset.qualified_key][upstream_key] = param_name
                 else:
                     # Dependency not found in DAG
                     raise DependencyNotFoundError(
-                        f"Asset '{asset.key}' depends on '{upstream_key}' which is not in the DAG. "
+                        f"Asset '{asset.qualified_key}' depends on '{upstream_key}' which is not in the DAG. "
                         f"Available assets: {list(self.asset_map.keys())}"
                     )
 
@@ -132,7 +132,7 @@ class DAG(HasInstanceSpec):
                 continue
             original_name = asset.metadata.get("source_original_key")
             if original_name == param_name:
-                matches.append(asset.key)
+                matches.append(asset.qualified_key)
 
         if not matches:
             return None
@@ -197,8 +197,8 @@ class DAG(HasInstanceSpec):
                 upstream_asset = self.asset_map[pred_key]
                 if upstream_asset.partitioning is not None and asset.partitioning is None:
                     raise DAGError(
-                        f"Invalid dependency: partitioned asset '{upstream_asset.key}' "
-                        f"cannot be a dependency of non-partitioned asset '{asset.key}'"
+                        f"Invalid dependency: partitioned asset '{upstream_asset.qualified_key}' "
+                        f"cannot be a dependency of non-partitioned asset '{asset.qualified_key}'"
                     )
 
     def _check_requires_constraints(self) -> None:
@@ -220,7 +220,7 @@ class DAG(HasInstanceSpec):
                     actual_def_key = upstream_asset.definition.qualified_key
                     if actual_def_key != expected_def_key:
                         raise DAGError(
-                            f"Asset '{asset.key}' requires parameter '{param_name}' "
+                            f"Asset '{asset.qualified_key}' requires parameter '{param_name}' "
                             f"to come from definition '{expected_def_key}', "
                             f"but resolved to '{actual_def_key}'"
                         )
@@ -399,6 +399,6 @@ class DAG(HasInstanceSpec):
         }
 
         for asset in dag.assets:
-            asset.materializable = asset.key not in completed_keys
+            asset.materializable = asset.qualified_key not in completed_keys
 
         return dag

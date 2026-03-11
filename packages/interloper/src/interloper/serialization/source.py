@@ -60,6 +60,6 @@ class SourceInstanceSpec(InstanceSpec):
 
         if self.assets is not None:
             for asset in source.assets.values():
-                asset.materializable = asset.local_key in self.assets
+                asset.materializable = asset.key in self.assets
 
         return source

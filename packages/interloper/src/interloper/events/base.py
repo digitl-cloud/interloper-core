@@ -389,7 +389,7 @@ def get_asset_event_metadata(asset: Asset) -> dict[str, Any]:
         Dict with asset_key and optionally source_key.
     """
     metadata: dict[str, Any] = {
-        "asset_key": asset.key,
+        "asset_key": asset.qualified_key,
     }
     if asset.source is not None:
         metadata["source_key"] = asset.source.key

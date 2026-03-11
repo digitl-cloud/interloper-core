@@ -126,14 +126,14 @@ class TestAssetState:
 
     def test_elapsed_no_start(self):
         """None when start_time is unset."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a")
+        state = AssetState(key=AssetInstanceKey("a"), name="a")
         assert state.elapsed is None
 
     def test_elapsed_with_start_and_end(self, ts):
         """Returns difference in seconds when both are set."""
         state = AssetState(
             key=AssetInstanceKey("a"),
-            local_key="a",
+            name="a",
             start_time=ts,
             end_time=ts + dt.timedelta(seconds=5),
         )
@@ -143,7 +143,7 @@ class TestAssetState:
         """Returns a positive number when only start is set (uses now)."""
         state = AssetState(
             key=AssetInstanceKey("a"),
-            local_key="a",
+            name="a",
             start_time=ts,
         )
         assert state.elapsed is not None
@@ -233,24 +233,24 @@ class TestFmtIo:
     """Verify IO count formatting."""
 
     def test_no_counts_returns_dash(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a")
+        state = AssetState(key=AssetInstanceKey("a"), name="a")
         assert _fmt_io(state) == "-"
 
     def test_reads_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", io_reads=3)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", io_reads=3)
         assert _fmt_io(state) == "R:3"
 
     def test_writes_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", io_writes=2)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", io_writes=2)
         assert _fmt_io(state) == "W:2"
 
     def test_errors_only(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", io_errors=1)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", io_errors=1)
         assert _fmt_io(state) == "E:1"
 
     def test_reads_writes_errors(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", io_reads=5, io_writes=3, io_errors=1
+            key=AssetInstanceKey("a"), name="a", io_reads=5, io_writes=3, io_errors=1
         )
         assert _fmt_io(state) == "R:5 W:3 E:1"
 
@@ -339,38 +339,38 @@ class TestPartitionStyle:
         assert _partition_style(None) == "dim"
 
     def test_waiting_is_dim(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.WAITING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.WAITING)
         assert _partition_style(state) == "dim"
 
     def test_done_is_bold_green(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.DONE)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.DONE)
         assert _partition_style(state) == "bold green"
 
     def test_failed_is_bold_red(self):
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.FAILED)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.FAILED)
         assert _partition_style(state) == "bold red"
 
     def test_running_with_reading_phase(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_READING
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_READING
         )
         assert _partition_style(state) == "cyan"
 
     def test_running_with_executing_phase(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_EXECUTING
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_EXECUTING
         )
         assert _partition_style(state) == "yellow"
 
     def test_running_with_writing_phase(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_WRITING
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_WRITING
         )
         assert _partition_style(state) == "magenta"
 
     def test_running_no_phase_falls_back_to_yellow(self):
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=None
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=None
         )
         assert _partition_style(state) == "yellow"
 
@@ -402,7 +402,7 @@ class TestRichViewStateUpdate:
         run = view._partition_runs[0]
         assert len(run.assets) == 1  # single-asset DAG
         asset_state = next(iter(run.assets.values()))
-        assert asset_state.local_key == "my_asset"
+        assert asset_state.name == "my_asset"
         assert asset_state.status == Status.WAITING
 
     def test_asset_started_updates_state(self, view, ts):
@@ -633,7 +633,7 @@ class TestRichViewStateUpdate:
         asset = view._find_asset(metadata)
 
         assert asset is not None
-        assert asset.local_key == "unknown_asset"
+        assert asset.name == "unknown_asset"
         assert asset.key == AssetInstanceKey("unknown_asset")
 
     def test_backfill_completed_updates_state(self, view, ts):
@@ -720,43 +720,43 @@ class TestStatusText:
 
     def test_waiting(self):
         """WAITING status shows wait label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.WAITING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.WAITING)
         text = _status_text(state)
         assert "wait" in text.plain
 
     def test_running_no_phase(self):
         """RUNNING status without phase shows run label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.RUNNING)
         text = _status_text(state)
         assert "run" in text.plain
 
     def test_running_with_reading_phase(self):
         """RUNNING with reading phase shows read label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_READING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_READING)
         text = _status_text(state)
         assert "read" in text.plain
 
     def test_running_with_executing_phase(self):
         """RUNNING with executing phase shows exec label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_EXECUTING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_EXECUTING)
         text = _status_text(state)
         assert "exec" in text.plain
 
     def test_running_with_writing_phase(self):
         """RUNNING with writing phase shows write label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_WRITING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_WRITING)
         text = _status_text(state)
         assert "write" in text.plain
 
     def test_done(self):
         """DONE status shows done label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.DONE)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.DONE)
         text = _status_text(state)
         assert "done" in text.plain
 
     def test_failed(self):
         """FAILED status shows FAIL label."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.FAILED)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.FAILED)
         text = _status_text(state)
         assert "FAIL" in text.plain
 
@@ -771,14 +771,14 @@ class TestRenderOps:
 
     def test_all_pending(self):
         """All operations pending shows 3 chars."""
-        state = AssetState(key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING)
+        state = AssetState(key=AssetInstanceKey("a"), name="a", status=Status.RUNNING)
         ops = _render_ops(state)
         assert len(ops.plain) == 3
 
     def test_all_done(self):
         """All operations done shows 3 green chars."""
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.DONE,
+            key=AssetInstanceKey("a"), name="a", status=Status.DONE,
             op_read="done", op_exec="done", op_write="done",
         )
         ops = _render_ops(state)
@@ -787,7 +787,7 @@ class TestRenderOps:
     def test_reading_phase(self):
         """Reading phase colors first char cyan."""
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_READING,
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_READING,
         )
         ops = _render_ops(state)
         assert len(ops.plain) == 3
@@ -795,7 +795,7 @@ class TestRenderOps:
     def test_executing_phase(self):
         """Executing phase colors middle char yellow."""
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_EXECUTING,
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_EXECUTING,
             op_read="done",
         )
         ops = _render_ops(state)
@@ -804,7 +804,7 @@ class TestRenderOps:
     def test_writing_phase(self):
         """Writing phase colors last char magenta."""
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.RUNNING, phase=PHASE_WRITING,
+            key=AssetInstanceKey("a"), name="a", status=Status.RUNNING, phase=PHASE_WRITING,
             op_read="done", op_exec="done",
         )
         ops = _render_ops(state)
@@ -813,7 +813,7 @@ class TestRenderOps:
     def test_failed_with_read_done(self):
         """Failed after read shows red exec char."""
         state = AssetState(
-            key=AssetInstanceKey("a"), local_key="a", status=Status.FAILED,
+            key=AssetInstanceKey("a"), name="a", status=Status.FAILED,
             op_read="done",
         )
         ops = _render_ops(state)

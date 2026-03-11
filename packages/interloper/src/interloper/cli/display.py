@@ -52,7 +52,7 @@ class AssetState:
     """Tracked display state for a single asset execution."""
 
     key: AssetInstanceKey
-    local_key: str
+    name: str
     source_key: str | None = None
     status: Status = Status.WAITING
     phase: str | None = None  # "reading", "executing", "writing"
@@ -346,7 +346,7 @@ class RichView:
         self._asset_order: list[tuple[str | None, AssetInstanceKey, str]] = []
         for asset in dag.assets:
             if asset.materializable:
-                self._asset_order.append((asset.source.key if asset.source else None, asset.key, asset.local_key))
+                self._asset_order.append((asset.source.key if asset.source else None, asset.qualified_key, asset.key))
         self._asset_order.sort(key=lambda t: (t[0] or "", t[1]))
 
         self._max_key_len = max((len(n) for _, _, n in self._asset_order), default=0)
@@ -620,9 +620,9 @@ class RichView:
 
     def _seed_assets(self, run: PartitionRun) -> None:
         """Pre-populate asset states from the DAG order."""
-        for source_key, key, local_key in self._asset_order:
+        for source_key, key, name in self._asset_order:
             if key not in run.assets:
-                run.assets[key] = AssetState(key=key, local_key=local_key, source_key=source_key)
+                run.assets[key] = AssetState(key=key, name=name, source_key=source_key)
 
     def _find_run(self, run_id: str) -> PartitionRun | None:
         """Look up a partition run by its run ID.
@@ -648,7 +648,7 @@ class RichView:
         if asset is None:
             asset = AssetState(
                 key=asset_key,
-                local_key=str(asset_key).rsplit(":", 1)[-1],
+                name=str(asset_key).rsplit(":", 1)[-1],
                 source_key=metadata.get("source_key"),
             )
             run.assets[asset_key] = asset
@@ -750,7 +750,7 @@ class RichView:
         time_str = _fmt_time(asset.elapsed) if asset.status != Status.WAITING else ""
         io_str = _fmt_io(asset) if (asset.io_reads or asset.io_writes or asset.io_errors) else ""
 
-        table.add_row(asset.local_key, spinner, ops, status, time_str, io_str)
+        table.add_row(asset.name, spinner, ops, status, time_str, io_str)
         return table
 
     # ------------------------------------------------------------------
@@ -810,7 +810,7 @@ class RichView:
         partition_count = len(self._partition_runs)
         active_run = self._active_run()
 
-        for source_key, asset_key, local_key in self._asset_order:
+        for source_key, asset_key, name in self._asset_order:
             if source_key != current_source:
                 if current_tree is not None:
                     trees.append(current_tree)
@@ -820,7 +820,7 @@ class RichView:
 
             # Get ops for the currently active partition
             current_asset = active_run.assets.get(asset_key) if active_run else None
-            line = self._render_backfill_asset_line(asset_key, local_key, partition_count, current_asset)
+            line = self._render_backfill_asset_line(asset_key, name, partition_count, current_asset)
             assert current_tree is not None
             current_tree.add(line)
 
@@ -831,7 +831,7 @@ class RichView:
     def _render_backfill_asset_line(
         self,
         asset_key: AssetInstanceKey,
-        local_key: str,
+        name: str,
         partition_count: int,
         current_asset: AssetState | None,
     ) -> Table:
@@ -872,7 +872,7 @@ class RichView:
         else:
             ops = Text("   ")
 
-        table.add_row(local_key, spinner, ops, progress, f"{pct}%")
+        table.add_row(name, spinner, ops, progress, f"{pct}%")
         return table
 
     # ------------------------------------------------------------------

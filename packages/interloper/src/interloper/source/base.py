@@ -13,7 +13,6 @@ from typing import Any, cast
 from pydantic import Field
 
 from interloper.assets.base import Asset, AssetDefinition
-from interloper.assets.keys import AssetInstanceKey
 from interloper.errors import ConfigError, SourceError
 from interloper.io.base import IO, validate_io_keys
 from interloper.normalizer.base import Normalizer
@@ -340,7 +339,6 @@ class Source(Component):
 
         for asset in self.assets.values():
             asset.source = self
-            asset.key = AssetInstanceKey(f"{self.key}:{asset.key}")
             asset.dataset = asset.dataset or self.dataset or self.key
 
     def copy(
@@ -408,7 +406,7 @@ class Source(Component):
         elif self.io is not None:
             io_spec = self.io.to_spec()
 
-        materializable_assets = [asset.local_key for asset in self.assets.values() if asset.materializable]
+        materializable_assets = [str(asset.key) for asset in self.assets.values() if asset.materializable]
 
         return SourceInstanceSpec(
             path=self.path,

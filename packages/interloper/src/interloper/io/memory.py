@@ -11,7 +11,7 @@ from interloper.partitioning.base import Partition, PartitionConfig, PartitionWi
 
 
 class MemoryIO(IO):
-    """IO that stores data in a class-level dict keyed by ``{dataset}/{local_key}/{partition}``.
+    """IO that stores data in a class-level dict keyed by ``{dataset}/{key}/{partition}``.
 
     All instances share a single ``_storage`` dict so data written by one
     asset is visible to others.  Call :meth:`clear` between test runs.
@@ -32,14 +32,14 @@ class MemoryIO(IO):
         """
         # No partitioning - write directly
         if context.partition_or_window is None:
-            key = self._build_key(context.asset.local_key, context.asset.dataset, context.asset.partitioning, None)
+            key = self._build_key(context.asset.key, context.asset.dataset, context.asset.partitioning, None)
             self._storage[key] = data
 
         # Partition window - write for each partition
         elif isinstance(context.partition_or_window, PartitionWindow):
             for partition in context.partition_or_window:
                 key = self._build_key(
-                    context.asset.local_key, context.asset.dataset, context.asset.partitioning, partition
+                    context.asset.key, context.asset.dataset, context.asset.partitioning, partition
                 )
                 self._storage[key] = data
 
@@ -47,7 +47,7 @@ class MemoryIO(IO):
         else:
             assert isinstance(context.partition_or_window, Partition)
             key = self._build_key(
-                context.asset.local_key, context.asset.dataset, context.asset.partitioning, context.partition_or_window
+                context.asset.key, context.asset.dataset, context.asset.partitioning, context.partition_or_window
             )
             self._storage[key] = data
 
@@ -65,7 +65,7 @@ class MemoryIO(IO):
         """
         # No partitioning - read directly
         if context.partition_or_window is None:
-            key = self._build_key(context.asset.local_key, context.asset.dataset, context.asset.partitioning, None)
+            key = self._build_key(context.asset.key, context.asset.dataset, context.asset.partitioning, None)
             if key not in self._storage:
                 raise DataNotFoundError(f"No data found in memory for: {key}")
             return self._storage[key]
@@ -75,7 +75,7 @@ class MemoryIO(IO):
             results = []
             for partition in context.partition_or_window:
                 key = self._build_key(
-                    context.asset.local_key, context.asset.dataset, context.asset.partitioning, partition
+                    context.asset.key, context.asset.dataset, context.asset.partitioning, partition
                 )
                 if key not in self._storage:
                     raise DataNotFoundError(f"No data found in memory for: {key}")
@@ -86,7 +86,7 @@ class MemoryIO(IO):
         else:
             assert isinstance(context.partition_or_window, Partition)
             key = self._build_key(
-                context.asset.local_key, context.asset.dataset, context.asset.partitioning, context.partition_or_window
+                context.asset.key, context.asset.dataset, context.asset.partitioning, context.partition_or_window
             )
             if key not in self._storage:
                 raise DataNotFoundError(f"No data found in memory for: {key}")
@@ -129,7 +129,7 @@ class MemoryIO(IO):
         """
         assert context.asset.partitioning is not None
         column = context.asset.partitioning.column
-        prefix = self._build_key(context.asset.local_key, context.asset.dataset, None, None)
+        prefix = self._build_key(context.asset.key, context.asset.dataset, None, None)
         partition_prefix = f"{prefix}/{column}="
 
         counts: dict[str, int] = {}
