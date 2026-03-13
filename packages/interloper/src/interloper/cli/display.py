@@ -554,29 +554,29 @@ class RichView:
                 asset.phase = None
 
         # --- Destination lifecycle ----------------------------------------
-        elif etype == EventType.DESTINATION_READ_STARTED:
+        elif etype == EventType.DEST_READ_STARTED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.phase = PHASE_READING
 
-        elif etype == EventType.DESTINATION_READ_COMPLETED:
+        elif etype == EventType.DEST_READ_COMPLETED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.destination_reads += 1
                 asset.phase = None
 
-        elif etype == EventType.DESTINATION_WRITE_STARTED:
+        elif etype == EventType.DEST_WRITE_STARTED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.phase = PHASE_WRITING
 
-        elif etype == EventType.DESTINATION_WRITE_COMPLETED:
+        elif etype == EventType.DEST_WRITE_COMPLETED:
             asset = self._find_asset(m)
             if asset is not None:
                 asset.destination_writes += 1
                 asset.phase = None
 
-        elif etype in (EventType.DESTINATION_READ_FAILED, EventType.DESTINATION_WRITE_FAILED):
+        elif etype in (EventType.DEST_READ_FAILED, EventType.DEST_WRITE_FAILED):
             asset = self._find_asset(m)
             if asset is not None:
                 asset.destination_errors += 1

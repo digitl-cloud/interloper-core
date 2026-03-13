@@ -220,11 +220,6 @@ def _validate_date_arguments(args: argparse.Namespace, parser: argparse.Argument
 
 def main() -> None:
     """The main entrypoint for the CLI."""
-    # TODO: TEMP TO BE REMOVED
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
     # Explicitly opt in to default forwarding for CLI-driven execution.
     enable_event_forwarding()
 

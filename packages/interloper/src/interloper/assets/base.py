@@ -457,14 +457,14 @@ class Asset(Component):
             dest_label = f"{dest}[{dest_key}]"
             dest_metadata = self._event_metadata(metadata, partition_or_window, destination_key=dest_key)
             msg = f"Writing '{self.qualified_key}' to {dest_label}"
-            emit(EventType.DESTINATION_WRITE_STARTED, metadata={**dest_metadata, "message": msg})
+            emit(EventType.DEST_WRITE_STARTED, metadata={**dest_metadata, "message": msg})
             try:
                 dest.write(dest_context, result)
                 msg = f"Wrote '{self.qualified_key}' to {dest_label}"
-                emit(EventType.DESTINATION_WRITE_COMPLETED, metadata={**dest_metadata, "message": msg})
+                emit(EventType.DEST_WRITE_COMPLETED, metadata={**dest_metadata, "message": msg})
             except Exception as e:
                 emit(
-                    EventType.DESTINATION_WRITE_FAILED,
+                    EventType.DEST_WRITE_FAILED,
                     metadata={
                         **dest_metadata,
                         "error": str(e),
@@ -527,14 +527,14 @@ class Asset(Component):
             metadata, effective_partition_or_window, destination_key=read_dest_key
         )
         msg = f"Reading '{upstream_asset.qualified_key}' from {dest_label}"
-        emit(EventType.DESTINATION_READ_STARTED, metadata={**dest_metadata, "message": msg})
+        emit(EventType.DEST_READ_STARTED, metadata={**dest_metadata, "message": msg})
         try:
             result = read_dest.read(dest_context)
             msg = f"Read '{upstream_asset.qualified_key}' from {dest_label}"
-            emit(EventType.DESTINATION_READ_COMPLETED, metadata={**dest_metadata, "message": msg})
+            emit(EventType.DEST_READ_COMPLETED, metadata={**dest_metadata, "message": msg})
         except Exception as e:
             emit(
-                EventType.DESTINATION_READ_FAILED,
+                EventType.DEST_READ_FAILED,
                 metadata={
                     **dest_metadata,
                     "error": str(e),

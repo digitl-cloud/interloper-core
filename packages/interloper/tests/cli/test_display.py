@@ -317,7 +317,7 @@ class TestEventTypeStyle:
 
     def test_completed_is_green(self):
         assert _event_type_style("RUN_COMPLETED") == "green"
-        assert _event_type_style("DESTINATION_WRITE_COMPLETED") == "green"
+        assert _event_type_style("DEST_WRITE_COMPLETED") == "green"
 
     def test_started_is_cyan(self):
         assert _event_type_style("RUN_STARTED") == "cyan"
@@ -463,8 +463,8 @@ class TestRichViewStateUpdate:
         assert asset.error == "boom"
         assert asset.end_time == fail_ts
 
-    def test_destination_read_completed_increments_counter(self, view, ts):
-        """DESTINATION_READ_COMPLETED increments destination_reads on the asset."""
+    def test_dest_read_completed_increments_counter(self, view, ts):
+        """DEST_READ_COMPLETED increments destination_reads on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -472,17 +472,17 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_READ_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_READ_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_READ_COMPLETED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_READ_COMPLETED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
         assert asset.destination_reads == 1
 
-    def test_destination_write_completed_increments_counter(self, view, ts):
-        """DESTINATION_WRITE_COMPLETED increments destination_writes on the asset."""
+    def test_dest_write_completed_increments_counter(self, view, ts):
+        """DEST_WRITE_COMPLETED increments destination_writes on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -490,17 +490,17 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_WRITE_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_WRITE_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_WRITE_COMPLETED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_WRITE_COMPLETED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
         assert asset.destination_writes == 1
 
-    def test_destination_read_failed_increments_errors(self, view, ts):
-        """DESTINATION_READ_FAILED increments destination_errors on the asset."""
+    def test_dest_read_failed_increments_errors(self, view, ts):
+        """DEST_READ_FAILED increments destination_errors on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -508,14 +508,14 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_READ_FAILED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_READ_FAILED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
         assert asset.destination_errors == 1
 
-    def test_destination_write_failed_increments_errors(self, view, ts):
-        """DESTINATION_WRITE_FAILED increments destination_errors on the asset."""
+    def test_dest_write_failed_increments_errors(self, view, ts):
+        """DEST_WRITE_FAILED increments destination_errors on the asset."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -523,7 +523,7 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_WRITE_FAILED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_WRITE_FAILED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
@@ -581,8 +581,8 @@ class TestRichViewStateUpdate:
         assert asset.phase == PHASE_EXECUTING
         assert asset.op_read == "done"
 
-    def test_destination_read_started_sets_phase(self, view, ts):
-        """DESTINATION_READ_STARTED sets phase to PHASE_READING."""
+    def test_dest_read_started_sets_phase(self, view, ts):
+        """DEST_READ_STARTED sets phase to PHASE_READING."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -590,14 +590,14 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_READ_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_READ_STARTED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
         assert asset.phase == PHASE_READING
 
-    def test_destination_write_started_sets_phase(self, view, ts):
-        """DESTINATION_WRITE_STARTED sets phase to PHASE_WRITING."""
+    def test_dest_write_started_sets_phase(self, view, ts):
+        """DEST_WRITE_STARTED sets phase to PHASE_WRITING."""
         view._update_state(_make_event(EventType.RUN_STARTED, ts))
 
         asset_key = str(next(iter(view._partition_runs[0].assets.keys())))
@@ -605,7 +605,7 @@ class TestRichViewStateUpdate:
             _make_event(EventType.ASSET_STARTED, ts, asset_key=asset_key)
         )
         view._update_state(
-            _make_event(EventType.DESTINATION_WRITE_STARTED, ts, asset_key=asset_key)
+            _make_event(EventType.DEST_WRITE_STARTED, ts, asset_key=asset_key)
         )
 
         asset = next(iter(view._partition_runs[0].assets.values()))
