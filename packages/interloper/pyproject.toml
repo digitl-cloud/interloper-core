@@ -12,10 +12,11 @@ dependencies = [
     "pydantic>=2.11.7",
     "pydantic-settings>=2.11.0",
     "httpx>=0.28.1",
+    "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]
-cli = ["pyyaml>=6.0.0", "rich>=14.3.2"]
+rich = ["rich>=14.3.2"]
 
 [dependency-groups]
 dev = ["pytest>=8.0.0", "pytest-cov>=7.0.0"]

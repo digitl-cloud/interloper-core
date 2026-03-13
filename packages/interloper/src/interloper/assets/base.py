@@ -96,7 +96,7 @@ class AssetDefinition(HasDefinitionSpec):
         or just ``{asset-key}`` for standalone assets.
         """
         if self.source_definition:
-            return AssetDefinitionKey(f"{self.source_definition.key}:{self.key}")
+            return AssetDefinitionKey(f"{self.source_definition.key}.{self.key}")
         return AssetDefinitionKey(self.key)
 
     def __call__(
@@ -230,7 +230,7 @@ class Asset(Component):
         or just ``{asset-key}`` for standalone assets.
         """
         if self.source:
-            return AssetInstanceKey(f"{self.source.key}:{self.key}")
+            return AssetInstanceKey(f"{self.source.key}.{self.key}")
         return AssetInstanceKey(self.key)
 
     def copy(

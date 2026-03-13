@@ -349,9 +349,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job_status(
-                        name=job_name, namespace=self.namespace
-                    ),
+                    self._batch_v1.read_namespaced_job_status(name=job_name, namespace=self.namespace),
                 )
 
                 assert updated_job.status is not None
@@ -427,9 +425,7 @@ class KubernetesBackfiller(Backfiller[str]):
                 # Get job to retrieve partition from annotations
                 job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job(
-                        name=job_name, namespace=self.namespace
-                    ),
+                    self._batch_v1.read_namespaced_job(name=job_name, namespace=self.namespace),
                 )
                 self._batch_v1.delete_namespaced_job(
                     name=job_name,

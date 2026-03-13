@@ -81,7 +81,7 @@ class Event:
         m = self.metadata
         fields = [
             f"{self.timestamp.strftime('%H:%M:%S.%f')[:-3]}",
-            f"{self.type.value.upper():<20}",
+            f"{self.type.value.upper():<30}",
             f"{str(m.get('asset_key')) if m.get('asset_key') is not None else '-'}",
             # f"{str(m.get('partition_or_window')) if m.get('partition_or_window') is not None else '-':<21}",
             # f"{str(m.get('error')) if m.get('error') is not None else '-'}",
@@ -436,10 +436,10 @@ def forward_event(event: Event) -> None:
     - ``INTERLOPER_EVENTS_TARGET_URL``: POST JSON to a remote endpoint (legacy).
     """
     # Log-based event streaming (for Docker/K8s log collection)
-    if os.getenv("INTERLOPER_EVENTS_TO_STDERR"):
+    if os.getenv("INTERLOPER_EVENTS_TO_STDERR") and sys.__stderr__ is not None:
         try:
-            sys.stderr.write(f"{INTERLOPER_EVENT_MARKER}{event.to_json()}\n")
-            sys.stderr.flush()
+            sys.__stderr__.write(f"{INTERLOPER_EVENT_MARKER}{event.to_json()}\n")
+            sys.__stderr__.flush()
         except Exception as e:  # noqa: BLE001
             logger.error(f"Error writing event to stderr: {e}")
 

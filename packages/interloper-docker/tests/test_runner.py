@@ -223,13 +223,13 @@ class TestDockerRunnerBuildEnv:
     """Tests for _build_env() environment variable construction."""
 
     def test_empty_env(self, runner):
-        """No env_vars produces an empty dict."""
-        assert runner._build_env() == {}
+        """No env_vars produces only the event streaming flag."""
+        assert runner._build_env() == {"INTERLOPER_EVENTS_TO_STDERR": "true"}
 
     def test_env_vars_copied(self, runner_custom):
-        """Env vars are returned as a copy."""
+        """Env vars are returned as a copy with the event streaming flag."""
         env = runner_custom._build_env()
-        assert env == {"DB_HOST": "localhost", "ENV": "test"}
+        assert env == {"DB_HOST": "localhost", "ENV": "test", "INTERLOPER_EVENTS_TO_STDERR": "true"}
         # Mutating the copy should not affect the runner
         env["NEW_KEY"] = "new_value"
         assert "NEW_KEY" not in runner_custom._build_env()
@@ -265,7 +265,6 @@ class TestDockerRunnerBuildName:
 
     def test_name_format(self, runner, simple_dag):
         """Container name follows the expected pattern."""
-        TimePartition(dt.date(2025, 1, 1))
         # We need a state to access run_id
         runner._state = MagicMock()
         runner._state.run_id = "abcdef12-3456-7890"
@@ -273,9 +272,9 @@ class TestDockerRunnerBuildName:
         asset = simple_dag.assets[0]
         name = runner._build_name(asset)
 
-        assert name.startswith("interloper-run-abcdef12")
-        # Name should be lowercase with no underscores or colons
-        assert "_" not in name
+        # Prefix uses underscores; asset part is slugified with hyphens
+        assert name.startswith("interloper_run_abcdef12_")
+        # Name should be lowercase with no colons
         assert ":" not in name
         assert name == name.lower()
 
@@ -286,9 +285,11 @@ class TestDockerRunnerBuildName:
         r._state.run_id = "11112222-3333-4444"
 
         asset = MagicMock()
-        asset.key = "source_A:my_asset"
+        asset.key = "source_A.my_asset"
+        asset.qualified_key = asset.key
 
         name = r._build_name(asset)
-        assert ":" not in name
-        assert "_" not in name
-        assert name == name.lower()
+        assert name.startswith("interloper_run_11112222_")
+        # The slug portion (after the prefix) should be hyphenated
+        slug = name.split("_", 3)[-1]
+        assert slug == "source-a-my-asset"

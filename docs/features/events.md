@@ -27,10 +27,10 @@ il.unsubscribe(on_event)
 | `ASSET_EXEC_STARTED` | Asset function execution started |
 | `ASSET_EXEC_COMPLETED` | Asset function execution completed |
 | `ASSET_EXEC_FAILED` | Asset function execution failed |
-| `IO_READ_STARTED` | IO read started (upstream dependency) |
-| `IO_READ_COMPLETED` | IO read completed |
-| `IO_READ_FAILED` | IO read failed |
-| `IO_WRITE_STARTED` | IO write started |
+| `DESTINATION_READ_STARTED` | IO read started (upstream dependency) |
+| `DESTINATION_READ_COMPLETED` | IO read completed |
+| `DESTINATION_READ_FAILED` | IO read failed |
+| `DESTINATION_WRITE_STARTED` | IO write started |
 | `IO_WRITE_COMPLETED` | IO write completed |
 | `IO_WRITE_FAILED` | IO write failed |
 | `RUN_STARTED` | Runner started a run |

@@ -39,7 +39,7 @@ class MySource:
     def raw_data(self):
         return [{"value": 42}]
 
-    @il.asset(requires={"data": AssetDefinitionKey("MySource:raw_data")})
+    @il.asset(requires={"data": AssetDefinitionKey("MySource.raw_data")})
     def processed(self, data):  # 'data' doesn't match 'raw_data'
         return [{"result": data[0]["value"] * 2}]
 ```
@@ -49,7 +49,7 @@ class MySource:
 You can also override dependency mappings at instantiation time using `deps`:
 
 ```py
-asset_instance = my_asset(deps={"param_name": "source_name:asset_name"})
+asset_instance = my_asset(deps={"param_name": "source_name.asset_name"})
 ```
 
 ## Cross-source dependencies
@@ -74,7 +74,7 @@ source_b = SourceB(io=il.FileIO("./data"))
 
 # Use deps to wire cross-source dependencies
 report_asset = source_b.report
-report_asset.deps = {"data": "SourceA:data"}
+report_asset.deps = {"data": "SourceA.data"}
 
 dag = il.DAG(source_a, source_b)
 dag.materialize()

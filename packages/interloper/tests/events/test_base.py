@@ -456,7 +456,7 @@ class TestFlushSugar:
 class TestForwardEvent:
     """Test forward_event with env-controlled transports."""
 
-    def test_stderr_output(self, monkeypatch, capsys):
+    def test_stderr_output(self, monkeypatch, capfd):
         """With INTERLOPER_EVENTS_TO_STDERR set, event JSON is written to stderr."""
         monkeypatch.setenv("INTERLOPER_EVENTS_TO_STDERR", "1")
         monkeypatch.delenv("INTERLOPER_EVENTS_TARGET_URL", raising=False)
@@ -467,7 +467,7 @@ class TestForwardEvent:
         )
         forward_event(event)
 
-        captured = capsys.readouterr()
+        captured = capfd.readouterr()
         assert INTERLOPER_EVENT_MARKER in captured.err
         assert '"asset_started"' in captured.err
 

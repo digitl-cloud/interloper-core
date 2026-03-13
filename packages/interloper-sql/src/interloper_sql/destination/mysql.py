@@ -23,8 +23,12 @@ class MySQLDestination(SqlDestination):
         super().model_post_init(context)
         drivername = f"mysql+{self.driver}" if self.driver else "mysql"
         url = URL.create(
-            drivername, self.username, self.password,
-            self.host, self.port, self.database,
+            drivername,
+            self.username,
+            self.password,
+            self.host,
+            self.port,
+            self.database,
         )
         self._init_engine(url)
 

@@ -289,7 +289,7 @@ class TestRequiresInference:
                 return raw.upper()
 
         assert Src.asset_defs["transformed"].requires == {
-            "raw": il.AssetDefinitionKey("Src:raw"),
+            "raw": il.AssetDefinitionKey("Src.raw"),
         }
         assert Src.asset_defs["raw"].requires == {}
 
@@ -313,12 +313,12 @@ class TestRequiresInference:
             def raw(self, context: il.ExecutionContext) -> str:
                 return "data"
 
-            @il.asset(requires={"raw": il.AssetDefinitionKey("other_source:raw")})
+            @il.asset(requires={"raw": il.AssetDefinitionKey("other_source.raw")})
             def transformed(self, context: il.ExecutionContext, raw: str) -> str:
                 return raw
 
         assert Src.asset_defs["transformed"].requires == {
-            "raw": il.AssetDefinitionKey("other_source:raw"),
+            "raw": il.AssetDefinitionKey("other_source.raw"),
         }
 
     def test_mixed_inferred_and_explicit(self):
@@ -334,13 +334,13 @@ class TestRequiresInference:
             def b(self, context: il.ExecutionContext) -> str:
                 return "b"
 
-            @il.asset(requires={"a": il.AssetDefinitionKey("other:a")})
+            @il.asset(requires={"a": il.AssetDefinitionKey("other.a")})
             def c(self, context: il.ExecutionContext, a: str, b: str) -> str:
                 return a + b
 
         requires = Src.asset_defs["c"].requires
-        assert requires["a"] == il.AssetDefinitionKey("other:a")
-        assert requires["b"] == il.AssetDefinitionKey("Src:b")
+        assert requires["a"] == il.AssetDefinitionKey("other.a")
+        assert requires["b"] == il.AssetDefinitionKey("Src.b")
 
     def test_non_matching_params_ignored(self):
         """Params that don't match any sibling asset are left alone."""
@@ -356,7 +356,7 @@ class TestRequiresInference:
                 return raw + external
 
         assert Src.asset_defs["transformed"].requires == {
-            "raw": il.AssetDefinitionKey("Src:raw"),
+            "raw": il.AssetDefinitionKey("Src.raw"),
         }
         assert "external" not in Src.asset_defs["transformed"].requires
 
@@ -378,8 +378,8 @@ class TestRequiresInference:
                 return b
 
         assert Src.asset_defs["a"].requires == {}
-        assert Src.asset_defs["b"].requires == {"a": il.AssetDefinitionKey("Src:a")}
-        assert Src.asset_defs["c"].requires == {"b": il.AssetDefinitionKey("Src:b")}
+        assert Src.asset_defs["b"].requires == {"a": il.AssetDefinitionKey("Src.a")}
+        assert Src.asset_defs["c"].requires == {"b": il.AssetDefinitionKey("Src.b")}
 
 
 class TestSource:
@@ -489,15 +489,15 @@ class TestSource:
         source_instance = MySource()
         # Assets should default to source name as dataset
         assert source_instance.assets["asset1"].dataset == "MySource"
-        assert source_instance.assets["asset1"].qualified_key == "MySource:asset1"
+        assert source_instance.assets["asset1"].qualified_key == "MySource.asset1"
         assert source_instance.assets["asset2"].dataset == "MySource"
-        assert source_instance.assets["asset2"].qualified_key == "MySource:asset2"
+        assert source_instance.assets["asset2"].qualified_key == "MySource.asset2"
 
         # DAG should be able to resolve dependencies
         dag = il.DAG(source_instance)
-        assert "MySource:asset1" in dag.asset_map
-        assert "MySource:asset2" in dag.asset_map
-        assert "MySource:asset1" in dag.get_predecessors("MySource:asset2")
+        assert "MySource.asset1" in dag.asset_map
+        assert "MySource.asset2" in dag.asset_map
+        assert "MySource.asset1" in dag.get_predecessors("MySource.asset2")
 
     def test_asset_level_dataset_override(self):
         """Test that asset-level dataset overrides source-level."""

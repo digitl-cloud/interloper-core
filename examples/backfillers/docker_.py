@@ -14,7 +14,7 @@ dotenv.load_dotenv()
 
 data_path = os.path.abspath("./data")
 partitioning = il.TimePartitionConfig(column="date")
-destination = il.FileDestination("/tmp/data")
+destination = il.FileDestination(base_path="/tmp/data")
 dag = il.DAG(Adup(destination=destination))
 window = il.TimePartitionWindow(start=dt.date(2025, 1, 1), end=dt.date(2025, 1, 2))
 
@@ -28,8 +28,8 @@ runner = DockerRunner(
 with DockerBackfiller(
     on_event=print,
     image="interloper",
-    # dind=True,
-    # runner=runner,
+    dind=True,
+    runner=runner,
 ) as backfiller:
     result = backfiller.backfill(dag, window)
 print(result)

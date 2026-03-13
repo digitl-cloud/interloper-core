@@ -58,7 +58,6 @@ class DemoSource:
         context: il.ExecutionContext,
     ) -> pd.DataFrame:
         """Root asset. Returns a single row with the configured greeting."""
-        context.logger.info(f"Hello {self.config.hello} from A")
         return self.do(context, "A")
 
     @il.asset(
@@ -72,7 +71,6 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> b -> e)."""
-        context.logger.info(f"Hello {self.config.hello} from B")
         return self.do(context, "B")
 
     @il.asset(
@@ -86,7 +84,6 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> c -> e)."""
-        context.logger.info(f"Hello {self.config.hello} from C")
         return self.do(context, "C")
 
     @il.asset(
@@ -100,7 +97,6 @@ class DemoSource:
         a: str,
     ) -> pd.DataFrame:
         """Depends on A. Part of the example DAG (a -> d -> e)."""
-        context.logger.info(f"Hello {self.config.hello} from D")
         return self.do(context, "D")
 
     @il.asset(
@@ -116,5 +112,4 @@ class DemoSource:
         d: str,
     ) -> pd.DataFrame:
         """Depends on B, C, and D. Sink asset of the example DAG."""
-        context.logger.info(f"Hello {self.config.hello} from E")
         return self.do(context, "E")

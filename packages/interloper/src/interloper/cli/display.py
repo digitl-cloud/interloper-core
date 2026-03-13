@@ -648,7 +648,7 @@ class RichView:
         if asset is None:
             asset = AssetState(
                 key=asset_key,
-                name=str(asset_key).rsplit(":", 1)[-1],
+                name=str(asset_key).rsplit(".", 1)[-1],
                 source_key=metadata.get("source_key"),
             )
             run.assets[asset_key] = asset

@@ -158,7 +158,7 @@ class DAG(HasInstanceSpec):
             return AssetInstanceKey(asset.deps[param_name])
 
         if asset.source:
-            upstream_key = AssetInstanceKey(f"{asset.source.key}:{param_name}")
+            upstream_key = AssetInstanceKey(f"{asset.source.key}.{param_name}")
             if upstream_key in self.asset_map:
                 return upstream_key
 

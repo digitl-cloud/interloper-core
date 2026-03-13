@@ -57,12 +57,12 @@ class TestAssetDecorator:
     def test_decorator_with_requires(self):
         """Test @asset decorator with requires parameter."""
 
-        @il.asset(requires={"campaign": "facebook_ads:campaign", "display": "amazon_ads:display"})
+        @il.asset(requires={"campaign": "facebook_ads.campaign", "display": "amazon_ads.display"})
         def my_asset(context: il.ExecutionContext) -> str:
             return "value"
 
         assert isinstance(my_asset, il.AssetDefinition)
-        assert my_asset.requires == {"campaign": "facebook_ads:campaign", "display": "amazon_ads:display"}
+        assert my_asset.requires == {"campaign": "facebook_ads.campaign", "display": "amazon_ads.display"}
 
     def test_decorator_with_requires_none(self):
         """Test @asset decorator with requires=None."""

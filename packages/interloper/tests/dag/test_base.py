@@ -2,11 +2,11 @@
 
 Key semantics:
 - Standalone asset (no source): qualified_key = asset.key
-- Asset from a source: qualified_key = source.key + ":" + asset.key
+- Asset from a source: qualified_key = source.key + "." + asset.key
 
 Dependency resolution:
 - With no dataset, param name is used as upstream key (matches standalone keys).
-- With dataset set, inference uses source.key:param_name; standalone
+- With dataset set, inference uses source.key.param_name; standalone
   keys use the key directly, so explicit deps are required when referencing other assets.
 """
 
@@ -82,7 +82,7 @@ class TestDAGInitialization:
         dag = il.DAG(standalone(), MySource())
         assert len(dag.assets) == 2
         assert "standalone" in dag.asset_map
-        assert "MySource:source_asset" in dag.asset_map
+        assert "MySource.source_asset" in dag.asset_map
 
     def test_accepts_asset_definition_instantiates(self):
         @il.asset
@@ -184,8 +184,8 @@ class TestDAGKeys:
         assert dag.asset_map["asset1"].key == "asset1"
         assert dag.asset_map["asset2"].key == "asset2"
 
-    def test_source_asset_key_equals_source_name_colon_asset_name(self):
-        """Assets from a source use source_name:asset_name as key."""
+    def test_source_asset_key_equals_source_name_dot_asset_name(self):
+        """Assets from a source use source_name.asset_name as key."""
 
         @il.source
         class Source1:
@@ -201,8 +201,8 @@ class TestDAGKeys:
 
         dag = il.DAG(Source1(), Source2())
         assert len(dag.asset_map) == 2
-        assert "Source1:my_asset" in dag.asset_map
-        assert "Source2:my_asset" in dag.asset_map
+        assert "Source1.my_asset" in dag.asset_map
+        assert "Source2.my_asset" in dag.asset_map
 
     def test_source_asset_key_uses_custom_source_key_when_given(self):
         """Source instances can override key; asset key uses that source key."""
@@ -220,8 +220,8 @@ class TestDAGKeys:
                 return "v2"
 
         dag = il.DAG(S1(), S2())
-        assert "custom_source1:my_asset" in dag.asset_map
-        assert "custom_source2:my_asset" in dag.asset_map
+        assert "custom_source1.my_asset" in dag.asset_map
+        assert "custom_source2.my_asset" in dag.asset_map
 
     def test_duplicate_key_raises_when_two_standalone_assets_same_name(self):
         """Two standalone assets with the same name produce the same key → ValueError."""
@@ -645,13 +645,13 @@ class TestDAGRequiresValidation:
         def upstream(context: il.ExecutionContext) -> str:
             return "data"
 
-        @il.asset(requires={"upstream": il.AssetDefinitionKey("other_source:upstream")})
+        @il.asset(requires={"upstream": il.AssetDefinitionKey("other_source.upstream")})
         def downstream(context: il.ExecutionContext, upstream: str) -> str:
             return upstream
 
         with pytest.raises(
             DAGError,
-            match=r"requires parameter 'upstream' to come from definition 'other_source:upstream'",
+            match=r"requires parameter 'upstream' to come from definition 'other_source.upstream'",
         ):
             il.DAG(upstream(), downstream())
 
@@ -704,7 +704,7 @@ class TestDAGRequiresValidation:
             def data(self, context: il.ExecutionContext) -> str:
                 return "b"
 
-        @il.asset(requires={"source_a_data": il.AssetDefinitionKey("SourceA:data")})
+        @il.asset(requires={"source_a_data": il.AssetDefinitionKey("SourceA.data")})
         def consumer(context: il.ExecutionContext, source_a_data: str) -> str:
             return source_a_data
 
@@ -712,9 +712,9 @@ class TestDAGRequiresValidation:
         dag = il.DAG(
             SourceA(),
             SourceB(),
-            consumer(deps={"source_a_data": "SourceA:data"}),
+            consumer(deps={"source_a_data": "SourceA.data"}),
         )
-        assert "SourceA:data" in dag.predecessors["consumer"]
+        assert "SourceA.data" in dag.predecessors["consumer"]
 
     def test_requires_mismatch_with_source_assets_raises(self):
         """Requires validation catches wiring to wrong source."""
@@ -732,7 +732,7 @@ class TestDAGRequiresValidation:
                 return "b"
 
         # Requires source-a's data but we wire to source-b
-        @il.asset(requires={"wrong_data": il.AssetDefinitionKey("nonexistent_source:data")})
+        @il.asset(requires={"wrong_data": il.AssetDefinitionKey("nonexistent_source.data")})
         def consumer(context: il.ExecutionContext, wrong_data: str) -> str:
             return wrong_data
 
@@ -740,7 +740,7 @@ class TestDAGRequiresValidation:
             il.DAG(
                 SourceA(),
                 SourceB(),
-                consumer(deps={"wrong_data": "SourceB:data"}),
+                consumer(deps={"wrong_data": "SourceB.data"}),
             )
 
 
@@ -928,7 +928,7 @@ class TestResolveSourceAliasKey:
 
         dag = il.DAG(src)
 
-        # The renamed asset should have key MySource:renamed
-        assert "MySource:renamed" in dag.asset_map
+        # The renamed asset should have key MySource.renamed
+        assert "MySource.renamed" in dag.asset_map
         # consumer should successfully resolve its dependency via the alias
-        assert "MySource:renamed" in dag.predecessors["MySource:consumer"]
+        assert "MySource.renamed" in dag.predecessors["MySource.consumer"]

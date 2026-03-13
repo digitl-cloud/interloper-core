@@ -9,6 +9,7 @@ config, similar to the `DockerRunner`.
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any, cast
 
@@ -16,12 +17,28 @@ from interloper.assets.base import Asset
 from interloper.cli.config import Config
 from interloper.dag.base import DAG
 from interloper.errors import PartitionError, RunnerError
+from interloper.events.base import EventBus, EventType, parse_event_from_log_line
 from interloper.partitioning.base import Partition, PartitionWindow
 from interloper.partitioning.time import TimePartition, TimePartitionWindow
 from interloper.runners.base import Runner
+from interloper.utils.text import to_slug_case
 from kubernetes import client, config
 from kubernetes.client import V1Job
 from pydantic import Field, PrivateAttr
+
+# Lifecycle events managed by the runner itself — must not be re-emitted from
+# pod logs to avoid duplicate state updates.
+_LIFECYCLE_EVENTS = frozenset(
+    {
+        EventType.ASSET_STARTED,
+        EventType.ASSET_COMPLETED,
+        EventType.ASSET_FAILED,
+        EventType.ASSET_CANCELED,
+        EventType.RUN_STARTED,
+        EventType.RUN_COMPLETED,
+        EventType.RUN_FAILED,
+    }
+)
 
 
 class KubernetesRunner(Runner[str]):
@@ -30,7 +47,7 @@ class KubernetesRunner(Runner[str]):
     For each asset, constructs a mini-DAG comprising the asset and all its
     upstream ancestors. The mini-DAG is sent to the container via inline JSON.
     Inside the container, all non-target assets are marked as
-    `materializable=False` prior to execution to avoid recomputation while
+    ``materializable=False`` prior to execution to avoid recomputation while
     still enabling IO-based dependency resolution.
     """
 
@@ -38,7 +55,7 @@ class KubernetesRunner(Runner[str]):
     namespace: str = "default"
     max_jobs: int = 4
     env_vars: dict[str, str] = Field(default_factory=dict)
-    service_account: str | None = None
+    service_account_name: str | None = None
     image_pull_policy: str | None = None
     image_pull_secrets: list[str] = Field(default_factory=list)
     resources: dict[str, dict[str, str]] | None = None
@@ -51,6 +68,8 @@ class KubernetesRunner(Runner[str]):
 
     _batch_v1: client.BatchV1Api | None = PrivateAttr(default=None)
     _core_v1: client.CoreV1Api | None = PrivateAttr(default=None)
+    _log_threads: dict[str, threading.Thread] = PrivateAttr(default_factory=dict)
+    _stop_log_streaming: threading.Event = PrivateAttr(default_factory=threading.Event)
 
     def _on_start(self) -> None:
         """Initialize Kubernetes client."""
@@ -61,6 +80,14 @@ class KubernetesRunner(Runner[str]):
 
         self._batch_v1 = client.BatchV1Api()
         self._core_v1 = client.CoreV1Api()
+        self._stop_log_streaming.clear()
+
+    def _on_end(self) -> None:
+        """Signal all log streaming threads to stop."""
+        self._stop_log_streaming.set()
+        for thread in self._log_threads.values():
+            thread.join(timeout=2.0)
+        self._log_threads.clear()
 
     @property
     def _capacity(self) -> int:
@@ -114,9 +141,7 @@ class KubernetesRunner(Runner[str]):
 
     def _build_job_name(self, asset: Asset) -> str:
         """Build the name for the Kubernetes job."""
-        # K8s names must be lowercase, alphanumeric, and can contain hyphens
-        safe_key = asset.key.replace(".", "-").replace("_", "-").lower()
-        return f"interloper-{self.state.run_id[:8]}-{safe_key}"[:63]
+        return f"interloper-run-{self.state.run_id[:8]}-{to_slug_case(asset.qualified_key)}"[:63]
 
     def _build_tolerations(self) -> list[client.V1Toleration]:
         """Build tolerations for pod scheduling."""
@@ -130,6 +155,65 @@ class KubernetesRunner(Runner[str]):
             for t in self.tolerations
         ]
 
+    def _start_log_streaming(self, job_name: str) -> None:
+        """Start a background thread to stream pod logs and parse events from a K8s Job."""
+        if self._core_v1 is None:
+            return
+
+        core_v1 = self._core_v1
+
+        def stream_logs() -> None:
+            # Wait for pod to be scheduled and running
+            pod_name: str | None = None
+            while not self._stop_log_streaming.is_set():
+                try:
+                    pods = core_v1.list_namespaced_pod(
+                        namespace=self.namespace,
+                        label_selector=f"job-name={job_name}",
+                    )
+                    if pods.items:
+                        pod = pods.items[0]
+                        if pod.status and pod.status.phase in ("Running", "Succeeded", "Failed"):
+                            pod_name = pod.metadata.name
+                            break
+                except Exception:
+                    pass
+                time.sleep(0.5)
+
+            if pod_name is None or self._stop_log_streaming.is_set():
+                return
+
+            try:
+                log_stream = core_v1.read_namespaced_pod_log(
+                    name=pod_name,
+                    namespace=self.namespace,
+                    follow=True,
+                    _preload_content=False,
+                    container="interloper",
+                )
+                for line_bytes in log_stream:
+                    if self._stop_log_streaming.is_set():
+                        break
+                    try:
+                        line = line_bytes.decode("utf-8", errors="ignore")
+                        event = parse_event_from_log_line(line)
+                        if event is not None and event.type not in _LIFECYCLE_EVENTS:
+                            EventBus.get_instance().emit(event)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        thread = threading.Thread(target=stream_logs, daemon=True)
+        thread.start()
+        self._log_threads[job_name] = thread
+
+    def _stop_job_log_streaming(self, job_name: str) -> None:
+        """Stop and clean up the log streaming thread for a job."""
+        thread = self._log_threads.pop(job_name, None)
+        if thread is not None:
+            thread.join(timeout=1.0)
+
     def _submit_asset(
         self,
         asset: Asset,
@@ -137,8 +221,8 @@ class KubernetesRunner(Runner[str]):
     ) -> str:
         """Submit execution of an asset and return the job name for completion tracking.
 
-        IMPORTANT: this method is not calling the `_execute_asset` method of the base class.
-        Therefore, the state has to be updated manually here and in `_wait_any` below.
+        IMPORTANT: this method is not calling the ``_execute_asset`` method of the base class.
+        Therefore, the state has to be updated manually here and in ``_wait_any`` below.
 
         Args:
             asset: The asset to execute
@@ -148,11 +232,13 @@ class KubernetesRunner(Runner[str]):
             The job name (string) for the asset execution
         """
         # Build a mini-DAG: target asset + its parents (non-materializable)
-        mini_dag = self.state.dag.mini_dag(asset.key)
+        mini_dag = self.state.dag.mini_dag(asset.qualified_key)
 
         cmd = self._build_command(mini_dag, partition_or_window, self.state.run_id)
         job_name = self._build_job_name(asset)
         env = self._build_env()
+        # Enable log-based event streaming from child process logs.
+        env.append(client.V1EnvVar(name="INTERLOPER_EVENTS_TO_STDERR", value="true"))
         resources = self._build_resources()
         tolerations = self._build_tolerations()
 
@@ -171,7 +257,7 @@ class KubernetesRunner(Runner[str]):
         pod_spec = client.V1PodSpec(
             containers=[container],
             restart_policy="Never",
-            service_account_name=self.service_account,
+            service_account_name=self.service_account_name,
             node_selector=self.node_selector if self.node_selector else None,
             tolerations=tolerations if tolerations else None,
             image_pull_secrets=[client.V1LocalObjectReference(name=s) for s in self.image_pull_secrets]
@@ -184,8 +270,8 @@ class KubernetesRunner(Runner[str]):
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "interloper.asset_key": asset.key.replace(".", "-").lower(),
-                        "interloper.run_id": self.state.run_id[:8],
+                        "interloper.asset_key": asset.qualified_key,
+                        "interloper.run_id": self.state.run_id,
                     }
                 ),
                 spec=pod_spec,
@@ -202,11 +288,11 @@ class KubernetesRunner(Runner[str]):
                 name=job_name,
                 namespace=self.namespace,
                 labels={
-                    "interloper.asset_key": asset.key.replace(".", "-").lower(),
-                    "interloper.run_id": self.state.run_id[:8],
+                    "interloper.asset_key": asset.qualified_key,
+                    "interloper.run_id": self.state.run_id,
                 },
                 annotations={
-                    "interloper.asset_key": asset.key,
+                    "interloper.asset_key": asset.qualified_key,
                 },
             ),
             spec=job_spec,
@@ -218,13 +304,16 @@ class KubernetesRunner(Runner[str]):
         assert self._batch_v1 is not None
         self._batch_v1.create_namespaced_job(namespace=self.namespace, body=job)
 
+        # Start streaming logs for event collection
+        self._start_log_streaming(job_name)
+
         return job_name
 
     def _wait_any(self, handles: list[str]) -> str:
         """Wait for any job to finish by polling.
 
-        IMPORTANT: the `_execute_asset` method of the base class is not called by `_submit_asset`.
-        Therefore, the state has to be updated manually here and in `_submit_asset` above.
+        IMPORTANT: the ``_execute_asset`` method of the base class is not called by ``_submit_asset``.
+        Therefore, the state has to be updated manually here and in ``_submit_asset`` above.
 
         Args:
             handles: List of job names to wait for
@@ -240,9 +329,7 @@ class KubernetesRunner(Runner[str]):
                 # Refresh job status
                 updated_job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job_status(
-                        name=job_name, namespace=self.namespace
-                    ),
+                    self._batch_v1.read_namespaced_job_status(name=job_name, namespace=self.namespace),
                 )
 
                 assert updated_job.status is not None
@@ -251,6 +338,8 @@ class KubernetesRunner(Runner[str]):
                 is_failed = status.failed is not None and status.failed > 0
 
                 if is_complete or is_failed:
+                    self._stop_job_log_streaming(job_name)
+
                     # Map back to asset
                     assert updated_job.metadata is not None and updated_job.metadata.annotations is not None
                     asset_key = updated_job.metadata.annotations.get("interloper.asset_key")
@@ -296,14 +385,14 @@ class KubernetesRunner(Runner[str]):
         assert self._batch_v1 is not None
 
         for job_name in handles:
+            self._stop_job_log_streaming(job_name)
+
             job: V1Job | None = None
             try:
                 # Get job to retrieve asset key from annotations
                 job = cast(
                     V1Job,
-                    self._batch_v1.read_namespaced_job(
-                        name=job_name, namespace=self.namespace
-                    ),
+                    self._batch_v1.read_namespaced_job(name=job_name, namespace=self.namespace),
                 )
                 self._batch_v1.delete_namespaced_job(
                     name=job_name,

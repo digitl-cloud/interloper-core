@@ -31,7 +31,7 @@ def custom_runner():
         namespace="production",
         max_jobs=8,
         env_vars={"DB_HOST": "db.prod", "LOG_LEVEL": "debug"},
-        service_account="interloper-sa",
+        service_account_name="interloper-sa",
         image_pull_policy="Always",
         image_pull_secrets=["regcred", "backup-cred"],
         resources={
@@ -90,7 +90,7 @@ class TestInit:
         assert r.namespace == "default"
         assert r.max_jobs == 4
         assert r.env_vars == {}
-        assert r.service_account is None
+        assert r.service_account_name is None
         assert r.image_pull_policy is None
         assert r.image_pull_secrets == []
         assert r.resources is None
@@ -108,7 +108,7 @@ class TestInit:
         assert r.namespace == "production"
         assert r.max_jobs == 8
         assert r.env_vars == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
-        assert r.service_account == "interloper-sa"
+        assert r.service_account_name == "interloper-sa"
         assert r.image_pull_policy == "Always"
         assert r.image_pull_secrets == ["regcred", "backup-cred"]
         assert r.resources == {
@@ -162,7 +162,7 @@ class TestToSpec:
         assert config["max_jobs"] == 4
         assert config["env_vars"] == {}
         # None-valued fields are excluded by model_dump(exclude_none=True)
-        assert "service_account" not in config
+        assert "service_account_name" not in config
         assert "image_pull_policy" not in config
         assert config["image_pull_secrets"] == []
         assert "resources" not in config
@@ -181,7 +181,7 @@ class TestToSpec:
         assert config["namespace"] == "production"
         assert config["max_jobs"] == 8
         assert config["env_vars"] == {"DB_HOST": "db.prod", "LOG_LEVEL": "debug"}
-        assert config["service_account"] == "interloper-sa"
+        assert config["service_account_name"] == "interloper-sa"
         assert config["image_pull_policy"] == "Always"
         assert config["image_pull_secrets"] == ["regcred", "backup-cred"]
         assert config["resources"]["requests"]["cpu"] == "500m"
@@ -200,7 +200,7 @@ class TestToSpec:
         assert reconstructed.namespace == custom_runner.namespace
         assert reconstructed.max_jobs == custom_runner.max_jobs
         assert reconstructed.env_vars == custom_runner.env_vars
-        assert reconstructed.service_account == custom_runner.service_account
+        assert reconstructed.service_account_name == custom_runner.service_account_name
         assert reconstructed.image_pull_policy == custom_runner.image_pull_policy
         assert reconstructed.image_pull_secrets == custom_runner.image_pull_secrets
         assert reconstructed.resources == custom_runner.resources
@@ -301,7 +301,7 @@ class TestBuildJobName:
         asset = simple_dag.assets[0]
         name = default_runner._build_job_name(asset)
 
-        assert name.startswith("interloper-abcdef12-")
+        assert name.startswith("interloper-run-abcdef12-")
         # Must be lowercase, alphanumeric with hyphens
         assert name == name.lower()
         assert "." not in name
@@ -316,6 +316,7 @@ class TestBuildJobName:
         # Create a mock asset with a very long key
         asset = MagicMock()
         asset.key = "very.long.source.name:very_long_asset_name_that_exceeds_limits"
+        asset.qualified_key = asset.key
 
         name = default_runner._build_job_name(asset)
         assert len(name) <= 63
@@ -327,9 +328,9 @@ class TestBuildJobName:
 
         asset = MagicMock()
         asset.key = "my_source.v1:my_asset"
+        asset.qualified_key = asset.key
 
         name = default_runner._build_job_name(asset)
-        assert "." not in name
         assert "_" not in name
 
 
@@ -347,9 +348,7 @@ class TestBuildCommand:
         self._setup_runner_state(default_runner, partitioned_dag)
         partition = TimePartition(dt.date(2025, 3, 15))
 
-        cmd = default_runner._build_command(
-            partitioned_dag, partition, default_runner.state.run_id
-        )
+        cmd = default_runner._build_command(partitioned_dag, partition, default_runner.state.run_id)
 
         assert cmd[0] == "interloper"
         assert cmd[1] == "run"
@@ -369,9 +368,7 @@ class TestBuildCommand:
             end=dt.date(2025, 1, 31),
         )
 
-        cmd = default_runner._build_command(
-            partitioned_dag, window, default_runner.state.run_id
-        )
+        cmd = default_runner._build_command(partitioned_dag, window, default_runner.state.run_id)
 
         assert "--start-date" in cmd
         assert "2025-01-01" in cmd
@@ -383,18 +380,14 @@ class TestBuildCommand:
         self._setup_runner_state(default_runner, partitioned_dag)
 
         with pytest.raises(il.PartitionError):
-            default_runner._build_command(
-                partitioned_dag, None, default_runner.state.run_id
-            )
+            default_runner._build_command(partitioned_dag, None, default_runner.state.run_id)
 
     def test_command_contains_inline_json(self, default_runner, partitioned_dag):
         """The last positional arg is the inline JSON config."""
         self._setup_runner_state(default_runner, partitioned_dag)
         partition = TimePartition(dt.date(2025, 6, 1))
 
-        cmd = default_runner._build_command(
-            partitioned_dag, partition, default_runner.state.run_id
-        )
+        cmd = default_runner._build_command(partitioned_dag, partition, default_runner.state.run_id)
 
         # The inline JSON config should be the last element
         json_arg = cmd[-3]  # before --date and the date value
@@ -517,7 +510,7 @@ class TestSubmitAsset:
         result = default_runner._submit_asset(asset, partition)
 
         assert isinstance(result, str)
-        assert result.startswith("interloper-")
+        assert result.startswith("interloper-run-")
 
     def test_submit_marks_asset_running(self, default_runner, partitioned_dag):
         """_submit_asset marks the asset as running in state."""

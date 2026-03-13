@@ -9,7 +9,6 @@ from pathlib import Path
 
 from interloper import SerialBackfiller
 from interloper.cli.config import Config
-from interloper.cli.display import RichView
 from interloper.dag.base import DAG
 from interloper.errors import ScriptLoadError
 from interloper.events.base import enable_event_forwarding, flush, subscribe
@@ -18,6 +17,13 @@ from interloper.runners.multi_thread import MultiThreadRunner
 from interloper.runners.serial import SerialRunner
 from interloper.serialization.config import ConfigInstanceSpec
 from interloper.utils.imports import require_import
+
+try:
+    from interloper.cli.display import RichView
+
+    _HAS_RICH = True
+except ImportError:
+    _HAS_RICH = False
 
 
 def _load_script(path: str) -> DAG:
@@ -243,10 +249,14 @@ def main() -> None:
     config = _config_from_args(args)
     partition_or_window = _partition_or_window_from_args(args)
 
-    # Rich terminal visualization
-    view = RichView(dag=config.dag, partition_or_window=partition_or_window)
-    subscribe(view.handle_event)
-    view.start()
+    # Terminal visualization
+    view: RichView | None = None
+    if _HAS_RICH:
+        view = RichView(dag=config.dag, partition_or_window=partition_or_window)
+        subscribe(view.handle_event)
+        view.start()
+    else:
+        subscribe(print)
 
     try:
         if args.command == "backfill":
@@ -258,7 +268,8 @@ def main() -> None:
             _run(config, partition_or_window, run_id=args.run_id, backfill_id=args.backfill_id)
     finally:
         flush(timeout=5.0)
-        view.stop()
+        if view is not None:
+            view.stop()
 
 
 if __name__ == "__main__":

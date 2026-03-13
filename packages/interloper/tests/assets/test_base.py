@@ -48,7 +48,7 @@ class TestAssetDefinition:
         def func(context: il.ExecutionContext) -> str:
             return "value"
 
-        requires = {"campaign": "facebook_ads:campaign", "display": "amazon_ads:display"}
+        requires = {"campaign": "facebook_ads.campaign", "display": "amazon_ads.display"}
         asset_def = il.AssetDefinition(func, requires=requires)
         assert asset_def.requires == requires
 
@@ -113,7 +113,7 @@ class TestAssetDefinition:
         assert my_asset.qualified_key == "my_asset"
 
     def test_qualified_key_source_bound(self):
-        """Source-bound asset qualified_key is source_key:asset_key."""
+        """Source-bound asset qualified_key is source_key.asset_key."""
 
         @il.source
         class MySource:
@@ -123,7 +123,7 @@ class TestAssetDefinition:
 
         asset_def = MySource.my_asset
         assert asset_def.source_definition is MySource
-        assert asset_def.qualified_key == "MySource:my_asset"
+        assert asset_def.qualified_key == "MySource.my_asset"
 
     def test_source_definition_wired_by_decorator(self):
         """The @source decorator wires source_definition on collected asset defs."""
@@ -238,7 +238,7 @@ class TestAsset:
         source_instance = MySource()
 
         assert source_instance.my_asset.key == "my_asset"
-        assert source_instance.my_asset.qualified_key == "MySource:my_asset"
+        assert source_instance.my_asset.qualified_key == "MySource.my_asset"
 
     def test_key_with_source_key_override(self):
         """Test key property with source key override."""
@@ -251,7 +251,7 @@ class TestAsset:
 
         source_instance = MySource()
         assert source_instance.my_asset.key == "my_asset"
-        assert source_instance.my_asset.qualified_key == "new_source_name:my_asset"
+        assert source_instance.my_asset.qualified_key == "new_source_name.my_asset"
 
     def test_key_with_multiple_sources_same_name(self):
         """Test that assets from different sources with same name get different keys."""
@@ -276,8 +276,8 @@ class TestAsset:
 
         # Both assets have the same key but different qualified_keys
         assert asset1.key == asset2.key == "my_asset"
-        assert asset1.qualified_key == "Source1:my_asset"
-        assert asset2.qualified_key == "Source2:my_asset"
+        assert asset1.qualified_key == "Source1.my_asset"
+        assert asset2.qualified_key == "Source2.my_asset"
         assert asset1.qualified_key != asset2.qualified_key
 
     def test_key_with_custom_source_key(self):
@@ -298,7 +298,7 @@ class TestAsset:
 
         # Key is local, qualified_key includes custom source key
         assert asset_instance.key == "my_asset"
-        assert asset_instance.qualified_key == "custom_source_name:my_asset"
+        assert asset_instance.qualified_key == "custom_source_name.my_asset"
 
     def test_with_dataset(self):
         """Test dataset property."""

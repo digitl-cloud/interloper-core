@@ -1,98 +1,78 @@
-"""Text processing utilities for naming, slugifying, and labeling."""
+"""Text processing utilities for naming, casing, and labeling."""
 
 import re
 
-_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
+_KEY_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
+
+_CAMEL_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
+_ACRONYM_BOUNDARY = re.compile(r"([A-Z]+)([A-Z][a-z])")
+
+_SLUG_SEPARATORS = re.compile(r"[_\s:.]+")
+_SLUG_COLLAPSE = re.compile(r"-+")
+
+_LABEL_SEPARATORS = re.compile(r"[_\-:]+")
+_LABEL_BOUNDARY = re.compile(r"([a-z])([A-Z])")
+
+_SNAKE_NON_ALNUM = re.compile(r"[^a-zA-Z0-9]+")
+_SNAKE_COLLAPSE = re.compile(r"_+")
 
 
 def validate_key(key: str) -> None:
-    """Validate that *key* contains only letters, numbers, and underscores.
-
-    Must start with a letter.
+    """Validate that *key* starts with a letter and contains only letters, numbers, and underscores.
 
     Raises:
         ValueError: If the key is invalid.
     """
-    if not _NAME_RE.match(key):
+    if not _KEY_RE.match(key):
         raise ValueError(
-            f"Key '{key}' is invalid. "
-            "Keys must start with a letter and contain only letters, numbers, and underscores."
+            f"Key '{key}' is invalid. Keys must start with a letter and contain only letters, numbers, and underscores."
         )
 
 
-# Backward-compatible alias
-validate_name = validate_key
+def to_slug_case(text: str) -> str:
+    """Convert text to a URL/key-safe slug (lowercase, hyphen-separated).
 
-
-def slugify(text: str) -> str:
-    """Convert text to a URL/key-safe slug.
-
-    Lowercases the text, splits camelCase/PascalCase on boundaries,
-    replaces underscores and spaces with hyphens, and collapses
-    consecutive hyphens.
+    Args:
+        text: The text to convert.
 
     Returns:
-        The slugified string.
+        The converted text.
     """
     if not text:
         return ""
-
-    # camelCase / PascalCase → hyphen
-    text = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", text)
-    # lowercase
-    text = text.lower()
-    # replace underscores and spaces with hyphens
-    text = re.sub(r"[_\s]+", "-", text)
-    # collapse consecutive hyphens
-    text = re.sub(r"-+", "-", text)
-    # strip leading/trailing hyphens
-    return text.strip("-")
+    text = _CAMEL_BOUNDARY.sub(r"\1-\2", text).lower()
+    text = _SLUG_SEPARATORS.sub("-", text)
+    return _SLUG_COLLAPSE.sub("-", text).strip("-")
 
 
 def to_label(text: str) -> str:
-    """Convert text to a human-readable label.
+    """Convert text to a human-readable title-cased label.
+
+    Args:
+        text: The text to convert.
 
     Returns:
-        The human-readable label string.
+        The converted text.
     """
     if not text:
         return ""
-
-    # separators → space
-    text = re.sub(r"[_\-]+", " ", text)
-    # camelCase / PascalCase → space
-    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
-    # collapse whitespace and capitalize
+    text = _LABEL_SEPARATORS.sub(" ", text)
+    text = _LABEL_BOUNDARY.sub(r"\1 \2", text)
     return " ".join(text.split()).title()
 
 
 def to_snake_case(text: str) -> str:
     """Convert text to snake_case.
 
-    Handles camelCase, PascalCase, hyphens, spaces, acronyms,
-    and special characters.
+    Args:
+        text: The text to convert.
 
     Returns:
-        The snake_cased string.
-
-    Example:
-        >>> to_snake_case("userName")
-        'user_name'
-        >>> to_snake_case("XMLParser")
-        'xml_parser'
-        >>> to_snake_case("user-name")
-        'user_name'
+        The converted text.
     """
     if not text:
         return ""
-
-    # Insert underscore before uppercase runs: "XMLParser" -> "XML_Parser"
-    text = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", text)
-    # Insert underscore at camelCase boundaries: "myAsset" -> "my_Asset"
-    text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
-    # Replace special characters (including %) with underscores
-    text = re.sub(r"[^a-zA-Z0-9]+", "_", text)
-    # Collapse multiple underscores
-    text = re.sub(r"_+", "_", text)
-    # Strip leading/trailing underscores and lowercase
-    return text.strip("_").lower()
+    text = _ACRONYM_BOUNDARY.sub(r"\1_\2", text)
+    text = _CAMEL_BOUNDARY.sub(r"\1_\2", text)
+    text = _SNAKE_NON_ALNUM.sub("_", text)
+    return _SNAKE_COLLAPSE.sub("_", text).strip("_").lower()
