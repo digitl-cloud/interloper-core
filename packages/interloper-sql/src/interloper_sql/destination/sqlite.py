@@ -16,6 +16,3 @@ class SqliteDestination(SqlDestination):
         super().model_post_init(context)
         url = f"sqlite:///{self.database}"
         self._init_engine(url)
-
-    def __str__(self) -> str:
-        return f"SqliteDestination({self.database})"

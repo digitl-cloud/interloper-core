@@ -118,37 +118,42 @@ class DatabaseDestination(Destination):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def _insert(self, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
+    def _insert(self, context: DestinationContext, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
         """Insert rows into the target table.
 
         Called inside a :meth:`_transaction` context during writes.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             rows: Row data as list of dicts
         """
 
     @abstractmethod
-    def _delete_all(self, table: str, schema: str | None) -> None:
+    def _delete_all(self, context: DestinationContext, table: str, schema: str | None) -> None:
         """Delete all rows from the target table.
 
         Called inside a :meth:`_transaction` context during writes with
         :attr:`WriteDisposition.REPLACE` and no partition context.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
         """
 
     @abstractmethod
-    def _delete_partition(self, table: str, schema: str | None, column: str, value: Any) -> None:
+    def _delete_partition(
+        self, context: DestinationContext, table: str, schema: str | None, column: str, value: Any
+    ) -> None:
         """Delete rows matching a single partition value.
 
         Called inside a :meth:`_transaction` context during writes with
         :attr:`WriteDisposition.REPLACE`.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Partition column name
@@ -156,10 +161,11 @@ class DatabaseDestination(Destination):
         """
 
     @abstractmethod
-    def _select_all(self, table: str, schema: str | None) -> list[dict[str, Any]]:
+    def _select_all(self, context: DestinationContext, table: str, schema: str | None) -> list[dict[str, Any]]:
         """Select all rows from the target table.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
 
@@ -170,6 +176,7 @@ class DatabaseDestination(Destination):
     @abstractmethod
     def _select_partition(
         self,
+        context: DestinationContext,
         table: str,
         schema: str | None,
         column: str,
@@ -178,6 +185,7 @@ class DatabaseDestination(Destination):
         """Select rows matching a single partition value.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Partition column name
@@ -194,6 +202,7 @@ class DatabaseDestination(Destination):
     @abstractmethod
     def _count_by_partition(
         self,
+        context: DestinationContext,
         table: str,
         schema: str | None,
         column: str,
@@ -201,6 +210,7 @@ class DatabaseDestination(Destination):
         """Return row counts grouped by the values of the given column.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name (from ``asset.key``)
             schema: Database schema (from ``asset.dataset``)
             column: Column to group by.
@@ -223,6 +233,7 @@ class DatabaseDestination(Destination):
         """
         assert context.asset.partitioning is not None
         return self._count_by_partition(
+            context,
             context.asset.key,
             context.asset.dataset,
             context.asset.partitioning.column,
@@ -328,8 +339,8 @@ class DatabaseDestination(Destination):
             # No partitioning
             if context.partition_or_window is None:
                 if replacing:
-                    self._delete_all(table, schema)
-                self._insert(table, schema, rows)
+                    self._delete_all(context, table, schema)
+                self._insert(context, table, schema, rows)
 
             # Partition window -- delete each partition, insert once
             elif isinstance(context.partition_or_window, PartitionWindow):
@@ -337,8 +348,8 @@ class DatabaseDestination(Destination):
                 col = context.asset.partitioning.column
                 if replacing:
                     for partition in context.partition_or_window:
-                        self._delete_partition(table, schema, col, partition.id)
-                self._insert(table, schema, rows)
+                        self._delete_partition(context, table, schema, col, partition.id)
+                self._insert(context, table, schema, rows)
 
             # Single partition
             else:
@@ -346,8 +357,8 @@ class DatabaseDestination(Destination):
                 assert context.asset.partitioning
                 col = context.asset.partitioning.column
                 if replacing:
-                    self._delete_partition(table, schema, col, context.partition_or_window.id)
-                self._insert(table, schema, rows)
+                    self._delete_partition(context, table, schema, col, context.partition_or_window.id)
+                self._insert(context, table, schema, rows)
 
     def read(self, context: DestinationContext) -> Any:
         """Read data from the database table.
@@ -371,18 +382,19 @@ class DatabaseDestination(Destination):
 
         # No partitioning
         if context.partition_or_window is None:
-            return self._from_rows(self._select_all(table, schema))
+            return self._from_rows(self._select_all(context, table, schema))
 
         # Partition window -- list of results per partition
         if isinstance(context.partition_or_window, PartitionWindow):
             assert context.asset.partitioning
             col = context.asset.partitioning.column
             return [
-                self._from_rows(self._select_partition(table, schema, col, p.id)) for p in context.partition_or_window
+                self._from_rows(self._select_partition(context, table, schema, col, p.id))
+                for p in context.partition_or_window
             ]
 
         # Single partition
         assert isinstance(context.partition_or_window, Partition)
         assert context.asset.partitioning
         col = context.asset.partitioning.column
-        return self._from_rows(self._select_partition(table, schema, col, context.partition_or_window.id))
+        return self._from_rows(self._select_partition(context, table, schema, col, context.partition_or_window.id))

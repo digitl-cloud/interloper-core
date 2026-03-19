@@ -11,6 +11,7 @@ import google.auth
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 from google.oauth2 import service_account
+from interloper.destination.context import DestinationContext
 from interloper.destination.database import DatabaseDestination
 from interloper.errors import ConfigError, TableNotFoundError
 from pydantic import PrivateAttr
@@ -48,11 +49,6 @@ class BigQueryDestination(DatabaseDestination):
             credentials=credentials,
             location=self.location,
         )
-
-    def __str__(self) -> str:
-        if self.default_dataset:
-            return f"BigQueryDestination({self.project}.{self.default_dataset})"
-        return f"BigQueryDestination({self.project})"
 
     # ------------------------------------------------------------------
     # Helpers
@@ -145,13 +141,14 @@ class BigQueryDestination(DatabaseDestination):
     # DatabaseDestination hooks
     # ------------------------------------------------------------------
 
-    def _insert(self, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
+    def _insert(self, context: DestinationContext, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
         """Insert rows into BigQuery using a load job.
 
         If the table does not exist yet, the dataset is ensured and the table is
         created from the row data before loading.
 
         Args:
+            context: Destination context with asset and partition information.
             table: Target table name.
             schema: Database schema (dataset).
             rows: Row data as list of dicts.
@@ -168,29 +165,42 @@ class BigQueryDestination(DatabaseDestination):
         # Serialize non-JSON-native types (date, datetime, Decimal) before
         # passing to load_table_from_json, which calls json.dumps internally.
         safe_rows = [json.loads(json.dumps(row, default=_json_default)) for row in rows]
+
+        context.logger.info(f"Inserting {len(safe_rows)} rows into table `{ref}`")
         job = self._client.load_table_from_json(safe_rows, ref, job_config=job_config)
         job.result()
 
-    def _delete_all(self, table: str, schema: str | None) -> None:
+    def _delete_all(self, context: DestinationContext, table: str, schema: str | None) -> None:
         """Truncate all rows from the BigQuery table.
 
         No-op when the table does not exist yet.
 
         Args:
+            context: Destination context with asset and partition information.
             table: Target table name.
             schema: Database schema (dataset).
         """
         if not self._table_exists(table, schema):
             return
         ref = self._table_ref(table, schema)
+
+        context.logger.info(f"Truncating all rows from table `{ref}`")
         self._client.query(f"TRUNCATE TABLE `{ref}`").result()
 
-    def _delete_partition(self, table: str, schema: str | None, column: str, value: Any) -> None:
+    def _delete_partition(
+        self,
+        context: DestinationContext,
+        table: str,
+        schema: str | None,
+        column: str,
+        value: Any,
+    ) -> None:
         """Delete rows matching a partition value.
 
         No-op when the table does not exist yet.
 
         Args:
+            context: Destination context with asset and partition information.
             table: Target table name.
             schema: Database schema (dataset).
             column: Partition column name.
@@ -203,12 +213,14 @@ class BigQueryDestination(DatabaseDestination):
         job_config = bigquery.QueryJobConfig(
             query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_to_py_type(value), value)],
         )
+        context.logger.info(f"Deleting rows matching partition value `{value}` from table `{ref}`")
         self._client.query(query, job_config=job_config).result()
 
-    def _select_all(self, table: str, schema: str | None) -> list[dict[str, Any]]:
+    def _select_all(self, context: DestinationContext, table: str, schema: str | None) -> list[dict[str, Any]]:
         """Select all rows from the BigQuery table.
 
         Args:
+            context: Destination context with asset and partition information.
             table: Target table name.
             schema: Database schema (dataset).
 
@@ -222,13 +234,23 @@ class BigQueryDestination(DatabaseDestination):
             qualified = self._table_ref(table, schema)
             raise TableNotFoundError(f"Table '{qualified}' does not exist. Has the asset been materialized?")
         ref = self._table_ref(table, schema)
+
+        context.logger.info(f"Selecting all rows from table `{ref}`")
         rows = self._client.query(f"SELECT * FROM `{ref}`").result()
         return [dict(row) for row in rows]
 
-    def _select_partition(self, table: str, schema: str | None, column: str, value: Any) -> list[dict[str, Any]]:
+    def _select_partition(
+        self,
+        context: DestinationContext,
+        table: str,
+        schema: str | None,
+        column: str,
+        value: Any,
+    ) -> list[dict[str, Any]]:
         """Select rows matching a partition value.
 
         Args:
+            context: Destination context with asset and partition information.
             table: Target table name.
             schema: Database schema (dataset).
             column: Partition column name.
@@ -248,6 +270,8 @@ class BigQueryDestination(DatabaseDestination):
         job_config = bigquery.QueryJobConfig(
             query_parameters=[bigquery.ScalarQueryParameter("partition_value", _bq_to_py_type(value), value)],
         )
+
+        context.logger.info(f"Selecting rows matching partition value `{value}` from table `{ref}`")
         rows = self._client.query(query, job_config=job_config).result()
         return [dict(row) for row in rows]
 
@@ -257,6 +281,7 @@ class BigQueryDestination(DatabaseDestination):
 
     def _count_by_partition(
         self,
+        context: DestinationContext,
         table: str,
         schema: str | None,
         column: str,
@@ -282,10 +307,6 @@ class BigQueryDestination(DatabaseDestination):
         query = f"SELECT CAST(`{column}` AS STRING) AS partition_value, COUNT(*) AS cnt FROM `{ref}` GROUP BY 1"
         rows = self._client.query(query).result()
         return {row["partition_value"]: row["cnt"] for row in rows}
-
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
     # Lifecycle

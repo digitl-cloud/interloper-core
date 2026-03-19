@@ -294,7 +294,7 @@ class SourceDefinition(HasDefinitionSpec):
         return Source(
             definition=self,
             key=key or self.key,
-            dataset=dataset or key or self.dataset or self.key,
+            dataset=dataset or self.dataset,
             config=resolved_config,
             destination=destination,
             default_destination_key=default_destination_key,
@@ -339,7 +339,7 @@ class Source(Component):
 
         for asset in self.assets.values():
             asset.source = self
-            asset.dataset = asset.dataset or self.dataset or self.key
+            asset.dataset = asset.dataset or self.dataset
 
     def copy(
         self,

@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
+from interloper.destination.context import DestinationContext
 from interloper.destination.database import DatabaseDestination
 from interloper.errors import TableNotFoundError
 from pydantic import PrivateAttr
@@ -147,13 +148,14 @@ class SqlDestination(DatabaseDestination):
     # DatabaseDestination hooks
     # ------------------------------------------------------------------
 
-    def _insert(self, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
+    def _insert(self, context: DestinationContext, table: str, schema: str | None, rows: list[dict[str, Any]]) -> None:
         """Insert rows in chunks using the active transaction connection.
 
         If the table does not exist yet, it is created from the row data
         before inserting.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
             rows: Row data as list of dicts
@@ -165,12 +167,13 @@ class SqlDestination(DatabaseDestination):
         for i in range(0, len(rows), self.chunk_size):
             self._conn.execute(sa_table.insert(), rows[i : i + self.chunk_size])
 
-    def _delete_all(self, table: str, schema: str | None) -> None:
+    def _delete_all(self, context: DestinationContext, table: str, schema: str | None) -> None:
         """Delete all rows from the table using the active transaction connection.
 
         No-op when the table does not exist yet.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
         """
@@ -180,12 +183,15 @@ class SqlDestination(DatabaseDestination):
             return
         self._conn.execute(sa_table.delete())
 
-    def _delete_partition(self, table: str, schema: str | None, column: str, value: Any) -> None:
+    def _delete_partition(
+        self, context: DestinationContext, table: str, schema: str | None, column: str, value: Any
+    ) -> None:
         """Delete rows matching a partition value using the active transaction connection.
 
         No-op when the table does not exist yet.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
             column: Partition column name
@@ -197,12 +203,13 @@ class SqlDestination(DatabaseDestination):
             return
         self._conn.execute(sa_table.delete().where(sa_table.c[column] == value))
 
-    def _select_all(self, table: str, schema: str | None) -> list[dict[str, Any]]:
+    def _select_all(self, context: DestinationContext, table: str, schema: str | None) -> list[dict[str, Any]]:
         """Select all rows from the table.
 
         Opens a dedicated read connection (not part of the write transaction).
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
 
@@ -218,12 +225,15 @@ class SqlDestination(DatabaseDestination):
             result = conn.execute(sa_table.select())
             return [dict(row._mapping) for row in result]
 
-    def _select_partition(self, table: str, schema: str | None, column: str, value: Any) -> list[dict[str, Any]]:
+    def _select_partition(
+        self, context: DestinationContext, table: str, schema: str | None, column: str, value: Any
+    ) -> list[dict[str, Any]]:
         """Select rows matching a partition value.
 
         Opens a dedicated read connection (not part of the write transaction).
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
             column: Partition column name
@@ -246,7 +256,11 @@ class SqlDestination(DatabaseDestination):
     # ------------------------------------------------------------------
 
     def _count_by_partition(
-        self, table: str, schema: str | None, column: str,
+        self,
+        context: DestinationContext,
+        table: str,
+        schema: str | None,
+        column: str,
     ) -> dict[str, int]:
         """Return row counts grouped by partition column via SQL ``GROUP BY``.
 

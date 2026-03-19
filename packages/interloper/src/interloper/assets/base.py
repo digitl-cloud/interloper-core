@@ -462,23 +462,21 @@ class Asset(Component):
         destinations = self.destination if isinstance(self.destination, list) else [self.destination]
 
         for dest in destinations:
-            dest_key = dest.key
-            dest_label = f"{dest}[{dest_key}]"
-            dest_metadata = self._event_metadata(metadata, partition_or_window, destination_key=dest_key)
-            msg = f"Writing '{self.qualified_key}' to {dest_label}"
-            emit(EventType.DEST_WRITE_STARTED, metadata={**dest_metadata, "message": msg})
+            metadata = self._event_metadata(metadata, partition_or_window, destination_key=dest.key)
+            msg = f"Writing '{self.qualified_key}' to {dest.key}"
+            emit(EventType.DEST_WRITE_STARTED, metadata={**metadata, "message": msg})
             try:
                 dest.write(dest_context, result)
-                msg = f"Wrote '{self.qualified_key}' to {dest_label}"
-                emit(EventType.DEST_WRITE_COMPLETED, metadata={**dest_metadata, "message": msg})
+                msg = f"Wrote '{self.qualified_key}' to {dest.key}"
+                emit(EventType.DEST_WRITE_COMPLETED, metadata={**metadata, "message": msg})
             except Exception as e:
                 emit(
                     EventType.DEST_WRITE_FAILED,
                     metadata={
-                        **dest_metadata,
+                        **metadata,
                         "error": str(e),
                         "traceback": traceback.format_exc(),
-                        "message": f"Failed to write '{self.qualified_key}' to {dest_label}: {e}",
+                        "message": f"Failed to write '{self.qualified_key}' to {dest.key}: {e}",
                     },
                 )
                 raise
@@ -504,47 +502,44 @@ class Asset(Component):
             ConfigError: If the upstream asset has multiple destinations but no default_destination_key.
         """
         if isinstance(upstream_asset.destination, list):
-            if not self.default_destination_key:
+            if not upstream_asset.default_destination_key:
                 raise ConfigError(
-                    f"Asset '{self.qualified_key}' has multiple destinations but no default_destination_key. "
-                    "Set default_destination_key to specify which destination to use for upstream reads."
+                    f"Upstream asset '{upstream_asset.qualified_key}' has multiple destinations but no "
+                    "default_destination_key. Set default_destination_key on the upstream asset to specify which "
+                    "destination to use for reads."
                 )
-            read_dest_key = upstream_asset.default_destination_key
-            read_dest = next(d for d in upstream_asset.destination if d.key == read_dest_key)
+            dest = next(d for d in upstream_asset.destination if d.key == upstream_asset.default_destination_key)
+        elif upstream_asset.destination is None:
+            raise AssetError(f"Upstream asset '{upstream_asset.qualified_key}' has no destination configured")
         else:
-            read_dest_key = None
-            read_dest = upstream_asset.destination
-
-        if read_dest is None:
-            raise AssetError(f"No destination found for upstream asset '{upstream_asset.qualified_key}'")
+            dest = upstream_asset.destination
 
         if upstream_asset.partitioning is not None:
             effective_partition_or_window = partition_or_window
         else:
             effective_partition_or_window = None
 
-        dest_context = DestinationContext(
+        context = DestinationContext(
             asset=upstream_asset,
             partition_or_window=effective_partition_or_window,
             metadata=metadata,
         )
 
-        dest_label = f"{read_dest}[{read_dest_key}]" if read_dest_key else str(read_dest)
-        dest_metadata = self._event_metadata(metadata, effective_partition_or_window, destination_key=read_dest_key)
-        msg = f"Reading '{upstream_asset.qualified_key}' from {dest_label}"
-        emit(EventType.DEST_READ_STARTED, metadata={**dest_metadata, "message": msg})
+        metadata = self._event_metadata(metadata, effective_partition_or_window, destination_key=dest.key)
+        msg = f"Reading '{upstream_asset.qualified_key}' from {dest.key}"
+        emit(EventType.DEST_READ_STARTED, metadata={**metadata, "message": msg})
         try:
-            result = read_dest.read(dest_context)
-            msg = f"Read '{upstream_asset.qualified_key}' from {dest_label}"
-            emit(EventType.DEST_READ_COMPLETED, metadata={**dest_metadata, "message": msg})
+            result = dest.read(context)
+            msg = f"Read '{upstream_asset.qualified_key}' from {dest.key}"
+            emit(EventType.DEST_READ_COMPLETED, metadata={**metadata, "message": msg})
         except Exception as e:
             emit(
                 EventType.DEST_READ_FAILED,
                 metadata={
-                    **dest_metadata,
+                    **metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": (f"Failed to read '{upstream_asset.qualified_key}' from {dest_label}: {e}"),
+                    "message": (f"Failed to read '{upstream_asset.qualified_key}' from {dest.key}: {e}"),
                 },
             )
             raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}") from e

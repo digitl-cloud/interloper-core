@@ -310,8 +310,8 @@ class TestAsset:
         asset_instance = my_asset()
         assert asset_instance.dataset == "my_dataset"
 
-    def test_dataset_from_source_name(self):
-        """Test dataset property from source."""
+    def test_dataset_none_when_not_set(self):
+        """Test dataset is None when not explicitly set on source or asset."""
 
         @il.source()
         class MySource:
@@ -320,7 +320,7 @@ class TestAsset:
                 return "value"
 
         source_instance = MySource()
-        assert source_instance.my_asset.dataset == "MySource"
+        assert source_instance.my_asset.dataset is None
 
     def test_dataset_from_source_dataset(self):
         """Test dataset property from source."""

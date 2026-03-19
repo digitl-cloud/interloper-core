@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+from interloper.destination.context import DestinationContext
 from sqlalchemy import text
 from sqlalchemy.engine import URL
 
@@ -31,15 +32,13 @@ class PostgresDestination(SqlDestination):
         )
         self._init_engine(url)
 
-    def __str__(self) -> str:
-        return f"PostgresDestination({self.host}:{self.port}/{self.database})"
-
-    def _delete_all(self, table: str, schema: str | None) -> None:
+    def _delete_all(self, context: DestinationContext, table: str, schema: str | None) -> None:
         """Use TRUNCATE for full-table deletes (transactional in PostgreSQL).
 
         No-op when the table does not exist yet.
 
         Args:
+            context: Destination context with asset and partition information
             table: Target table name
             schema: Database schema
         """

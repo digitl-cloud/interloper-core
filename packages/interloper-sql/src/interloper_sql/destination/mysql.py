@@ -31,6 +31,3 @@ class MySQLDestination(SqlDestination):
             self.database,
         )
         self._init_engine(url)
-
-    def __str__(self) -> str:
-        return f"MySQLDestination({self.host}:{self.port}/{self.database})"

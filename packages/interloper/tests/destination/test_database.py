@@ -19,24 +19,24 @@ class StubDatabaseDestination(DatabaseDestination):
 
     calls: list[tuple] = Field(default_factory=list, exclude=True)
 
-    def _insert(self, table, schema, rows):
+    def _insert(self, context, table, schema, rows):
         self.calls.append(("insert", table, schema, rows))
 
-    def _delete_all(self, table, schema):
+    def _delete_all(self, context, table, schema):
         self.calls.append(("delete_all", table, schema))
 
-    def _delete_partition(self, table, schema, column, value):
+    def _delete_partition(self, context, table, schema, column, value):
         self.calls.append(("delete_partition", table, schema, column, value))
 
-    def _select_all(self, table, schema):
+    def _select_all(self, context, table, schema):
         self.calls.append(("select_all", table, schema))
         return [{"v": 1}]
 
-    def _select_partition(self, table, schema, column, value):
+    def _select_partition(self, context, table, schema, column, value):
         self.calls.append(("select_partition", table, schema, column, value))
         return [{"v": 1}]
 
-    def _count_by_partition(self, table, schema, column):
+    def _count_by_partition(self, context, table, schema, column):
         self.calls.append(("count_by_partition", table, schema, column))
         return {}
 

@@ -473,8 +473,8 @@ class TestSource:
         # Assets should inherit the dataset
         assert source_instance.assets["asset1"].dataset == "my_dataset"
 
-    def test_dataset_defaults_to_source_name(self):
-        """Test that assets default to source name as dataset when source dataset is not set."""
+    def test_dataset_none_when_not_set(self):
+        """Test that assets have dataset=None when source dataset is not set."""
 
         @il.source  # No dataset specified
         class MySource:
@@ -487,10 +487,10 @@ class TestSource:
                 return asset1
 
         source_instance = MySource()
-        # Assets should default to source name as dataset
-        assert source_instance.assets["asset1"].dataset == "MySource"
+        # Assets should have None dataset when not explicitly set
+        assert source_instance.assets["asset1"].dataset is None
         assert source_instance.assets["asset1"].qualified_key == "MySource.asset1"
-        assert source_instance.assets["asset2"].dataset == "MySource"
+        assert source_instance.assets["asset2"].dataset is None
         assert source_instance.assets["asset2"].qualified_key == "MySource.asset2"
 
         # DAG should be able to resolve dependencies
