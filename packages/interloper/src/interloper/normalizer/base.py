@@ -51,6 +51,19 @@ class Normalizer:
     # Public API
     # ------------------------------------------------------------------
 
+    def is_empty(self, data: Any) -> bool:
+        """Check whether normalized data is empty.
+
+        Subclasses override this to handle their native types (e.g. DataFrame).
+
+        Args:
+            data: Normalized output from :meth:`normalize`.
+
+        Returns:
+            ``True`` if the data contains no rows.
+        """
+        return not data
+
     def normalize(self, data: Any) -> list[dict[str, Any]]:
         """Normalize *data* to ``list[dict]`` with configured transformations.
 

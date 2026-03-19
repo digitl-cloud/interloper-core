@@ -83,8 +83,8 @@ def get_all_sources() -> dict[str, tuple[il.SourceDefinition, type[il.Config] | 
 
 DESTINATION_REGISTRY: dict[str, type[Destination]] = {
     "PostgreSQL": PostgresDestination,
-    "MySQL":      MySQLDestination,
-    "BigQuery":   BigQueryDestination,
+    "MySQL": MySQLDestination,
+    "BigQuery": BigQueryDestination,
 }
 
 

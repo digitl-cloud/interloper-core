@@ -235,6 +235,7 @@ class AmazonAds:
         tags=["Entity"],
     )
     def profiles(self) -> pd.DataFrame:
+        """Amazon Ads profiles."""
         response = self.client.get("/v2/profiles")
         response.raise_for_status()
         return pd.DataFrame(response.json())

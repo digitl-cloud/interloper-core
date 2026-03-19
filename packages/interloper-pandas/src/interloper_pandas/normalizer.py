@@ -29,6 +29,15 @@ class DataFrameNormalizer(Normalizer):
     ``fill_missing``, ``infer``.
     """
 
+    def is_empty(self, data: Any) -> bool:
+        """Check whether normalized data is empty.
+
+        Handles both ``DataFrame`` and ``list`` results.
+        """
+        if isinstance(data, pd.DataFrame):
+            return data.empty
+        return not data
+
     def normalize(self, data: Any) -> pd.DataFrame:
         """Normalize *data* to a ``DataFrame`` with configured transformations.
 

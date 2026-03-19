@@ -350,17 +350,52 @@ class Asset(Component):
             metadata=metadata,
         )
 
-        # Build function kwargs with dependency resolution
-        kwargs = self._build_kwargs(context, partition_or_window, dag)
-
-        # Execute core function
         exec_metadata = self._event_metadata(metadata or {}, partition_or_window)
         msg = f"Executing '{self.qualified_key}'"
         emit(EventType.ASSET_EXEC_STARTED, metadata={**exec_metadata, "message": msg})
+
         try:
+            # Execute core function
+            # Build function kwargs with dependency resolution
+            kwargs = self._build_kwargs(context, partition_or_window, dag)
             result = self.func(**kwargs)
             msg = f"Executed '{self.qualified_key}'"
+
+            # Apply normalizer if configured
+            if self.normalizer is not None:
+                from interloper.normalizer.strategy import MaterializationStrategy
+
+                result = self.normalizer.normalize(result)
+
+                # Skip schema inference/validation when no data was produced
+                if self.normalizer.is_empty(result):
+                    context.logger.warning(f"Asset '{self.qualified_key}': no data produced")
+                    return result
+
+                strategy = self.strategy or MaterializationStrategy.AUTO
+
+                if strategy == MaterializationStrategy.RECONCILE:
+                    if self.schema is None:
+                        raise AssetError(f"Asset '{self.qualified_key}': strategy='reconcile' requires a schema.")
+                    result = self.normalizer.reconcile(result, self.schema)
+
+                elif strategy == MaterializationStrategy.STRICT:
+                    if self.schema is None:
+                        raise AssetError(f"Asset '{self.qualified_key}': strategy='strict' requires a schema.")
+                    self.normalizer.validate_schema(result, self.schema, strict=True)
+
+                else:
+                    if self.schema is None and self.normalizer.infer:
+                        self.schema = self.normalizer.infer_schema(result)
+                    elif self.schema is not None:
+                        self.normalizer.validate_schema(result, self.schema)
+
+            elif self.schema is not None:
+                self._validate_schema(result)
+
+            # TODO: ASSET_EXEC events covers here: run + normalizer. Should we split them?
             emit(EventType.ASSET_EXEC_COMPLETED, metadata={**exec_metadata, "message": msg})
+
         except Exception as e:
             emit(
                 EventType.ASSET_EXEC_FAILED,
@@ -372,32 +407,6 @@ class Asset(Component):
                 },
             )
             raise
-
-        # Apply normalizer if configured
-        if self.normalizer is not None:
-            from interloper.normalizer.strategy import MaterializationStrategy
-
-            result = self.normalizer.normalize(result)
-            strategy = self.strategy or MaterializationStrategy.AUTO
-
-            if strategy == MaterializationStrategy.RECONCILE:
-                if self.schema is None:
-                    raise AssetError(f"Asset '{self.qualified_key}': strategy='reconcile' requires a schema.")
-                result = self.normalizer.reconcile(result, self.schema)
-
-            elif strategy == MaterializationStrategy.STRICT:
-                if self.schema is None:
-                    raise AssetError(f"Asset '{self.qualified_key}': strategy='strict' requires a schema.")
-                self.normalizer.validate_schema(result, self.schema, strict=True)
-
-            else:
-                if self.schema is None and self.normalizer.infer:
-                    self.schema = self.normalizer.infer_schema(result)
-                elif self.schema is not None:
-                    self.normalizer.validate_schema(result, self.schema)
-
-        elif self.schema is not None:
-            self._validate_schema(result)
 
         return result
 
@@ -507,9 +516,7 @@ class Asset(Component):
             read_dest = upstream_asset.destination
 
         if read_dest is None:
-            raise AssetError(
-                f"No destination found for upstream asset '{upstream_asset.qualified_key}'"
-            )
+            raise AssetError(f"No destination found for upstream asset '{upstream_asset.qualified_key}'")
 
         if upstream_asset.partitioning is not None:
             effective_partition_or_window = partition_or_window
@@ -523,9 +530,7 @@ class Asset(Component):
         )
 
         dest_label = f"{read_dest}[{read_dest_key}]" if read_dest_key else str(read_dest)
-        dest_metadata = self._event_metadata(
-            metadata, effective_partition_or_window, destination_key=read_dest_key
-        )
+        dest_metadata = self._event_metadata(metadata, effective_partition_or_window, destination_key=read_dest_key)
         msg = f"Reading '{upstream_asset.qualified_key}' from {dest_label}"
         emit(EventType.DEST_READ_STARTED, metadata={**dest_metadata, "message": msg})
         try:
@@ -539,14 +544,10 @@ class Asset(Component):
                     **dest_metadata,
                     "error": str(e),
                     "traceback": traceback.format_exc(),
-                    "message": (
-                        f"Failed to read '{upstream_asset.qualified_key}' from {dest_label}: {e}"
-                    ),
+                    "message": (f"Failed to read '{upstream_asset.qualified_key}' from {dest_label}: {e}"),
                 },
             )
-            raise AssetError(
-                f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}"
-            ) from e
+            raise AssetError(f"Failed to load data from upstream asset '{upstream_asset.qualified_key}': {e}") from e
 
         return result
 
@@ -598,9 +599,7 @@ class Asset(Component):
                     )
 
                 upstream_asset = dag.asset_map[upstream_key]
-                kwargs[param_name] = self._destination_read(
-                    upstream_asset, partition_or_window, context.metadata
-                )
+                kwargs[param_name] = self._destination_read(upstream_asset, partition_or_window, context.metadata)
 
         return kwargs
 
